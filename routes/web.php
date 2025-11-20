@@ -9,6 +9,8 @@ use App\Models\Credential;
 use App\Http\Controllers\Admin\LeadEmpresaController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\ImageController;
+use App\Http\Controllers\FolderController;
+use App\Http\Controllers\LibraryEntryController;
 use App\Http\Controllers\LeadController; 
 use App\Http\Controllers\TokensController;
 use App\Http\Controllers\Admin\DashboardController; 
@@ -41,6 +43,7 @@ Route::get('/lp/odonto', function () {return view('lp.ondonto');});
 Route::get('/workshop', [LandingPageController::class, 'workshop'])->name('workshop');
 Route::get('/workshop-b', function () {return view('lp.workshop-v10');});
 Route::get('/exemplos/pizza', function () {return view('exemplos.pizza');});
+Route::get('/biblioteca/{slug}', [LibraryEntryController::class, 'publicShow'])->name('library.public.show');
 
 //AGENDAS PÚBLICAS
 // Rota para a página pública de agendamento (o ponto de entrada do seu agendador em Blade/Alpine)
@@ -107,8 +110,15 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
+    //PASTAS DE IMAGENS
+    Route::resource('folders', FolderController::class)->only(['store', 'update', 'destroy']);
+
     //CRIAR IMAGENS
+    Route::post('/images/move', [ImageController::class, 'move'])->name('images.move');
     Route::resource('images', ImageController::class)->only(['index', 'store', 'destroy']);
+
+    //BIBLIOTECA DE TEXTOS
+    Route::resource('library', LibraryEntryController::class)->except(['show']);
 
     //CHATS
     Route::resource('chats', ChatController::class)->only(['index', 'update', 'destroy']);

@@ -7,14 +7,42 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class ImageController extends Controller
 {
     // Mostra a galeria de imagens do usuário
-    public function index()
+    public function index(Request $request)
     {
-        $images = Auth::user()->images()->latest()->paginate(12); // Paginação para não carregar tudo de vez
-        return view('images.index', compact('images')); 
+        $user = Auth::user();
+        $folderId = $request->input('folder_id');
+        $currentFolder = null;
+        $showFolders = false;
+
+        $imagesQuery = $user->images()->with('folder')->latest();
+
+        if ($folderId === 'none') {
+            $imagesQuery->whereNull('folder_id');
+            $showFolders = false;
+        } elseif ($folderId) {
+            $currentFolder = $user->folders()->find($folderId);
+            if ($currentFolder) {
+                $imagesQuery->where('folder_id', $currentFolder->id);
+            } else {
+                $folderId = null;
+            }
+            $showFolders = false;
+        } else {
+            // Estado "todas": mostra as pastas e apenas os arquivos sem pasta
+            $imagesQuery->whereNull('folder_id');
+            $showFolders = true;
+        }
+
+        $images = $imagesQuery->paginate(12);
+        $folders = $user->folders()->orderBy('name')->get();
+        $selectedFolderId = $folderId;
+
+        return view('images.index', compact('images', 'folders', 'selectedFolderId', 'currentFolder', 'showFolders')); 
     } 
 
     // Salva a nova imagem
@@ -30,6 +58,11 @@ class ImageController extends Controller
                 'mimetypes:video/mp4,video/quicktime,image/jpeg,image/png,image/jpg,application/pdf,audio/mpeg,audio/mp3',
                 // Aumenta o limite para 20MB (20480 KB) - ajuste conforme necessário
                 'max:20480', 
+            ],
+            'folder_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('folders', 'id')->where('user_id', Auth::id()),
             ],
         ]);
 
@@ -48,6 +81,7 @@ class ImageController extends Controller
 
         // Cria o registro no banco de dados
         $user->images()->create([
+            'folder_id' => $request->input('folder_id'),
             'path' => $path,
             'original_name' => $file->getClientOriginalName(),
             'size' => round($file->getSize() / 1024), // Salva o tamanho em KB
@@ -55,6 +89,30 @@ class ImageController extends Controller
 
         return back()->with('success', 'Imagem enviada com sucesso!');
     } 
+
+    public function move(Request $request)
+    {
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'images' => ['required', 'array', 'min:1'],
+            'images.*' => [
+                'integer',
+                Rule::exists('images', 'id')->where('user_id', $user->id),
+            ],
+            'folder_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('folders', 'id')->where('user_id', $user->id),
+            ],
+        ]);
+
+        $user->images()
+            ->whereIn('id', $validated['images'])
+            ->update(['folder_id' => $validated['folder_id'] ?? null]);
+
+        return back()->with('success', 'Imagens movidas com sucesso.');
+    }
 
     // Exclui uma imagem
     public function destroy(Image $image)

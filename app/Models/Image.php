@@ -12,6 +12,7 @@ class Image extends Model
 
     protected $fillable = [
         'user_id',
+        'folder_id',
         'path',
         'original_name',
         'size',
@@ -24,6 +25,11 @@ class Image extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function folder()
+    {
+        return $this->belongsTo(Folder::class);
     }
 
     // Acessor: Gera a URL pública completa para a imagem

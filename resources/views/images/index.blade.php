@@ -30,7 +30,6 @@
 
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            
             <!-- Seção de Upload -->
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-8">
                 <div class="p-6 text-gray-900">
@@ -45,6 +44,15 @@
                                 <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
                             @enderror
                             <p class="mt-2 text-xs text-gray-500">PNG, JPG ou MP4. Máximo de 2MB.</p>
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm text-gray-600 mb-1" for="folder_id">Pasta (opcional)</label>
+                            <select name="folder_id" id="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full md:w-60">
+                                <option value="">Sem pasta</option>
+                                @foreach($folders as $folder)
+                                    <option value="{{ $folder->id }}">{{ $folder->name }}</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="mt-4">
                             <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Enviar</button>
@@ -63,6 +71,108 @@
                         <div class="mb-4 p-4 bg-red-100 text-red-700 rounded-lg" role="alert">{{ session('error') }}</div>
                     @endif
 
+                    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm text-gray-700 font-semibold">Você está em:</span>
+                            <span class="text-sm text-gray-900">
+                                @if($currentFolder)
+                                    Pasta: {{ $currentFolder->name }} ({{ $images->total() }} arquivos)
+                                @elseif($selectedFolderId === 'none')
+                                    Sem pasta ({{ $images->total() }} arquivos)
+                                @else
+                                    Todas as pastas — arquivos sem pasta ({{ $images->total() }} arquivos)
+                                @endif
+                            </span>
+                        </div>
+                        @if($currentFolder || $selectedFolderId === 'none')
+                            <a href="{{ route('images.index') }}" class="inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                                Voltar
+                            </a>
+                        @else
+                            <form method="GET" action="{{ route('images.index') }}" class="flex flex-wrap items-center gap-3">
+                                <label for="filter-folder" class="text-sm text-gray-700">Filtrar por pasta:</label>
+                                <select id="filter-folder" name="folder_id" class="border rounded-lg px-3 py-2 text-sm" onchange="this.form.submit()">
+                                    <option value="" {{ empty($selectedFolderId) ? 'selected' : '' }}>Todas</option>
+                                    <option value="none" {{ $selectedFolderId === 'none' ? 'selected' : '' }}>Sem pasta</option>
+                                    @foreach($folders as $folder)
+                                        <option value="{{ $folder->id }}" {{ (string)$selectedFolderId === (string)$folder->id ? 'selected' : '' }}>
+                                            {{ $folder->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </form>
+                        @endif
+                    </div>
+
+                    @if($currentFolder)
+                        <div class="mb-4 flex items-center gap-3 flex-wrap">
+                            <form action="{{ route('folders.update', $currentFolder) }}" method="POST" class="flex items-center gap-2">
+                                @csrf
+                                @method('PUT')
+                                <input type="text" name="name" value="{{ $currentFolder->name }}" class="border rounded-lg px-3 py-2 text-sm w-52" required>
+                                <button type="submit" class="bg-blue-600 text-white text-sm font-semibold px-3 py-2 rounded-lg inline-flex items-center gap-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    Renomear
+                                </button>
+                            </form>
+                            <form action="{{ route('folders.destroy', $currentFolder) }}" method="POST" onsubmit="return confirm('Excluir pasta? Certifique-se de que ela esteja vazia.');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="bg-red-600 text-white text-sm font-semibold px-3 py-2 rounded-lg inline-flex items-center gap-1">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    Excluir pasta
+                                </button>
+                            </form>
+                        </div>
+                    @endif
+
+                    <form id="move-form" action="{{ route('images.move') }}" method="POST" class="mb-4">
+                        @csrf
+                        <div id="selection-bar" class="hidden bg-blue-50 border border-blue-100 text-blue-800 rounded-lg p-3 flex flex-wrap items-center gap-3">
+                            <span class="text-sm font-semibold">Itens selecionados: <span id="selected-count">0</span></span>
+                            <select name="folder_id" class="border rounded-lg px-3 py-2 text-sm">
+                                <option value="">Mover para: Sem pasta</option>
+                                @foreach($folders as $folder)
+                                    <option value="{{ $folder->id }}">{{ $folder->name }}</option>
+                                @endforeach
+                            </select>
+                            <div id="move-form-images"></div>
+                            <button type="submit" class="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">Mover selecionados</button>
+                        </div>
+                    </form>
+
+                    @if($showFolders)
+                        <div class="mb-6 space-y-3">
+                            <div class="flex items-center justify-between flex-wrap gap-3">
+                                <h3 class="text-md font-semibold text-gray-800">Pastas</h3>
+                                <form action="{{ route('folders.store') }}" method="POST" class="flex flex-wrap items-end gap-3">
+                                    @csrf
+                                    <div>
+                                        <label class="block text-sm text-gray-600 mb-1" for="folder-name-inline">Nova pasta</label>
+                                        <input id="folder-name-inline" type="text" name="name" required maxlength="255" class="border rounded-lg px-3 py-2 text-sm w-52" placeholder="Nome da pasta">
+                                    </div>
+                                    <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm">Criar</button>
+                                </form>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                @forelse($folders as $folder)
+                                    <a href="{{ route('images.index', ['folder_id' => $folder->id]) }}" class="border rounded-lg p-3 flex items-center gap-2 hover:border-blue-500 transition">
+                                        <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 7l2-3h5l2 3h10v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"></path></svg>
+                                        <span class="font-semibold text-gray-800 truncate">{{ $folder->name }}</span>
+                                    </a>
+                                @empty
+                                    <p class="text-sm text-gray-600">Nenhuma pasta criada ainda.</p>
+                                @endforelse
+                            </div>
+                        </div>
+                    @endif
+
+                    @if(!$showFolders && !$currentFolder)
+                        <p class="text-sm text-gray-700 mb-2 font-semibold">Arquivos sem pasta</p>
+                    @endif
+
                     <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                        @forelse ($images as $file)
     @php
@@ -74,6 +184,9 @@
     @endphp
 
     <div x-data="{ url: '{{ $file->url }}' }" class="relative group border rounded-lg overflow-hidden">
+        <label class="absolute top-2 left-2 z-20 bg-white/80 rounded-md p-1 shadow">
+            <input type="checkbox" class="image-checkbox h-4 w-4" data-image-id="{{ $file->id }}">
+        </label>
         @if($isVideo)
             {{-- Imagem padrão para vídeos --}}
             <div class="h-40 w-full bg-gray-800 flex items-center justify-center relative">
@@ -107,6 +220,7 @@
             <div class="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                 <p class="font-semibold truncate">{{ $file->original_name }}</p>
                 <p>{{ $file->size }} KB</p>
+                <p class="mt-1">Pasta: {{ $file->folder->name ?? 'Sem pasta' }}</p>
             </div>
 
             {{-- Ações --}}
@@ -138,4 +252,38 @@
             </div>
         </div>
     </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const checkboxes = Array.from(document.querySelectorAll('.image-checkbox'));
+        const selectionBar = document.getElementById('selection-bar');
+        const selectedCount = document.getElementById('selected-count');
+        const moveForm = document.getElementById('move-form');
+        const imagesContainer = document.getElementById('move-form-images');
+
+        const updateSelection = () => {
+            const selected = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.imageId);
+            selectedCount.textContent = selected.length;
+            selectionBar.classList.toggle('hidden', selected.length === 0);
+        };
+
+        checkboxes.forEach(cb => cb.addEventListener('change', updateSelection));
+
+        moveForm.addEventListener('submit', (event) => {
+            const selected = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.imageId);
+            if (selected.length === 0) {
+                event.preventDefault();
+                return;
+            }
+            imagesContainer.innerHTML = '';
+            selected.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'images[]';
+                input.value = id;
+                imagesContainer.appendChild(input);
+            });
+        });
+    });
+</script>
 </x-app-layout>

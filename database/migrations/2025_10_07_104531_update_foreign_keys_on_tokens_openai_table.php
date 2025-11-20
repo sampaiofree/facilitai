@@ -37,17 +37,28 @@ return new class extends Migration
 
     private function dropForeignIfExists(string $table, string $foreignName): void
     {
-        $exists = DB::select("SELECT CONSTRAINT_NAME
-                              FROM information_schema.KEY_COLUMN_USAGE
-                              WHERE TABLE_SCHEMA = DATABASE()
-                                AND TABLE_NAME = ?
-                                AND CONSTRAINT_NAME = ?",
-                              [$table, $foreignName]);
+        $shouldDrop = false;
 
-        if (!empty($exists)) {
-            Schema::table($table, function (Blueprint $table) use ($foreignName) {
-                $table->dropForeign($foreignName);
-            });
+        try {
+            $schemaManager = Schema::getConnection()->getDoctrineSchemaManager();
+            foreach ($schemaManager->listTableForeignKeys($table) as $foreignKey) {
+                if ($foreignKey->getName() === $foreignName) {
+                    $shouldDrop = true;
+                    break;
+                }
+            }
+        } catch (\Throwable $exception) {
+            $shouldDrop = true;
+        }
+
+        if ($shouldDrop) {
+            try {
+                Schema::table($table, function (Blueprint $table) use ($foreignName) {
+                    $table->dropForeign($foreignName);
+                });
+            } catch (\Throwable $exception) {
+                // ignore missing constraint or unsupported driver
+            }
         }
     }
 

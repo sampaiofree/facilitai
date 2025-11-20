@@ -187,6 +187,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(\App\Models\Image::class);
     }
 
+    public function libraryEntries()
+    {
+        return $this->hasMany(\App\Models\LibraryEntry::class);
+    }
+
+    public function folders()
+    {
+        return $this->hasMany(\App\Models\Folder::class);
+    }
+
     public function hotmartWebhooks()
     {
         //RETORNA A OFERTA OU NULL
