@@ -1,0 +1,342 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Credential;
+use App\Services\OpenAIService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use App\Services\PromptBuilderService;
+use App\Models\Payment;
+use App\Models\Assistant;
+use App\Models\Chat;
+
+class AssistantController extends Controller
+{
+    // Apenas carrega a página principal com a lista de credenciais
+    // Em app/Http/Controllers/AssistantController.php
+
+
+
+    public function index()
+    {
+        $user = Auth::user();
+
+        // LÓGICA SIMPLIFICADA: Sempre busca os assistentes do nosso banco de dados.
+        $assistants = $user->assistants()->with('credential')->get();
+        
+        // As permissões continuam sendo importantes.
+        
+        $availableSlots = $user->availableAssistantSlots(); 
+        //$credentials = $user->credentials;
+        
+        return view('assistants.index', [
+            'assistants' => $assistants,
+            //'credentials' => $credentials,
+            'availableSlots' => $availableSlots,
+            
+        ]);
+    }
+
+    // Busca a lista de assistentes de uma credencial específica
+    /*public function fetchAssistants(Request $request)
+    {
+        $validated = $request->validate(['credential_id' => 'required|integer']);
+        $credential = Credential::where('id', $validated['credential_id'])
+                                ->where('user_id', Auth::id())
+                                ->firstOrFail();
+
+        try {
+            $openaiService = new OpenAIService($credential->token);
+            $assistants = $openaiService->listAssistants();
+            return response()->json($assistants);
+        } catch (\Exception $e) {
+            Log::error("Falha ao buscar assistentes para a credencial ID {$credential->id}: " . $e->getMessage());
+            return response()->json(['error' => 'Não foi possível buscar os assistentes.'], 500);
+        }
+    }*/
+
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'instructions' => 'required|string',
+            'credential_id' => 'nullable',
+        ]);
+
+        // Busca a credencial para garantir que ela pertence ao usuário e para obter o token
+        $credential = Credential::where('id', $validated['credential_id'])
+                                ->where('user_id', Auth::id())
+                                ->firstOrFail();
+        try {
+            $openaiService = new OpenAIService($credential->token);
+
+            // Define as ferramentas padrão que todo assistente terá
+            $tools = [
+            [
+                'type' => 'function',
+                'function' => [ // <-- O valor é um único objeto
+                    'name' => 'buscar_get',
+                    'description' => 'Busca informações via GET em tempo real de uma URL para responder perguntas que exigem dados atuais.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'url' => [
+                                'type' => 'string',
+                                'description' => 'A URL completa da fonte da informação.'
+                            ],
+                        ],
+                        'required' => ['url'],
+                    ],
+                ]
+            ],
+            [
+                'type' => 'function',
+                'function' => [ // <-- O valor é um único objeto
+                    'name' => 'enviar_imagem',
+                    'description' => 'Envia imagem usando uma url. Sempre que for necessário enviar uma imagem para um usuário use esta ferramenta.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'url' => [
+                                'type' => 'string',
+                                'description' => 'A URL da imagem que será enviada.'
+                            ],
+                        ],
+                        'required' => ['url'],
+                    ],
+                ]
+            ],
+            [
+                'type' => 'function',
+                'function' => [ // <-- O valor é um único objeto
+                    'name' => 'notificar_adm',
+                    'description' => 'Notifica um administrador humano quando a conversa precisa de intervenção ou escalonamento.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'numeros_telefone' => [
+                                'type' => 'array',
+                                'items' => ['type' => 'string'],
+                                'description' => 'Lista de números de telefone dos administradores com o codigo do api, apenas número sem espaços.'
+                            ],
+                            'mensagem' => [
+                                'type' => 'string',
+                                'description' => 'A mensagem a ser enviada para os administradores.'
+                            ],
+                        ],
+                        'required' => ['numeros_telefone', 'mensagem'],
+                    ],
+                ]
+            ],
+        ];
+
+            $openaiAssistant = $openaiService->createAssistant($validated['name'], $validated['instructions'], $tools);
+
+            // Retorna o assistente recém-criado como JSON
+            return response()->json($openaiAssistant);
+
+        } catch (\Exception $e) {
+            //dd($e);
+            Log::error("Falha ao criar assistente via API para o usuário " . Auth::id() . ": " . $e->getMessage());
+            return response()->json(['error' => 'Falha ao criar assistente na OpenAI.'], 500);
+        }
+    }
+
+    public function destroy(Assistant $assistant)
+    {
+        if ($assistant->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        // Exclui os chats relacionados
+        //Chat::where('assistant_id', $assistant->id)->delete();
+
+        // Exclui o assistente localmente
+        $assistant->delete();
+
+        return redirect()->route('assistants.index')->with('success', 'Assistente excluído com sucesso!');
+    }
+
+
+    // Em app/Http\Controllers/AssistantController.php
+
+    // ... (outros métodos como index, fetchAssistants, etc.)
+
+    /**
+     * Mostra a página do "Assistente de Criação" (o quiz).
+     */
+    public function showBuilder()
+    {
+        $user = Auth::user();
+
+        // Segurança: Só permite entrar no builder se tiver slots disponíveis
+        if ($user->availableAssistantSlots() <= 0) {
+            return redirect()->route('assistants.index')
+                ->with('error', 'Você não tem slots disponíveis para criar um novo assistente.');
+        }
+
+        // Pega as credenciais do usuário para a lista suspensa (se ele puder gerenciá-las)
+        $credentials = $user->credentials;
+        
+        return view('assistants.builder', [
+            'credentials' => $credentials,
+            
+        ]);
+    }
+
+    /**
+     * Recebe os dados do quiz, constrói o prompt e cria o assistente.
+     */
+    public function storeFromBuilder(Request $request)
+    {
+        $user = Auth::user();
+
+        // 1. VERIFICAÇÃO DE SLOT
+        // Segurança extra para garantir que o usuário ainda tem slots, mesmo que tenha deixado a página aberta.
+        if ($user->availableAssistantSlots() <= 0) {
+            return redirect()->route('assistants.index')->with('error', 'Você não tem mais slots disponíveis.');
+        }
+       
+
+        $validated = $request->validate([
+            //'credential_id'    => 'nullable|integer|exists:credentials,id',
+            'delay'    => 'required|int',
+            //'modelo'    => 'required|string',
+            'assistant_name'   => 'required|string|max:255',
+            'main_function'    => 'required|string',
+            'target_audience'  => 'required|string',
+            'tone_of_voice'    => 'required|string',
+            'important_info'   => 'nullable|string',
+            'restrictions'     => 'nullable|string',
+            'first_message'    => 'required|string',
+            'step_by_step'     => 'required|array',
+            'step_by_step.*'   => 'required|string|max:1000',
+            'situations'       => 'nullable|array',
+            'situations.*.situation' => 'nullable|string|max:1000',
+            'situations.*.response'  => 'nullable|string|max:1000',
+            'admin_phones'     => 'nullable|array',
+            'admin_phones.*'   => 'nullable|string|max:20',
+        ]);
+        
+
+       try {
+        // 4. PREPARAR DADOS PARA A CRIAÇÃO
+           
+        
+        /*if($validated['credential_id']){
+
+            $credential = null;
+            $apiKey = null; 
+            $credential = Credential::findOrFail($validated['credential_id']); //dd($credential); exit;
+            $apiKey = $credential->token;
+            if ($credential->user_id !== Auth::id()) {abort(403, 'Acesso não autorizado a esta credencial.');}
+
+            // Se a API key estiver vazia por algum motivo, para o processo.
+            if (empty($apiKey)) {throw new \Exception('A chave de API da OpenAI não está configurada para esta operação.');}
+            if($credential){$credential_id = $credential->id;}
+        }else{
+            $credential_id = null;
+        }*/
+
+
+        // 2. Usar o PromptBuilderService para construir as instruções
+        Log::info('Iniciando construção do prompt a partir do quiz.');
+        $promptBuilder = new PromptBuilderService();
+        
+        $instructions = $promptBuilder->build($validated);
+        
+        // Log para depuração - veja o prompt gerado!
+        Log::debug('Prompt gerado pelo Builder: ' . $instructions);
+
+        //dd($credential->user_id); exit;
+        // Segurança: Garante que a credencial pertence ao usuário logado
+        
+
+        // OpenAIService para criar o assistente
+        //$openaiService = new OpenAIService($apiKey);
+        //$openaiAssistant = $openaiService->createAssistant($validated['assistant_name'],$instructions,);
+        
+        
+        // Vinculando tudo: usuário, pagamento e a credencial (se for premium)
+        $assistant = new Assistant();
+        $assistant->user_id = $user->id;
+        $assistant->payment_id = $paymentSlot->id ?? null; // Vincula ao slot de pagamento
+        //$assistant->credential_id = $credential_id; // Vincula à credencial do usuário, se houver
+        //$assistant->openai_assistant_id = $openaiAssistant->id;
+        $assistant->name = $validated['assistant_name'];
+        $assistant->delay = $validated['delay'];
+        //$assistant->modelo = $validated['modelo'];
+        $assistant->instructions = $instructions; // Salva o prompt gerado para referência
+        $assistant->save();
+        
+        return redirect()->route('assistants.index')
+            ->with('success', 'Seu novo assistente foi criado com sucesso!');
+
+        } catch (\Exception $e) {
+            Log::error("Falha ao criar assistente a partir do quiz: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return back()->withInput()->with('error', 'Ocorreu um erro ao criar seu assistente. Verifique os logs para detalhes.');
+        }
+    }
+
+    // Em app/Http/Controllers/AssistantController.php
+
+    /**
+     * Mostra o formulário para editar um assistente específico.
+     */
+    public function edit(Assistant $assistant)
+    {
+        // Segurança: Garante que o usuário só pode editar seus próprios assistentes
+        if ($assistant->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $user = Auth::user();
+        $credentials = $user->credentials;
+        
+        return view('assistants.edit', compact('assistant', 'credentials'));
+    }
+
+    /**
+     * Processa a atualização de um assistente.
+     */
+    public function update(Request $request, Assistant $assistant)
+    {
+        // Segurança
+        if ($assistant->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        // Validação dos dados do formulário
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'instructions' => 'required|string',
+            'credential_id' => 'nullable|integer|exists:credentials,id',
+            'delay' => 'required|int',
+            //'modelo' => 'required|string',
+        ]); 
+
+        try {
+            // 3. Atualizar os dados no nosso banco de dados local
+            $assistant->version = $assistant->version + 1;
+            $assistant->update($validated);
+
+            //dd($assistant);
+
+            //Chat::where('assistant_id', (string)$assistant->id)->delete();
+            //Chat::where('assistant_id', (string)$assistant->id)->update(['conv_id' => null]);
+
+            //Log::info("Assistente ID {$assistant->id} atualizado localmente e na OpenAI pelo usuário " . Auth::id());
+            
+            return redirect()->route('assistants.index')->with('success', 'Assistente atualizado com sucesso!');
+
+        } catch (\Exception $e) {
+            Log::error("Falha ao atualizar o assistente ID {$assistant->id}: " . $e->getMessage());
+            return back()->withInput()->with('error', 'Ocorreu um erro ao atualizar o assistente.');
+        }
+    }
+}
