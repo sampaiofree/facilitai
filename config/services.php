@@ -53,6 +53,9 @@ return [
     'asaas' =>[
         'token' =>env('ASAAS_ACCESS_TOKEN'),
         'url' =>env('ASAAS_BASE_URL'),
-    ]
+    ],
+    'google' => [
+        'api_key' => env('GOOGLE_API_KEY'),
+    ],
 
 ];

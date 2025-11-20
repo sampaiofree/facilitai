@@ -10,7 +10,7 @@ class BuscarEmpresasService
 
     public function __construct()
     {
-        $this->apiKey = "AIzaSyDO7M1nSX8_yV1CQ1C1QIGBTjzrNTBgLns"; //config('services.google.api_key'); // coloque sua chave em config/services.php
+        $this->apiKey = config('services.google.api_key'); // coloque sua chave em config/services.php 
     }
 
     /**
