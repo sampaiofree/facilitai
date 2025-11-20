@@ -11,6 +11,7 @@ use App\Services\PromptBuilderService;
 use App\Models\Payment;
 use App\Models\Assistant;
 use App\Models\Chat;
+use Illuminate\Support\Str;
 
 class AssistantController extends Controller
 {
@@ -145,6 +146,106 @@ class AssistantController extends Controller
         }
     }
 
+    /**
+     * Wizard simples - exibe a página de criação rápida de assistente.
+     */
+    public function wizard()
+    {
+        $user = Auth::user();
+
+        if ($user->availableAssistantSlots() <= 0) {
+            return redirect()->route('assistants.index')
+                ->with('error', 'Você não tem slots disponíveis para criar um novo assistente.');
+        }
+
+        return view('assistants.wizard');
+    }
+
+    /**
+     * Wizard simples - exibe a página de edição rápida de assistente.
+     */
+    public function editWizard(Assistant $assistant)
+    {
+        $this->authorizeAssistant($assistant);
+
+        return view('assistants.wizard', [
+            'assistant' => $assistant,
+        ]);
+    }
+
+    /**
+     * Wizard simples - salva o assistente localmente com prompts básicos.
+     */
+    public function storeWizard(Request $request)
+    {
+        $user = Auth::user();
+
+        if ($user->availableAssistantSlots() <= 0) {
+            return redirect()->route('assistants.index')
+                ->with('error', 'Você não tem slots disponíveis para criar um novo assistente.');
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'delay' => ['nullable', 'integer', 'min:0'],
+            'instructions' => ['required', 'string'],
+            'prompt_notificar_adm' => ['nullable', 'string'],
+            'prompt_buscar_get' => ['nullable', 'string'],
+            'prompt_enviar_media' => ['nullable', 'string'],
+            'prompt_registrar_info_chat' => ['nullable', 'string'],
+            'prompt_gerenciar_agenda' => ['nullable', 'string'],
+        ]);
+
+        $assistant = Assistant::create([
+            'user_id' => $user->id,
+            'payment_id' => null,
+            'credential_id' => null,
+            'openai_assistant_id' => 'local-' . Str::uuid(),
+            'name' => $validated['name'],
+            'instructions' => $validated['instructions'],
+            'delay' => $validated['delay'] ?? null,
+            'prompt_notificar_adm' => $validated['prompt_notificar_adm'] ?? null,
+            'prompt_buscar_get' => $validated['prompt_buscar_get'] ?? null,
+            'prompt_enviar_media' => $validated['prompt_enviar_media'] ?? null,
+            'prompt_registrar_info_chat' => $validated['prompt_registrar_info_chat'] ?? null,
+            'prompt_gerenciar_agenda' => $validated['prompt_gerenciar_agenda'] ?? null,
+        ]);
+
+        return redirect()->route('assistants.index')->with('success', 'Assistente criado com sucesso.');
+    }
+
+    /**
+     * Wizard simples - atualiza assistente existente.
+     */
+    public function updateWizard(Request $request, Assistant $assistant)
+    {
+        $this->authorizeAssistant($assistant);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'delay' => ['nullable', 'integer', 'min:0'],
+            'instructions' => ['required', 'string'],
+            'prompt_notificar_adm' => ['nullable', 'string'],
+            'prompt_buscar_get' => ['nullable', 'string'],
+            'prompt_enviar_media' => ['nullable', 'string'],
+            'prompt_registrar_info_chat' => ['nullable', 'string'],
+            'prompt_gerenciar_agenda' => ['nullable', 'string'],
+        ]);
+
+        $assistant->update([
+            'name' => $validated['name'],
+            'instructions' => $validated['instructions'],
+            'delay' => $validated['delay'] ?? null,
+            'prompt_notificar_adm' => $validated['prompt_notificar_adm'] ?? null,
+            'prompt_buscar_get' => $validated['prompt_buscar_get'] ?? null,
+            'prompt_enviar_media' => $validated['prompt_enviar_media'] ?? null,
+            'prompt_registrar_info_chat' => $validated['prompt_registrar_info_chat'] ?? null,
+            'prompt_gerenciar_agenda' => $validated['prompt_gerenciar_agenda'] ?? null,
+        ]);
+
+        return redirect()->route('assistants.index')->with('success', 'Assistente atualizado com sucesso.');
+    }
+
     public function destroy(Assistant $assistant)
     {
         if ($assistant->user_id !== Auth::id()) {
@@ -185,6 +286,13 @@ class AssistantController extends Controller
             'credentials' => $credentials,
             
         ]);
+    }
+
+    private function authorizeAssistant(Assistant $assistant): void
+    {
+        if ($assistant->user_id !== Auth::id()) {
+            abort(403);
+        }
     }
 
     /**

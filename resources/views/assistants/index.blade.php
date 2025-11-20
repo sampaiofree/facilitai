@@ -24,8 +24,8 @@
                                             Slots disponíveis: <span class="font-bold text-green-600">{{ $availableSlots }}</span>
                                         @endif
                                     </span>
-                                    <a href="{{ route('assistants.builder') }}" class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">
-                                        Criar Novo Assistente
+                                    <a href="{{ route('assistants.wizard') }}" class="inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">
+                                        Criar Assistente (Wizard)
                                     </a>
                                 </div>
                             @else
@@ -61,7 +61,7 @@
                                         <!--<td class="py-4 px-6 font-mono text-xs">{{ $assistant->modelo ?? 'gpt-4.1-mini' }}</td>-->
                                         <td class="py-4 px-6 text-center">
                                             <div class="flex items-center justify-center space-x-4">
-                                            <a href="{{ route('assistants.edit', $assistant) }}" class="flex items-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-semibold">
+                                            <a href="{{ route('assistants.wizard.edit', $assistant) }}" class="flex items-center space-x-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-semibold">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path>
                                                         </svg>

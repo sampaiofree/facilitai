@@ -162,6 +162,11 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::get('/assistant-builder', [AssistantController::class, 'showBuilder'])->name('assistants.builder');
     // Rota POST para receber os dados do quiz e criar o assistente
     Route::post('/assistant-builder', [AssistantController::class, 'storeFromBuilder'])->name('assistants.store_from_builder');
+    // Novo wizard simples
+    Route::get('/assistants/wizard', [AssistantController::class, 'wizard'])->name('assistants.wizard');
+    Route::post('/assistants/wizard', [AssistantController::class, 'storeWizard'])->name('assistants.wizard.store');
+    Route::get('/assistants/{assistant}/wizard', [AssistantController::class, 'editWizard'])->name('assistants.wizard.edit');
+    Route::put('/assistants/{assistant}/wizard', [AssistantController::class, 'updateWizard'])->name('assistants.wizard.update');
     Route::resource('assistants', AssistantController::class)->except(['create', 'show']);
 
 });

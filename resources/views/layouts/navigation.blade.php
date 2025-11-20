@@ -11,6 +11,7 @@
 
     $ferramentas = [
         ['label' => 'Mídias', 'route' => 'images.index'],
+        ['label' => 'Biblioteca', 'route' => 'library.index'],
     ];
 
     if (Auth::user()->canManageCredentials()) {

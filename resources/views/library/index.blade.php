@@ -79,15 +79,32 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        const copyText = async (text) => {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'absolute';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        };
+
         document.querySelectorAll('.copy-link').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const url = btn.dataset.url;
                 try {
-                    await navigator.clipboard.writeText(url);
+                    await copyText(url);
                     btn.textContent = 'Link copiado!';
+                    showAlert?.('✅ Link copiado!', 'success');
                     setTimeout(() => btn.textContent = 'Copiar link', 1500);
                 } catch (err) {
-                    alert('Não foi possível copiar o link.');
+                    showAlert?.('❌ Não foi possível copiar o link.', 'error');
                 }
             });
         });

@@ -21,6 +21,11 @@ class Assistant extends Model
         'delay', // Adicione este campo
         'modelo', // Adicione este campo
         'version',
+        'prompt_notificar_adm',
+        'prompt_buscar_get',
+        'prompt_enviar_media',
+        'prompt_registrar_info_chat',
+        'prompt_gerenciar_agenda',
     ];
 
     // Relacionamento: Um assistente pertence a um usuário
