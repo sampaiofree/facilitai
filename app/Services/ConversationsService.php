@@ -35,6 +35,7 @@ class ConversationsService
     protected ?Assistant $assistant;
     protected ?EvolutionService $evolutionService;
     protected ?string $conversationId;
+    protected ?string $systemPrompt;
     public bool $ready = true;
     public $credential = null;
    
@@ -76,10 +77,22 @@ class ConversationsService
                     ->first();
                 }
 
+                if($this->assistant){
+                    $this->systemPrompt = 
+                        $this->assistant->systemPrompt ."\n".
+                        $this->assistant->instructions ."\n".
+                        $this->assistant->prompt_notificar_adm ."\n".
+                        $this->assistant->prompt_buscar_get ."\n".
+                        $this->assistant->prompt_enviar_media ."\n".
+                        $this->assistant->prompt_registrar_info_chat ."\n".
+                        $this->assistant->prompt_gerenciar_agenda;
+
+                }
+
                 // COMPARAR VERSIONS E ATUALIZAR HISTÓRICO
                 if ($this->chat && $this->chat->conv_id && $this->chat->version && $this->chat->version !== $this->assistant->version) {
-                    $systemPrompt = $this->assistant->systemPrompt ?? $this->assistant->instructions;
-                    if ($this->createItems($this->chat->conv_id, $systemPrompt)) {
+                    //$systemPrompt = $this->assistant->systemPrompt ?? $this->assistant->instructions;
+                    if ($this->createItems($this->chat->conv_id, $this->systemPrompt)) {
                         // Atualiza o version do chat para igualar ao do assistant
                         $this->chat->version = $this->assistant->version;
                         $this->chat->save();
@@ -123,7 +136,15 @@ class ConversationsService
         }
 
         // 2. Pega os prompts diretamente do objeto Assistant
-        $systemPrompt = $this->assistant->systemPrompt ?? $this->assistant->instructions;
+        /*$systemPrompt = 
+        $this->assistant->systemPrompt ."\n".
+        $this->assistant->instructions ."\n".
+        $this->assistant->prompt_notificar_adm ."\n".
+        $this->assistant->prompt_buscar_get ."\n".
+        $this->assistant->prompt_enviar_media ."\n".
+        $this->assistant->prompt_registrar_info_chat ."\n".
+        $this->assistant->prompt_gerenciar_agenda;*/
+
         //$developerPrompt = $this->assistant->developerPrompt ?? "";
 
         // Monta o payload para a API
@@ -132,7 +153,7 @@ class ConversationsService
                 [
                     'type' => 'message',
                     'role' => 'system',
-                    'content' => $systemPrompt,
+                    'content' => $this->systemPrompt,
                 ],
                 /*[
                     'type' => 'message',
@@ -331,9 +352,9 @@ class ConversationsService
         ]
         ], $input);
 
-        $tools =[
-                //['type' => 'web_search'],
-                [
+        // 2. Define as ferramentas customizadas com base nos prompts do assistente
+        if (str_contains($this->systemPrompt, 'notificar_adm')) {
+            $tools[] = [
                     'type' => 'function',
                     'name' => 'notificar_adm',
                     'description' => <<<TXT
@@ -368,8 +389,10 @@ class ConversationsService
                         'additionalProperties' => false,
                     ],
                     'strict' => true,
-                ],
-                [
+                ];
+        }    
+        if (str_contains($this->systemPrompt, 'enviar_media')) {
+            $tools[] = [
                     'type' => 'function',
                     'name' => 'enviar_media',
                     'description' => <<<TXT
@@ -394,8 +417,10 @@ class ConversationsService
                         'additionalProperties' => false,
                     ],
                     'strict' => true,
-                ],
-                [
+                ];
+        }    
+        if (str_contains($this->systemPrompt, 'buscar_get')) {
+            $tools[] = [
                     'type' => 'function',
                     'name' => 'buscar_get',
                     'description' => <<<TXT
@@ -422,8 +447,10 @@ class ConversationsService
                         'additionalProperties' => false,
                     ],
                     'strict' => true,
-                ],
-                [
+                ];
+        }    
+        if (str_contains($this->systemPrompt, 'registrar_info_chat')) {
+            $tools[] = [
                     'type' => 'function',
                     'name' => 'registrar_info_chat',
                     'description' => <<<TXT
@@ -458,8 +485,9 @@ class ConversationsService
                         'additionalProperties' => false,
                     ],
                     'strict' => true,
-                ],
-            ];
+                ];
+        }
+    
         if(isset($this->instance->agenda_id)){
             $tools[] =
             [
