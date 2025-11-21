@@ -35,8 +35,14 @@ class ProfileController extends Controller
     
     public function conv($conv_id)
     {
-        $op = new ConversationsService(null, null, '176');
-        $itens = $op->getConversationItems($conv_id);
+        $chat = Chat::where('conv_id', $conv_id)->first();
+
+        if (!$chat) {
+            return response()->json(['error' => 'Chat not found'], 404);
+        }
+
+        $op = new ConversationsService(null, $chat->contact, $chat->instance_id);
+        $itens = $op->getConversationItems($chat->conv_id);
         dump($itens)->depth(100);
         die;
 
