@@ -21,6 +21,8 @@ use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\AgendaPublicaController; 
 
 
+Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
+
 //PÁGINAS PUBLICAS
 Route::get('/', function () {return redirect()->route('lp4');})->name('homepage');
 Route::get('/politica', function () {return view('homepage.politica');})->name('politica');
@@ -170,8 +172,6 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::resource('assistants', AssistantController::class)->except(['create', 'show']);
 
 });
-
-Route::get('/teste', [ProfileController::class, 'teste']);
 
 Route::get('/test-credential/{id}', function ($id) {
     // Busca a credencial sem verificar o dono (só para nosso teste)

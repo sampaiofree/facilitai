@@ -33,7 +33,14 @@ class ProfileController extends Controller
 {
 
     
-    
+    public function conv($conv_id)
+    {
+        $op = new ConversationsService(null, null, '176');
+        $itens = $op->getConversationItems($conv_id);
+        dump($itens)->depth(100);
+        die;
+
+    }
 
     public function teste(Request $request)
     {
