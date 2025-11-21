@@ -665,15 +665,41 @@ class ConversationsService
         if(isset($apiResponse['usage']['total_tokens'])){
             $this->registrarTokens($apiResponse['usage']['total_tokens'], $apiResponse['id']);
         }
+
+        // Procura função e última mensagem do assistente antes dela
+        $functionCallFound = false;
+        $assistantMsgBeforeCall = null;
+
+        foreach ($apiResponse['output'] as $item) {
+            if (($item['type'] ?? null) === 'message' && ($item['role'] ?? null) === 'assistant') {
+                $assistantMsgBeforeCall = $item['content'][0]['text'] ?? null;
+            }
+            if (($item['type'] ?? null) === 'function_call') {
+                $functionCallFound = true;
+                break; // para manter a “ultima mensagem antes da função”
+            }
+        }
+
+        if ($functionCallFound) {
+            if ($assistantMsgBeforeCall) {
+                $this->enviar_mensagemEVO($assistantMsgBeforeCall); // envia o “Vou te enviar um áudio...”
+            }
+
+            $mensagem = $this->submitFunctionCall($apiResponse);
+            if (!$mensagem) { return false; }
+
+            $this->enviar_mensagemEVO($mensagem);
+            return true;
+        }
         
         //CHAMADA DE FUNÇÃO
-        if ($lastOutput && isset($lastOutput['type']) && $lastOutput['type'] === 'function_call') {
+        /*if ($lastOutput && isset($lastOutput['type']) && $lastOutput['type'] === 'function_call') {
             // submitFunctionCall agora deve retornar a resposta final da API
             $mensagem = $this->submitFunctionCall($apiResponse);
             if(!$mensagem){return false;}
             $this->enviar_mensagemEVO($mensagem);
             return true;
-        }
+        }*/
 
         //RESPOSTA DO ASSISTENTE
         $mensagem = null; // Inicializa a mensagem como nula
