@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-bold text-3xl text-gray-900 leading-tight">
-            📅 Minhas Agendas Online
+        <h2 class="font-semibold text-2xl text-gray-900 leading-tight">
+            Minhas agendas
         </h2>
     </x-slot>
 
@@ -27,8 +27,8 @@
             {{-- Seção para criar uma nova agenda --}}
             @if ($availableSlots > 0)
                 <div class="p-8 bg-white border border-gray-200 rounded-xl shadow-lg mb-8">
-                    <h3 class="text-2xl font-extrabold text-gray-900 mb-4 flex items-center gap-2">
-                        ✨ Crie uma Nova Agenda
+                    <h3 class="text-2xl font-semibold text-gray-900 mb-4">
+                        Crie uma nova agenda
                     </h3>
                     <p class="text-md text-gray-700 mb-6">
                         Você ainda tem <span class="font-bold text-green-700">{{ $availableSlots }}</span> espaço(s) disponível(is) para novos tipos de agenda. Vamos começar?
@@ -71,11 +71,8 @@
                             </div>
                         </div>
 
-                        <button type="submit" class="bg-indigo-600 text-white px-8 py-3 rounded-xl text-xl font-bold hover:bg-indigo-700 transition duration-300 ease-in-out shadow-md hover:shadow-lg flex items-center gap-3">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Criar Nova Agenda Agora
+                        <button type="submit" class="bg-indigo-600 text-white px-6 py-3 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition duration-200 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 focus-visible:outline-offset-2">
+                            Criar nova agenda
                         </button>
                     </form>
                 </div>
@@ -94,8 +91,8 @@
             @endif
 
             {{-- Lista de agendas existentes --}}
-            <h2 class="font-bold text-3xl text-gray-900 leading-tight mb-8 mt-12 flex items-center gap-3">
-                🗓️ Minhas Agendas Ativas
+            <h2 class="font-bold text-3xl text-gray-900 leading-tight mb-8 mt-12">
+                Minhas agendas ativas
             </h2>
             <p class="text-md text-gray-700 mb-8">
                 Aqui estão todas as agendas que você já criou. Clique em "Gerenciar Horários" para definir seus dias e horários de atendimento, ou edite as informações rápidas de cada uma.
@@ -111,13 +108,24 @@
                                 </svg>
                                 {{ $agenda->titulo }}
                             </h3>
-                            <a href="{{ route('agendas.gerenciar', $agenda) }}"
-                               class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-indigo-200 transition duration-200 flex items-center gap-2 shadow-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                </svg>
-                                Gerenciar Horários
-                            </a>
+                            <div class="flex items-center gap-2">
+                                <a href="{{ route('agendas.gerenciar', $agenda) }}"
+                                   class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-indigo-200 transition duration-200 flex items-center gap-2 shadow-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                                    </svg>
+                                    Gerenciar Horários
+                                </a>
+                                <form action="{{ route('agendas.destroy', $agenda) }}" method="POST"
+                                      onsubmit="return confirm('Deseja remover esta agenda permanentemente?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit"
+                                            class="border border-red-200 text-red-600 px-4 py-2 rounded-full text-sm font-semibold hover:bg-red-50 transition duration-200">
+                                        Excluir
+                                    </button>
+                                </form>
+                            </div>
                         </div>
 
                         <p class="text-md text-gray-700 mb-6">{{ $agenda->descricao ?? 'Esta agenda ainda não tem uma descrição detalhada. Considere adicionar uma para facilitar a identificação.' }}</p>
@@ -198,8 +206,8 @@
 
                         {{-- Form de geração de horários --}}
                         <div x-data="agendaGenerator()" class="pt-6 border-t border-gray-100 mt-6">
-                            <h4 class="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                ➕ Crie Horários Disponíveis para Agendamento
+                            <h4 class="text-xl font-semibold text-gray-900 mb-4">
+                                Crie horários disponíveis para agendamento
                             </h4>
                             <p class="text-md text-gray-700 mb-6">
                                 Use esta ferramenta para gerar seus horários de atendimento para um mês inteiro, de uma vez só!
@@ -261,11 +269,8 @@
                                     </p>
                                 </div>
 
-                                <button type="submit" class="bg-emerald-600 text-white px-8 py-3 rounded-xl text-xl font-bold hover:bg-emerald-700 transition duration-300 ease-in-out shadow-md hover:shadow-lg flex items-center gap-3">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    Gerar Meus Horários para o Mês!
+                                <button type="submit" class="bg-indigo-600 text-white px-6 py-3 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition duration-200 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 focus-visible:outline-offset-2">
+                                    Gerar horários do mês
                                 </button>
                             </form>
                         </div>
