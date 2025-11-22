@@ -343,12 +343,16 @@ class ConversationsService
         $this->conversationId = $this->chat->conv_id ?? $this->createConversation();
 
         //AGORA O ASSISTENTE SABER QUE DIA É HOJE
-        $hoje = now(config('app.timezone', 'America/Sao_Paulo'))->toDateString();
+        $timezone = config('app.timezone', 'America/Sao_Paulo');
+        $hoje = now($timezone);
+        $diaSemana = $hoje->locale('pt_BR')->isoFormat('dddd');
+        $dataPadrao = $hoje->format('Y-m-d');
+        $horaPadrao = $hoje->format('H:i');
         // antes de montar $payload:
         $input = array_merge([
         [
             'role' => 'system',
-            'content' => "Hoje é {$hoje} (timezone: ".config('app.timezone','UTC').")."
+            'content' => "Agora: {$hoje->toIso8601String()} ({$diaSemana}, {$dataPadrao} às {$horaPadrao}, tz: {$timezone})."
         ]
         ], $input);
 
@@ -494,45 +498,16 @@ class ConversationsService
             'type' => 'function',
             'name' => 'gerenciar_agenda',
             'description' => <<<TXT
-                Use esta ferramenta para **consultar, agendar, cancelar ou alterar horários** na agenda do sistema interno.
+                Use esta ferramenta para **consultar, agendar, cancelar ou alterar horários** na agenda interna.
 
-                **Objetivo:** conectar com o sistema de agendamentos e gerenciar horários disponíveis.
+                * Sempre que falarem de horários/agendamentos, chame esta tool.  
+                * **Nunca peça ou mostre IDs**. Envie horário natural (`horario`) e duração (`duracao_minutos`). IDs são só fallback interno.  
+                * Mostre horários assim: “Quarta, 21/02 — 15h00–15h30”.  
+                * Se o usuário não disser mês, use o mês atual. Se preciso, consulte por um intervalo curto (`data_inicio`/`data_fim`).  
+                * Para agendar/alterar, envie o horário exato e a duração do serviço (vem do contexto/prompt).  
+                * Para cancelar/alterar, use o horário original pelo histórico; não peça ID ao usuário.
 
-                * Sempre use esta ferramenta quando o usuário falar sobre **horários, agendamentos, disponibilidade ou reagendamentos**.  
-                * **Nunca mencione ou solicite IDs dos horários** ao usuário. Os IDs são apenas para uso interno no uso da ferramenta.  
-                * Mostre os horários de forma natural, por exemplo:  
-                “Segunda, 06 de outubro — às 12h.”  
-                * Se houver muitos horários, pergunte primeiro o **melhor dia** e depois o **período** (manhã, tarde ou noite).  
-                * Se o usuário disser apenas “tem horário livre?”, consulte o **mês atual** automaticamente.  
-
-                ---
-
-                ### 🔹 Regras principais
-
-                - ✅ **Consultar:** use `"acao": "consultar"` para mostrar horários disponíveis.  
-                Mostre apenas alguns horários e **convide o usuário a escolher dizendo o dia e horário desejado** (exemplo: “Qual desses horários você prefere?”).  
-
-                - ✅ **Agendar:** use `"acao": "agendar"` para reservar um horário.  
-                Use o horário que o usuário escolheu (sem mencionar IDs).  
-                Peça nome e telefone se ainda não tiver.  
-
-                - ✅ **Cancelar:** use `"acao": "cancelar"` para desmarcar um horário.  
-                Confirme com o usuário antes.  
-
-                - ✅ **Alterar:** use `"acao": "alterar"` para trocar um horário.  
-                Confirme o novo horário escolhido antes de executar.  
-
-                ---
-
-                ### ⚠️ Observações
-
-                - O campo **mes** representa o mês (1–12).  
-                - Se o usuário não informar o mês, use o **mês atual**.  
-                - O **ano** é sempre o atual.  
-                - Use **expressões naturais**, nunca códigos técnicos como IDs.  
-                - Se houver dúvida sobre o horário exato, peça confirmação (“Prefere às 12h ou 12h30?”).  
-
-                **Ações suportadas:** consultar, agendar, cancelar, alterar
+                Ações suportadas: consultar, agendar, cancelar, alterar.
                 TXT,
 
 
@@ -548,7 +523,27 @@ class ConversationsService
                         'type' => 'integer',
                         'minimum' => 1,
                         'maximum' => 12,
-                        'description' => "Número do mês (1 a 12). Se não informado, usar mês atual ".date("m")."."
+                        'description' => "Número do mês (1 a 12). Se não informado, usar mês atual."
+                    ],
+                    'data_inicio' => [
+                        'type' => 'string',
+                        'description' => 'Data inicial (YYYY-MM-DD) para consulta em intervalo curto.'
+                    ],
+                    'data_fim' => [
+                        'type' => 'string',
+                        'description' => 'Data final (YYYY-MM-DD) para consulta em intervalo curto.'
+                    ],
+                    'horario' => [
+                        'type' => 'string',
+                        'description' => 'Horário alvo no formato YYYY-MM-DD HH:mm (usado para agendar/alterar/cancelar).'
+                    ],
+                    'horario_antigo' => [
+                        'type' => 'string',
+                        'description' => 'Horário original a ser alterado/cancelado (YYYY-MM-DD HH:mm).'
+                    ],
+                    'duracao_minutos' => [
+                        'type' => 'integer',
+                        'description' => 'Duração do serviço em minutos (ex.: 45).'
                     ],
                     'telefone' => [
                         'type' => 'string',
@@ -560,14 +555,14 @@ class ConversationsService
                     ],
                     'disponibilidade_id' => [
                         'type' => 'integer',
-                        'description' => 'ID da disponibilidade (horário específico) usado para agendar ou cancelar.'
+                        'description' => 'ID da disponibilidade (apenas se já tiver do histórico; não peça ao usuário).'
                     ],
                     'nova_disponibilidade_id' => [
                         'type' => 'integer',
-                        'description' => 'ID da nova disponibilidade (usado em "alterar" para reagendar).'
+                        'description' => 'ID da nova disponibilidade (apenas se já tiver do histórico; não peça ao usuário).'
                     ],
                 ],
-                'required' => ['acao', 'mes'],
+                'required' => ['acao'],
                 'additionalProperties' => false,
             ],
             'strict' => false,
@@ -921,20 +916,28 @@ class ConversationsService
                     'chat_id' => $this->chat->id ?? null,
                     'telefone' => $arguments['telefone'] ?? ($this->chat->contact ?? null),
                     'nome' => $arguments['nome'] ?? ($this->chat->nome ?? null),
+                    'mes' => $arguments['mes'] ?? null,
                     'data_inicio' => $arguments['data_inicio'] ?? null,
                     'data_fim' => $arguments['data_fim'] ?? null,
+                    'horario' => $arguments['horario'] ?? null,
+                    'horario_antigo' => $arguments['horario_antigo'] ?? null,
+                    'duracao_minutos' => $arguments['duracao_minutos'] ?? null,
                     'disponibilidade_id' => $arguments['disponibilidade_id'] ?? null,
                     'nova_disponibilidade_id' => $arguments['nova_disponibilidade_id'] ?? null,
                 ]
-            );
+            ); 
 
             // Padroniza a resposta para o fluxo da OpenAI
             if ($resultado['success'] ?? false) {
+                $dadosAgenda = $resultado['data'] ?? [];
+                $diaMsg = $dadosAgenda['data'] ?? '-';
+                $inicioMsg = $dadosAgenda['inicio'] ?? '-';
+                $fimMsg = $dadosAgenda['fim'] ?? '-';
                 $msg = match ($arguments['acao']) {
                     'consultar' => $this->formatarConsulta($resultado['data']),
-                    'agendar'   => "✅ Horário agendado com sucesso para *{$resultado['data']['data']}* às *{$resultado['data']['inicio']}*!",
-                    'cancelar'  => "🗓️ O horário foi cancelado com sucesso.",
-                    'alterar'   => "🔄 O agendamento foi alterado com sucesso!",
+                    'agendar'   => "✅ Horário agendado com sucesso para *{$diaMsg}* das *{$inicioMsg}* às *{$fimMsg}*.",
+                    'cancelar'  => "🗓️ O horário foi cancelado com sucesso para *{$diaMsg}* às *{$inicioMsg}*.",
+                    'alterar'   => "🔄 O agendamento foi alterado com sucesso para *{$diaMsg}* das *{$inicioMsg}* às *{$fimMsg}*.",
                     default     => "✅ Ação executada com sucesso.",
                 };
             } else {
@@ -963,13 +966,24 @@ class ConversationsService
             return "📅 Nenhum horário disponível no período informado.";
         }
 
+        $colecao = collect($disponibilidades);
+        $limite = 8;
+        $lista = $colecao->take($limite);
+
         $texto = "🗓️ *Horários disponíveis:*\n\n";
-        foreach ($disponibilidades as $disp) {
-            $data = \Carbon\Carbon::parse($disp['data'])->format('d/m');
-            $texto .= "• {$data} - {$disp['inicio']} até {$disp['fim']} (ID: {$disp['id']})\n";
+        foreach ($lista as $disp) {
+            $data = \Carbon\Carbon::parse($disp['data'])->locale('pt_BR')->isoFormat('dddd, DD/MM');
+            $inicio = $disp['inicio'];
+            $fim = $disp['fim'];
+            $texto .= "• {$data} — {$inicio} até {$fim}\n";
         }
 
-        $texto .= "\nEnvie o *ID* do horário que deseja agendar.";
+        if ($colecao->count() > $lista->count()) {
+            $texto .= "\nMostrando alguns horários. Me diga o dia e horário que prefere.";
+        } else {
+            $texto .= "\nQual horário você prefere? Só dizer o dia e horário.";
+        }
+
         return $texto;
     }
 

@@ -96,15 +96,8 @@ class LibraryEntryController extends Controller
     {
         $entry = LibraryEntry::where('slug', $slug)->firstOrFail();
 
-        $converter = new CommonMarkConverter([
-            'html_input' => 'strip',
-            'allow_unsafe_links' => false,
-        ]);
-
-        $rendered = $converter->convert($entry->content)->getContent();
-
-        return response()
-            ->view('library.public-show', compact('entry', 'rendered'))
+        return response($entry->content)
+            ->header('Content-Type', 'text/plain; charset=utf-8')
             ->header('X-Robots-Tag', 'noindex, nofollow');
     }
 
