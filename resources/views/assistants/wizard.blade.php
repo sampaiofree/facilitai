@@ -9,6 +9,8 @@
         'prompt_enviar_media' => old('prompt_enviar_media', $assistant->prompt_enviar_media ?? ''),
         'prompt_registrar_info_chat' => old('prompt_registrar_info_chat', $assistant->prompt_registrar_info_chat ?? ''),
         'prompt_gerenciar_agenda' => old('prompt_gerenciar_agenda', $assistant->prompt_gerenciar_agenda ?? ''),
+        'prompt_aplicar_tags' => old('prompt_aplicar_tags', $assistant->prompt_aplicar_tags ?? ''),
+        'prompt_sequencia' => old('prompt_sequencia', $assistant->prompt_sequencia ?? ''),
     ];
 @endphp
 <x-app-layout>
@@ -113,7 +115,7 @@
                         <div class="flex items-center justify-between flex-wrap gap-3">
                             <div>
                                 <h3 class="text-lg font-semibold text-gray-800">Funções avançadas</h3>
-                                <p class="text-sm text-gray-600">Descreva gatilhos e exemplos para cada ferramenta (notificar admin, buscar links, enviar mídias, registrar dados e agenda).</p>
+                                <p class="text-sm text-gray-600">Descreva gatilhos e exemplos para cada ferramenta (notificar admin, buscar links, enviar mídias, registrar dados, agenda e aplicação de tags).</p>
                             </div>
                         </div>
 
@@ -192,6 +194,8 @@
                     prompt_enviar_media: initialData.prompt_enviar_media ?? '',
                     prompt_registrar_info_chat: initialData.prompt_registrar_info_chat ?? '',
                     prompt_gerenciar_agenda: initialData.prompt_gerenciar_agenda ?? '',
+                    prompt_aplicar_tags: initialData.prompt_aplicar_tags ?? '',
+                    prompt_sequencia: initialData.prompt_sequencia ?? '',
                 },
                 instructionSnippets: [
                     {
@@ -225,6 +229,8 @@
                     { id: 'midia', label: 'Enviar mídia', field: 'prompt_enviar_media', hint: 'Relacione mídias disponíveis e descreva quando enviar cada uma.' },
                     { id: 'registro', label: 'Registrar info', field: 'prompt_registrar_info_chat', hint: 'Explique quais informações coletar (nome, email, resumo) e o momento de salvar.' },
                     { id: 'agenda', label: 'Gerenciar agenda', field: 'prompt_gerenciar_agenda', hint: 'Defina pré-requisitos para consultar horários e confirmar novos agendamentos.' },
+                    { id: 'tags', label: 'Aplicar tags', field: 'prompt_aplicar_tags', hint: 'Liste as tags existentes e oriente quando aplicar cada uma usando a tool aplicar_tags.' },
+                    { id: 'sequencia', label: 'Sequências', field: 'prompt_sequencia', hint: 'Explique quando inscrever o chat em sequências existentes usando a tool inscrever_sequencia.' },
                 ],
                 activeTab: 'notificar',
                 suggestions: {
@@ -234,6 +240,8 @@
                     prompt_enviar_media: "## Quando usar a tool `enviar_media`\n- Defina quais imagens, vídeos, áudios ou PDFs devem ser enviados e em qual cenário cada um se aplica.\n- Exemplo: \"Quando o cliente perguntar como funciona o serviço XYZ, envie o áudio https://www.audioxyz.com e explique em uma frase o conteúdo\".\n",
                     prompt_registrar_info_chat: "## Quando usar a tool `registrar_info_chat`\n- Instrua o assistente a coletar nome, email, telefone ou resumo da conversa e registrar tudo assim que obtiver os dados.\n- Exemplo: \"Durante o atendimento descubra nome e email; assim que tiver os dois, registre um resumo da necessidade do cliente\".\n",
                     prompt_gerenciar_agenda: "## Quando usar a tool `gerenciar_agenda`\n- Utilize após confirmar que o cliente tem interesse e atende aos requisitos. Liste as regras antes de consultar e confirmar horários.\n- Exemplo: \"Antes de consultar a agenda, confirme que o cliente entendeu o serviço e deseja realizá-lo; só então verifique horários e finalize o agendamento\".\n",
+                    prompt_aplicar_tags: "## Quando usar a tool `aplicar_tags`\n- Liste as tags já cadastradas (ex.: vip, suporte, financeiro, urgencia) e descreva exatamente em quais situações cada uma deve ser aplicada.\n- Se nenhuma tag se aplicar, não use a ferramenta.\n- Exemplo: \"Se o cliente mencionar pagamento atrasado, aplique 'financeiro'; se solicitar atendimento humano, aplique 'prioridade'. Nunca crie tags novas.\"",
+                    prompt_sequencia: "## Quando usar a tool `inscrever_sequencia`\n- Use somente para inscrever o chat em sequências existentes (via ID fornecido no contexto/prompt do assistente).\n- Não reinscreva se já estiver inscrito ou se a sequência estiver concluída.\n- Só use se fizer sentido para o fluxo (ex.: onboarding, follow-up).",
                 },
                 instructionsMenu: false,
                 goNext() {

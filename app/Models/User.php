@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Auth\Notifications\ResetPassword as ResetPasswordNotification;
 use Illuminate\Auth\Notifications\VerifyEmail as VerifyEmailNotification;
+use App\Models\Sequence;
 
 class User extends Authenticatable implements MustVerifyEmail 
 {
@@ -190,6 +191,16 @@ class User extends Authenticatable implements MustVerifyEmail
     public function libraryEntries()
     {
         return $this->hasMany(\App\Models\LibraryEntry::class);
+    }
+
+    public function tags()
+    {
+        return $this->hasMany(\App\Models\Tag::class);
+    }
+
+    public function sequences()
+    {
+        return $this->hasMany(Sequence::class);
     }
 
     public function folders()

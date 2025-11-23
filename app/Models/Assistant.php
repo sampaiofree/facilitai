@@ -26,6 +26,8 @@ class Assistant extends Model
         'prompt_enviar_media',
         'prompt_registrar_info_chat',
         'prompt_gerenciar_agenda',
+        'prompt_aplicar_tags',
+        'prompt_sequencia',
     ];
 
     // Relacionamento: Um assistente pertence a um usuário

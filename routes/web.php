@@ -8,17 +8,21 @@ use Illuminate\Support\Facades\Route;
 use App\Models\Credential;
 use App\Http\Controllers\Admin\LeadEmpresaController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\TagController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\LibraryEntryController;
 use App\Http\Controllers\LeadController; 
 use App\Http\Controllers\TokensController;
 use App\Http\Controllers\Admin\DashboardController; 
+use App\Http\Controllers\Admin\LessonController as AdminLessonController; 
 use App\Http\Controllers\EmpresasController;
 use App\Http\Controllers\MassSendController;
 use App\Http\Controllers\LandingPageController;
 use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\AgendaPublicaController; 
+use App\Http\Controllers\SequenceController;
+use App\Http\Controllers\LessonPublicController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
@@ -28,6 +32,7 @@ Route::get('/', function () {return redirect()->route('lp4');})->name('homepage'
 Route::get('/politica', function () {return view('homepage.politica');})->name('politica');
 Route::get('/bio', function () {return view('homepage.bio');});
 Route::get('/grupo-black', function () {return view('homepage.blackfriday');});
+Route::get('/lessons/for-page', [LessonPublicController::class, 'forPage'])->name('lessons.for-page');
 
 //PÁGINAS COM OS PLANOS
 Route::get('/facilitai', function () {return redirect()->route('lp4');});
@@ -86,6 +91,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::resource('leads', LeadEmpresaController::class);
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/exportUsers', [DashboardController::class, 'exportUsers'])->name('exportUsers');
+    Route::resource('lessons', AdminLessonController::class)->except(['show']);
 
 });
 
@@ -126,7 +132,14 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::get('/chats/export', [ChatController::class, 'export'])->name('chats.export');
     Route::post('/chats/bulk-atendido', [ChatController::class, 'bulkMarkAttended'])->name('chats.bulk_attended');
     Route::post('/chats/{chat}/toggle-bot', [ChatController::class, 'toggleBot'])->name('chats.toggle_bot');
+    Route::post('/chats/{chat}/tags', [ChatController::class, 'applyTags'])->name('chats.tags.apply');
+    Route::delete('/chats/{chat}/tags/{tag}', [ChatController::class, 'removeTag'])->name('chats.tags.remove');
+    Route::post('/chats/inscrever-sequencia', [ChatController::class, 'inscreverSequencia'])->name('chats.sequence.subscribe');
     Route::resource('chats', ChatController::class)->only(['index', 'update', 'destroy']);
+    Route::resource('tags', TagController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::resource('sequences', SequenceController::class);
+    Route::delete('sequences/{sequence}/chats/{sequenceChat}', [SequenceController::class, 'removeChat'])
+        ->name('sequences.chats.destroy');
 
     //DISPAROS EM MASSA
     Route::get('/disparos', [MassSendController::class, 'index'])->name('mass.index');

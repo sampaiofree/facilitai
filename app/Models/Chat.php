@@ -69,4 +69,14 @@ class Chat extends Model
     {
         return $this->belongsTo(Assistant::class, 'assistant_id', 'id');
     }
+
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class)->withTimestamps();
+    }
+
+    public function sequenceChats()
+    {
+        return $this->hasMany(\App\Models\SequenceChat::class);
+    }
 }

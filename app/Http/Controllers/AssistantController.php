@@ -194,6 +194,8 @@ class AssistantController extends Controller
             'prompt_enviar_media' => ['nullable', 'string'],
             'prompt_registrar_info_chat' => ['nullable', 'string'],
             'prompt_gerenciar_agenda' => ['nullable', 'string'],
+            'prompt_aplicar_tags' => ['nullable', 'string'],
+            'prompt_sequencia' => ['nullable', 'string'],
         ]);
 
         $assistant = Assistant::create([
@@ -209,6 +211,8 @@ class AssistantController extends Controller
             'prompt_enviar_media' => $validated['prompt_enviar_media'] ?? null,
             'prompt_registrar_info_chat' => $validated['prompt_registrar_info_chat'] ?? null,
             'prompt_gerenciar_agenda' => $validated['prompt_gerenciar_agenda'] ?? null,
+            'prompt_aplicar_tags' => $validated['prompt_aplicar_tags'] ?? null,
+            'prompt_sequencia' => $validated['prompt_sequencia'] ?? null,
         ]);
 
         return redirect()->route('assistants.index')->with('success', 'Assistente criado com sucesso.');
@@ -230,6 +234,8 @@ class AssistantController extends Controller
             'prompt_enviar_media' => ['nullable', 'string'],
             'prompt_registrar_info_chat' => ['nullable', 'string'],
             'prompt_gerenciar_agenda' => ['nullable', 'string'],
+            'prompt_aplicar_tags' => ['nullable', 'string'],
+            'prompt_sequencia' => ['nullable', 'string'],
         ]);
 
         $assistant->update([
@@ -241,6 +247,8 @@ class AssistantController extends Controller
             'prompt_enviar_media' => $validated['prompt_enviar_media'] ?? null,
             'prompt_registrar_info_chat' => $validated['prompt_registrar_info_chat'] ?? null,
             'prompt_gerenciar_agenda' => $validated['prompt_gerenciar_agenda'] ?? null,
+            'prompt_aplicar_tags' => $validated['prompt_aplicar_tags'] ?? null,
+            'prompt_sequencia' => $validated['prompt_sequencia'] ?? null,
         ]);
 
         return redirect()->route('assistants.index')->with('success', 'Assistente atualizado com sucesso.');

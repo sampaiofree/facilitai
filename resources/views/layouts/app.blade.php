@@ -75,6 +75,7 @@
                 
             </main>
         </div>
+        @include('components.lessons.widget')
            <!-- ========== Componente de Alerta Global ========== -->
         <div id="global-alert" class="fixed top-5 right-5 w-full max-w-sm p-4 rounded-lg shadow-lg text-white transform translate-x-[120%] transition-transform duration-500 ease-in-out" style="z-index: 9999;">
             <p id="global-alert-message">Mensagem de teste.</p>

@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         return [
             //require __DIR__ . '/../app/Schedules/coletar_empresas.php',
             require __DIR__ . '/../app/Schedules/contatar_empresas.php',
+            require __DIR__ . '/../app/Schedules/process_sequences.php',
         ];
     })
     ->withMiddleware(function (Middleware $middleware): void {

@@ -12,6 +12,8 @@
     $ferramentas = [
         ['label' => 'Mídias', 'route' => 'images.index'],
         ['label' => 'Biblioteca', 'route' => 'library.index'],
+        ['label' => 'Tags', 'route' => 'tags.index'],
+        ['label' => 'Sequências', 'route' => 'sequences.index'],
     ];
 
     if (Auth::user()->canManageCredentials()) {
@@ -20,9 +22,10 @@
         $ferramentas[] = ['label' => 'Credenciais', 'route' => 'credentials.index'];
         $ferramentas[] = ['label' => 'Agenda', 'route' => 'agendas.index'];
         
-        if(Auth::user()->is_admin) {
-        
-        }
+    }
+
+    if(Auth::user()->is_admin) {
+        $ferramentas[] = ['label' => 'Aulas (Admin)', 'route' => 'admin.lessons.index', 'highlight' => true];
     }
     
 @endphp
@@ -54,8 +57,9 @@
                         </button>
                         <div class="absolute hidden group-hover:block bg-white border rounded-lg shadow-lg mt-10 min-w-[180px] z-50">
                             @foreach($ferramentas as $item)
+                                @php $highlight = $item['highlight'] ?? false; @endphp
                                 <a href="{{ route($item['route']) }}" 
-                                class="block px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-indigo-600 text-sm">
+                                class="block px-4 py-2 text-sm {{ $highlight ? 'bg-indigo-50 text-indigo-700 font-semibold hover:bg-indigo-100' : 'text-gray-700 hover:bg-gray-100 hover:text-indigo-600' }}">
                                     {{ $item['label'] }}
                                 </a>
                             @endforeach
@@ -65,7 +69,9 @@
             </div>
 
             <!-- Settings Dropdown -->
-            <div class="hidden sm:flex sm:items-center sm:ms-6">
+            <div class="hidden sm:flex sm:items-center sm:space-x-4 sm:ms-6">
+                
+
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
                         <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none transition ease-in-out duration-150">
@@ -119,9 +125,16 @@
                 </x-responsive-nav-link>
             @endforeach
             @foreach($ferramentas as $ferramenta)
-                <x-responsive-nav-link :href="route($ferramenta['route'])" :active="request()->routeIs($ferramenta['route'])">
-                    {{ __($ferramenta['label']) }}
-                </x-responsive-nav-link>
+                @php $highlight = $ferramenta['highlight'] ?? false; @endphp
+                @if($highlight)
+                    <a href="{{ route($ferramenta['route']) }}" class="block w-full ps-3 pe-4 py-2 bg-amber-500 text-white font-semibold rounded-md transition hover:bg-amber-600">
+                        {{ __($ferramenta['label']) }}
+                    </a>
+                @else
+                    <x-responsive-nav-link :href="route($ferramenta['route'])" :active="request()->routeIs($ferramenta['route'])">
+                        {{ __($ferramenta['label']) }}
+                    </x-responsive-nav-link>
+                @endif
             @endforeach
         </div>
 

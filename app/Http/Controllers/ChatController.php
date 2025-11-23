@@ -6,6 +6,9 @@ use App\Models\Chat;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Models\Tag;
+use App\Models\Sequence;
+use App\Models\SequenceChat;
 
 class ChatController extends Controller
 {
@@ -13,6 +16,8 @@ class ChatController extends Controller
     {
         $instances = Auth::user()->instances()->orderBy('name')->get(['id', 'name']);
         $assistants = Auth::user()->assistants()->orderBy('name')->get(['id', 'name']);
+        $sequences = Auth::user()->sequences()->orderBy('name')->get(['id', 'name', 'active']);
+        $tags = Auth::user()->tags()->orderBy('name')->get(['name']);
 
         $chats = $this->buildChatQuery($request)
             ->paginate(20)
@@ -20,13 +25,20 @@ class ChatController extends Controller
 
         $filters = [
             'search' => $request->query('search'),
-            'instance_id' => $request->query('instance_id'),
-            'assistant_id' => $request->query('assistant_id'),
-            'aguardando_atendimento' => $request->query('aguardando_atendimento'),
             'order' => $request->query('order', 'updated_at_desc'),
+            'instance_in' => (array) $request->query('instance_in', []),
+            'instance_out' => (array) $request->query('instance_out', []),
+            'assistant_in' => (array) $request->query('assistant_in', []),
+            'assistant_out' => (array) $request->query('assistant_out', []),
+            'status_in' => (array) $request->query('status_in', []),
+            'status_out' => (array) $request->query('status_out', []),
+            'tags_in' => (array) $request->query('tags_in', []),
+            'tags_out' => (array) $request->query('tags_out', []),
+            'sequences_in' => (array) $request->query('sequences_in', []),
+            'sequences_out' => (array) $request->query('sequences_out', []),
         ];
 
-        return view('chats.index', compact('chats', 'filters', 'instances', 'assistants'));
+        return view('chats.index', compact('chats', 'filters', 'instances', 'assistants', 'sequences', 'tags'));
     }
 
     public function export(Request $request)
@@ -67,6 +79,8 @@ class ChatController extends Controller
             'nome' => ['nullable', 'string', 'max:255'],
             'informacoes' => ['nullable', 'string', 'max:1000'],
             'aguardando_atendimento' => ['sometimes', 'boolean'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:100'],
         ]);
 
         $chat->update([
@@ -75,16 +89,39 @@ class ChatController extends Controller
             'aguardando_atendimento' => $request->has('aguardando_atendimento'),
         ]);
 
+        if ($request->has('tags')) {
+            $names = collect($validated['tags'] ?? [])
+                ->map(fn ($t) => trim($t))
+                ->filter()
+                ->unique();
+
+            $tagIds = [];
+            foreach ($names as $name) {
+                $tag = Tag::firstOrCreate(
+                    ['user_id' => $chat->user_id, 'name' => $name],
+                    ['color' => null, 'description' => null]
+                );
+                $tagIds[] = $tag->id;
+            }
+            $chat->tags()->sync($tagIds);
+        }
+
         return redirect()->back()->with('success', 'Chat atualizado.');
     }
 
-    public function toggleBot(Chat $chat)
+    public function toggleBot(Request $request, Chat $chat)
     {
         $this->authorizeChatOwnership($chat);
 
         $chat->update([
             'bot_enabled' => !$chat->bot_enabled,
         ]);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'bot_enabled' => $chat->bot_enabled,
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Status do bot atualizado.');
     }
@@ -104,6 +141,111 @@ class ChatController extends Controller
         return redirect()->back()->with('success', "{$updated} chat(s) marcados como atendidos.");
     }
 
+    public function inscreverSequencia(Request $request)
+    {
+        $sequenceId = $request->input('sequence_id');
+        $selected = collect($request->input('selected', []))->filter()->values();
+
+        if (!$sequenceId) {
+            return redirect()->back()->with('warning', 'Selecione uma sequência.');
+        }
+
+        if ($selected->isEmpty()) {
+            return redirect()->back()->with('warning', 'Selecione ao menos um chat.');
+        }
+
+        $sequence = Auth::user()->sequences()->where('id', $sequenceId)->where('active', true)->first();
+        if (!$sequence) {
+            return redirect()->back()->with('warning', 'Sequência não encontrada ou inativa.');
+        }
+
+        $chats = Auth::user()->chats()
+            ->whereIn('id', $selected)
+            ->with('instance')
+            ->get();
+
+        $inscritos = 0;
+        $ignorados = [];
+
+        foreach ($chats as $chat) {
+            if (!$chat->bot_enabled) {
+                $ignorados[] = "{$chat->contact} (bot off)";
+                continue;
+            }
+
+            $existe = SequenceChat::where('sequence_id', $sequence->id)
+                ->where('chat_id', $chat->id)
+                ->whereIn('status', ['em_andamento', 'concluida', 'pausada'])
+                ->exists();
+
+            if ($existe) {
+                $ignorados[] = "{$chat->contact} (já inscrito)";
+                continue;
+            }
+
+            SequenceChat::create([
+                'sequence_id' => $sequence->id,
+                'chat_id' => $chat->id,
+                'status' => 'em_andamento',
+                'iniciado_em' => now('America/Sao_Paulo'),
+                'proximo_envio_em' => null,
+                'criado_por' => 'usuario',
+            ]);
+            $inscritos++;
+        }
+
+        $msg = "{$inscritos} chat(s) inscritos na sequência.";
+        if ($ignorados) {
+            $msg .= ' Ignorados: ' . implode(', ', $ignorados);
+        }
+
+        return redirect()->back()->with('success', $msg);
+    }
+
+    public function applyTags(Request $request, Chat $chat)
+    {
+        $this->authorizeChatOwnership($chat);
+
+        $request->validate([
+            'tags' => ['required', 'string'],
+        ]);
+
+        $names = collect(explode(',', $request->input('tags')))
+            ->map(fn ($t) => trim($t))
+            ->filter()
+            ->unique();
+
+        if ($names->isEmpty()) {
+            return redirect()->back()->with('warning', 'Nenhuma tag informada.');
+        }
+
+        $tagIds = [];
+        foreach ($names as $name) {
+            $tag = Tag::firstOrCreate(
+                ['user_id' => $chat->user_id, 'name' => $name],
+                ['color' => null, 'description' => null]
+            );
+            $tagIds[] = $tag->id;
+        }
+
+        $chat->tags()->syncWithoutDetaching($tagIds);
+
+        return redirect()->back()->with('success', 'Tags aplicadas.');
+    }
+
+    public function removeTag(Chat $chat, Tag $tag)
+    {
+        $this->authorizeChatOwnership($chat);
+
+        if ($tag->user_id !== $chat->user_id) {
+            abort(403);
+        }
+
+        $chat->tags()->detach($tag->id);
+
+        return redirect()->back()->with('success', 'Tag removida.');
+    }
+
     public function destroy(Chat $chat)
     {
         $this->authorizeChatOwnership($chat);
@@ -115,7 +257,7 @@ class ChatController extends Controller
 
     private function buildChatQuery(Request $request)
     {
-        $query = Auth::user()->chats()->with(['instance', 'assistant']);
+        $query = Auth::user()->chats()->with(['instance', 'assistant', 'tags', 'sequenceChats.sequence']);
 
         if ($search = $request->query('search')) {
             $query->where(function ($builder) use ($search) {
@@ -125,18 +267,67 @@ class ChatController extends Controller
             });
         }
 
-        if ($instanceId = $request->query('instance_id')) {
-            $query->where('instance_id', $instanceId);
+        $instanceIn = collect($request->query('instance_in', []))->map(fn ($id) => (int) $id)->filter()->unique();
+        if ($instanceIn->isNotEmpty()) {
+            $query->whereIn('instance_id', $instanceIn);
+        }
+        $instanceOut = collect($request->query('instance_out', []))->map(fn ($id) => (int) $id)->filter()->unique();
+        if ($instanceOut->isNotEmpty()) {
+            $query->whereNotIn('instance_id', $instanceOut);
         }
 
-        if ($assistantId = $request->query('assistant_id')) {
-            $query->where('assistant_id', $assistantId);
+        $assistantIn = collect($request->query('assistant_in', []))->map(fn ($id) => (int) $id)->filter()->unique();
+        if ($assistantIn->isNotEmpty()) {
+            $query->whereIn('assistant_id', $assistantIn);
+        }
+        $assistantOut = collect($request->query('assistant_out', []))->map(fn ($id) => (int) $id)->filter()->unique();
+        if ($assistantOut->isNotEmpty()) {
+            $query->whereNotIn('assistant_id', $assistantOut);
         }
 
-        if ($aguardando = $request->query('aguardando_atendimento')) {
+        $statusIn = collect($request->query('status_in', []))
+            ->map(fn ($v) => in_array((string) $v, ['1', 'true', 'on'], true) ? 1 : 0)
+            ->unique();
+        // Manter compatibilidade com campo antigo
+        if ($statusIn->isEmpty() && ($aguardando = $request->query('aguardando_atendimento'))) {
             if (in_array($aguardando, ['0', '1'], true)) {
-                $query->where('aguardando_atendimento', $aguardando === '1');
+                $statusIn = collect([(int) $aguardando]);
             }
+        }
+        if ($statusIn->isNotEmpty()) {
+            $query->whereIn('aguardando_atendimento', $statusIn);
+        }
+        $statusOut = collect($request->query('status_out', []))
+            ->map(fn ($v) => in_array((string) $v, ['1', 'true', 'on'], true) ? 1 : 0)
+            ->unique();
+        if ($statusOut->isNotEmpty()) {
+            $query->whereNotIn('aguardando_atendimento', $statusOut);
+        }
+
+        $tagsIn = collect($request->query('tags_in', []))->map(fn ($t) => trim($t))->filter()->unique();
+        foreach ($tagsIn as $tag) {
+            $query->whereHas('tags', function ($q) use ($tag) {
+                $q->where('name', $tag);
+            });
+        }
+        $tagsOut = collect($request->query('tags_out', []))->map(fn ($t) => trim($t))->filter()->unique();
+        if ($tagsOut->isNotEmpty()) {
+            $query->whereDoesntHave('tags', function ($q) use ($tagsOut) {
+                $q->whereIn('name', $tagsOut);
+            });
+        }
+
+        $sequencesIn = collect($request->query('sequences_in', []))->map(fn ($id) => (int) $id)->filter()->unique();
+        foreach ($sequencesIn as $seqId) {
+            $query->whereHas('sequenceChats', function ($q) use ($seqId) {
+                $q->where('sequence_id', $seqId)->where('status', 'em_andamento');
+            });
+        }
+        $sequencesOut = collect($request->query('sequences_out', []))->map(fn ($id) => (int) $id)->filter()->unique();
+        if ($sequencesOut->isNotEmpty()) {
+            $query->whereDoesntHave('sequenceChats', function ($q) use ($sequencesOut) {
+                $q->whereIn('sequence_id', $sequencesOut)->where('status', 'em_andamento');
+            });
         }
 
         $sortOption = $request->query('order', 'updated_at_desc');

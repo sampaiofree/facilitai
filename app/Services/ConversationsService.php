@@ -20,11 +20,14 @@ use App\Services\EvolutionService;
 use App\Services\AgendaService;
 
 use Illuminate\Support\Facades\Log;
+use App\Models\Tag;
+use App\Models\Sequence;
+use App\Models\SequenceChat;
 
 class ConversationsService
 {
     protected string $baseUrl = 'https://api.openai.com/v1';
-    protected string $apiKey;
+    protected string $apiKey = '';
 
     // Propriedades para guardar os objetos e dados essenciais
     protected ?string $msg;
@@ -85,7 +88,9 @@ class ConversationsService
                         $this->assistant->prompt_buscar_get ."\n".
                         $this->assistant->prompt_enviar_media ."\n".
                         $this->assistant->prompt_registrar_info_chat ."\n".
-                        $this->assistant->prompt_gerenciar_agenda;
+                        $this->assistant->prompt_gerenciar_agenda ."\n".
+                        $this->assistant->prompt_aplicar_tags ."\n".
+                        $this->assistant->prompt_sequencia;
 
                 }
 
@@ -333,6 +338,7 @@ class ConversationsService
      */
     public function createResponse($input, string $model = 'gpt-4.1-mini', $dd = false)
     {
+        $tools = [];
         if (!$this->apiKey) {
             
             Log::warning("apiKey inválida, usuário sem Tokens"); return;
@@ -492,6 +498,57 @@ class ConversationsService
                 ];
         }
     
+        if (str_contains($this->systemPrompt, 'aplicar_tags')) {
+            $tools[] = [
+                'type' => 'function',
+                'name' => 'aplicar_tags',
+                'description' => <<<TXT
+                    Aplique tags existentes ao chat atual para classificar o atendimento.
+                    - Use apenas tags que já existam (informadas no contexto/prompt).
+                    - Não crie novas tags e não peça IDs.
+                    - Se não houver tags para aplicar, não chame esta ferramenta.
+                TXT,
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'tags' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Lista de nomes de tags a aplicar.',
+                        ],
+                    ],
+                    'required' => ['tags'],
+                    'additionalProperties' => false,
+                ],
+                'strict' => true,
+            ];
+        }
+
+        if (str_contains($this->systemPrompt, 'inscrever_sequencia')) {
+            $tools[] = [
+                'type' => 'function',
+                'name' => 'inscrever_sequencia',
+                'description' => <<<TXT
+                    Inscreva o chat atual em uma sequência de mensagens automáticas.
+                    - Sempre use um ID de sequência existente.
+                    - Não reinscreva se já estiver na sequência.
+                    - Respeite as regras de tags configuradas na sequência (aplicadas pelo scheduler).
+                TXT,
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'sequence_id' => [
+                            'type' => 'integer',
+                            'description' => 'ID da sequência a inscrever.'
+                        ],
+                    ],
+                    'required' => ['sequence_id'],
+                    'additionalProperties' => false,
+                ],
+                'strict' => true,
+            ];
+        }
+
         if(isset($this->instance->agenda_id)){
             $tools[] =
             [
@@ -893,6 +950,24 @@ class ConversationsService
             ];
         }
 
+        if ($functionName === 'aplicar_tags') {
+            $resultado = $this->aplicar_tags($arguments);
+            return [
+                "type" => "function_call_output",
+                'call_id' => $functionCall['call_id'],
+                'output' => $resultado['output'] ?? 'Tags aplicadas.'
+            ];
+        }
+
+        if ($functionName === 'inscrever_sequencia') {
+            $resultado = $this->inscrever_sequencia($arguments);
+            return [
+                "type" => "function_call_output",
+                'call_id' => $functionCall['call_id'],
+                'output' => $resultado['output'] ?? 'Inscrição processada.'
+            ];
+        }
+
     }
 
     public function gerenciar_agenda(array $arguments)
@@ -960,6 +1035,44 @@ class ConversationsService
         }
     }
 
+    public function aplicar_tags(array $arguments)
+    {
+        try {
+            $tags = collect($arguments['tags'] ?? [])->map(fn ($t) => trim((string)$t))->filter()->unique()->values();
+            if ($tags->isEmpty()) {
+                return ['output' => '⚠️ Nenhuma tag informada.'];
+            }
+
+            $chat = $this->chat;
+            if (!$chat) {
+                return ['output' => '⚠️ Chat não encontrado para aplicar tags.'];
+            }
+
+            $existing = Tag::where('user_id', $chat->user_id)
+                ->whereIn('name', $tags)
+                ->get();
+
+            if ($existing->isEmpty()) {
+                return ['output' => '⚠️ Nenhuma das tags informadas existe para este usuário.'];
+            }
+
+            $chat->tags()->syncWithoutDetaching($existing->pluck('id')->all());
+
+            $aplicadas = $existing->pluck('name')->implode(', ');
+            $faltantes = $tags->diff($existing->pluck('name'))->values();
+
+            $msg = '✅ Tags aplicadas: ' . $aplicadas;
+            if ($faltantes->isNotEmpty()) {
+                $msg .= '. Não encontrei: ' . $faltantes->implode(', ');
+            }
+
+            return ['output' => $msg];
+        } catch (\Throwable $e) {
+            Log::error('Erro ao aplicar tags via tool: '.$e->getMessage(), ['args' => $arguments]);
+            return ['output' => '❌ Não foi possível aplicar as tags.'];
+        }
+    }
+
     private function formatarConsulta($disponibilidades)
     {
         if (empty($disponibilidades) || count($disponibilidades) === 0) {
@@ -985,6 +1098,52 @@ class ConversationsService
         }
 
         return $texto;
+    }
+
+    public function inscrever_sequencia(array $arguments)
+    {
+        try {
+            if (!$this->chat || !$this->chat->bot_enabled) {
+                return ['output' => '⚠️ Chat indisponível ou bot desativado.'];
+            }
+
+            $sequenceId = $arguments['sequence_id'] ?? null;
+            if (!$sequenceId) {
+                return ['output' => '⚠️ ID da sequência não informado.'];
+            }
+
+            $sequence = Sequence::where('id', $sequenceId)
+                ->where('user_id', $this->chat->user_id)
+                ->where('active', true)
+                ->first();
+
+            if (!$sequence) {
+                return ['output' => '⚠️ Sequência não encontrada ou inativa.'];
+            }
+
+            $existing = SequenceChat::where('sequence_id', $sequence->id)
+                ->where('chat_id', $this->chat->id)
+                ->whereIn('status', ['em_andamento', 'concluida', 'pausada'])
+                ->first();
+
+            if ($existing) {
+                return ['output' => 'ℹ️ Este chat já está inscrito ou finalizou esta sequência.'];
+            }
+
+            SequenceChat::create([
+                'sequence_id' => $sequence->id,
+                'chat_id' => $this->chat->id,
+                'status' => 'em_andamento',
+                'iniciado_em' => now('America/Sao_Paulo'),
+                'proximo_envio_em' => null,
+                'criado_por' => 'assistant',
+            ]);
+
+            return ['output' => '✅ Chat inscrito na sequência com sucesso.'];
+        } catch (\Throwable $e) {
+            Log::error('Erro ao inscrever em sequência: ' . $e->getMessage(), ['args' => $arguments]);
+            return ['output' => '❌ Não foi possível inscrever na sequência.'];
+        }
     }
 
 
