@@ -1080,7 +1080,7 @@ class ConversationsService
         }
 
         $colecao = collect($disponibilidades);
-        $limite = 8;
+        $limite = 40;
         $lista = $colecao->take($limite);
 
         $texto = "🗓️ *Horários disponíveis:*\n\n";
