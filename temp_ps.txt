@@ -17,14 +17,16 @@ class ProcessSequences extends Command
 
     public function handle(): int
     {
+        $nowLocal = Carbon::now('America/Sao_Paulo');
+        $nowUtc = Carbon::now('UTC');
+
         SequenceChat::with(['sequence', 'chat.tags', 'chat.instance'])
             ->where('status', 'em_andamento')
-            ->where(function ($q) {
-                $agoraUtc = Carbon::now('UTC');
+            ->where(function ($q) use ($nowUtc) {
                 $q->whereNull('proximo_envio_em')
-                  ->orWhere('proximo_envio_em', '<=', $agoraUtc);
+                  ->orWhere('proximo_envio_em', '<=', $nowUtc);
             })
-            ->chunk(100, function ($batch) {
+            ->chunk(100, function ($batch) use ($nowLocal) {
                 foreach ($batch as $inscricao) {
                     $seq = $inscricao->sequence;
                     if (!$seq) {
@@ -48,13 +50,7 @@ class ProcessSequences extends Command
                         continue;
                     }
 
-                    $agoraUtc = Carbon::now('UTC');
-                    if ($inscricao->proximo_envio_em && $inscricao->proximo_envio_em->gt($agoraUtc)) {
-                        continue;
-                    }
-
-                    $agoraLocal = Carbon::now('America/Sao_Paulo');
-                    if (!$this->prontoParaDisparar($inscricao, $step, $agoraLocal)) {
+                    if (!$this->prontoParaDisparar($inscricao, $step, $nowLocal)) {
                         // reagendado para próxima janela válida
                         continue;
                     }
@@ -74,8 +70,7 @@ class ProcessSequences extends Command
                         $service->enviarMSG();
 
                         $this->log($inscricao, $step, 'sucesso', 'Passo enviado.');
-                        $momentoEnvio = Carbon::now('America/Sao_Paulo');
-                        $this->avancarPasso($inscricao, $step, $momentoEnvio);
+                        $this->avancarPasso($inscricao, $step, $nowLocal);
                     } catch (\Throwable $e) {
                         Log::error('Erro ao disparar sequência', [
                             'inscricao_id' => $inscricao->id,
@@ -83,8 +78,7 @@ class ProcessSequences extends Command
                             'error' => $e->getMessage(),
                         ]);
                         $this->log($inscricao, $step, 'erro', 'Erro ao enviar: ' . $e->getMessage());
-                        $momentoErro = Carbon::now('America/Sao_Paulo');
-                        $this->avancarPasso($inscricao, $step, $momentoErro, true);
+                        $this->avancarPasso($inscricao, $step, $nowLocal, true);
                     }
                 }
             });
@@ -130,8 +124,7 @@ class ProcessSequences extends Command
             $inscricao->passo_atual_id = $step->id;
             $inicioLocal = $inscricao->iniciado_em ?? now('America/Sao_Paulo');
             $inscricao->iniciado_em = $inicioLocal;
-            $proximoEnvio = $this->aplicarAtraso($step, $inicioLocal);
-            $inscricao->proximo_envio_em = $proximoEnvio->clone()->setTimezone('UTC');
+            $inscricao->proximo_envio_em = $inicioLocal->clone()->setTimezone('UTC');
             $inscricao->save();
         }
 
@@ -143,7 +136,7 @@ class ProcessSequences extends Command
         // horário/dia
         if ($step->janela_inicio || $step->janela_fim || $step->dias_semana) {
             if (!$this->estaNaJanela($step, $now)) {
-                $inscricao->proximo_envio_em = $this->proximaJanela($step, $now)->clone()->setTimezone('UTC');
+                $inscricao->proximo_envio_em = $this->proximaJanela($step, $now);
                 $inscricao->save();
                 return false;
             }
@@ -239,3 +232,4 @@ class ProcessSequences extends Command
         $this->log($inscricao, $step, 'pulado', $motivo);
     }
 }
+
