@@ -123,6 +123,9 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::resource('library', LibraryEntryController::class)->except(['show']);
 
     //CHATS
+    Route::get('/chats/export', [ChatController::class, 'export'])->name('chats.export');
+    Route::post('/chats/bulk-atendido', [ChatController::class, 'bulkMarkAttended'])->name('chats.bulk_attended');
+    Route::post('/chats/{chat}/toggle-bot', [ChatController::class, 'toggleBot'])->name('chats.toggle_bot');
     Route::resource('chats', ChatController::class)->only(['index', 'update', 'destroy']);
 
     //DISPAROS EM MASSA

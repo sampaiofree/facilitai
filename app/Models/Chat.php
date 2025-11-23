@@ -64,4 +64,9 @@ class Chat extends Model
         return $this->defaultAssistant 
             ?? $this->defaultAssistantByOpenAi;
     }
+
+    public function assistant()
+    {
+        return $this->belongsTo(Assistant::class, 'assistant_id', 'id');
+    }
 }
