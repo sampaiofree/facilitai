@@ -69,7 +69,7 @@ class LessonController extends Controller
             'support_html' => ['nullable', 'string'],
             'page_match' => ['required', 'string', 'max:255'],
             'match_type' => ['required', 'in:exact,prefix'],
-            'locale' => ['required', 'string', 'max:10'],
+            //'locale' => ['required', 'string', 'max:10'],
             'position' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
