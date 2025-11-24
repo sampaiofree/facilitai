@@ -31,6 +31,7 @@ class ProcessSequences extends Command
                 foreach ($batch as $inscricao) {
                     $seq = $inscricao->sequence;
                     if (!$seq) {
+                        Log::warning('Sequencia sem registro pai', ['sequence_chat_id' => $inscricao->id]);
                         $inscricao->delete();
                         continue;
                     }
@@ -40,12 +41,19 @@ class ProcessSequences extends Command
                     $excluir = collect($seq->tags_excluir ?? [])->map(fn ($t) => mb_strtolower($t))->filter();
 
                     if (!$this->atendeTags($tagsChat, $incluir, $excluir)) {
+                        Log::info('Sequencia pulada por tags', [
+                            'sequence_chat_id' => $inscricao->id,
+                            'chat_id' => $inscricao->chat_id,
+                            'faltou' => $incluir->diff($tagsChat)->values(),
+                            'bloqueio' => $tagsChat->intersect($excluir)->values(),
+                        ]);
                         $this->cancelarPorTags($inscricao, $incluir, $excluir, $tagsChat);
                         continue;
                     }
 
                     $step = $this->obterPassoAtual($inscricao);
                     if (!$step) {
+                        Log::info('Sequencia sem passo ativo, concluindo', ['sequence_chat_id' => $inscricao->id]);
                         $inscricao->status = 'concluida';
                         $inscricao->save();
                         continue;
@@ -53,6 +61,10 @@ class ProcessSequences extends Command
 
                     $agoraUtc = Carbon::now('UTC');
                     if ($inscricao->proximo_envio_em && $inscricao->proximo_envio_em->gt($agoraUtc)) {
+                        Log::info('Sequencia aguardando proximo_envio_em', [
+                            'sequence_chat_id' => $inscricao->id,
+                            'proximo_envio_em' => $inscricao->proximo_envio_em,
+                        ]);
                         continue;
                     }
 
@@ -61,6 +73,10 @@ class ProcessSequences extends Command
                     // Espacamento minimo entre disparos consecutivos para evitar spam
                     $proximoPermitido = $ultimoEnvioLocal?->copy()->addMinutes($intervaloMinutos);
                     if ($proximoPermitido && $agoraLocal->lt($proximoPermitido)) {
+                        Log::info('Sequencia reagendada por rate-limit', [
+                            'sequence_chat_id' => $inscricao->id,
+                            'liberado_em' => $proximoPermitido,
+                        ]);
                         $inscricao->proximo_envio_em = $proximoPermitido->clone()->setTimezone('UTC');
                         $inscricao->save();
                         continue;
@@ -68,6 +84,13 @@ class ProcessSequences extends Command
 
                     if (!$this->prontoParaDisparar($inscricao, $step, $agoraLocal)) {
                         // reagendado para próxima janela válida
+                        Log::info('Sequencia fora da janela, reagendada', [
+                            'sequence_chat_id' => $inscricao->id,
+                            'step_id' => $step->id,
+                            'janela_inicio' => $step->janela_inicio,
+                            'janela_fim' => $step->janela_fim,
+                            'dias_semana' => $step->dias_semana,
+                        ]);
                         continue;
                     }
 
@@ -83,7 +106,23 @@ class ProcessSequences extends Command
                         $instancia = $inscricao->chat->instance_id;
 
                         $service = new ConversationsService($mensagem, $telefone, $instancia);
-                        $service->enviarMSG();
+                        Log::info('Sequencia disparando passo', [
+                            'sequence_chat_id' => $inscricao->id,
+                            'chat_id' => $inscricao->chat_id,
+                            'sequence_id' => $inscricao->sequence_id,
+                            'step_id' => $step->id,
+                            'ordem' => $step->ordem,
+                        ]);
+                        $result = $service->enviarMSG();
+                        if ($result === false) {
+                            Log::warning('Sequencia nao enviou mensagem (retorno falso)', [
+                                'sequence_chat_id' => $inscricao->id,
+                                'chat_id' => $inscricao->chat_id,
+                                'sequence_id' => $inscricao->sequence_id,
+                                'step_id' => $step->id,
+                            ]);
+                            continue;
+                        }
 
                         $this->log($inscricao, $step, 'sucesso', 'Passo enviado.');
                         $momentoEnvio = Carbon::now('America/Sao_Paulo');

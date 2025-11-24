@@ -90,7 +90,7 @@ class ConversationsService
                         $this->assistant->prompt_registrar_info_chat ."\n".
                         $this->assistant->prompt_gerenciar_agenda ."\n".
                         $this->assistant->prompt_aplicar_tags ."\n".
-                        $this->assistant->prompt_sequencia;
+                        $this->assistant->prompt_sequencia; 
 
                 }
 
