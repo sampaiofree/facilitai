@@ -17,7 +17,7 @@
         <label class="block text-sm font-medium text-gray-700" for="page_match">Página (ex: /chats ou /assistants)</label>
         <input type="text" name="page_match" id="page_match" value="{{ old('page_match', $lesson->page_match) }}" required
                class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-        <p class="text-xs text-gray-500">Use o caminho da URL. Com tipo "Prefixo" ele vale para subcaminhos (ex.: /chats/123).</p>
+        <p class="text-xs text-gray-500">Use o caminho da URL. Separe com virgula para mais de uma página. Com tipo "Prefixo" ele vale para subcaminhos (ex.: /chats/123).</p>
     </div>
 
     <div class="space-y-2">

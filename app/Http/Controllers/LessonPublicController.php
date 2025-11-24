@@ -21,13 +21,21 @@ class LessonPublicController extends Controller
             ->ordered()
             ->get()
             ->filter(function (Lesson $lesson) use ($normalizedPath) {
-                $lessonPath = $this->normalizePath($lesson->page_match);
+                $matches = $lesson->page_matches ?: [$lesson->page_match];
 
-                if ($lesson->match_type === 'exact') {
-                    return $lessonPath === $normalizedPath;
+                foreach ($matches as $match) {
+                    $lessonPath = $this->normalizePath($match);
+
+                    if ($lesson->match_type === 'exact' && $lessonPath === $normalizedPath) {
+                        return true;
+                    }
+
+                    if ($lesson->match_type === 'prefix' && str_starts_with($normalizedPath, $lessonPath)) {
+                        return true;
+                    }
                 }
 
-                return str_starts_with($normalizedPath, $lessonPath);
+                return false;
             })
             ->sortBy(function (Lesson $lesson) use ($locale) {
                 return [
@@ -47,6 +55,7 @@ class LessonPublicController extends Controller
                     'support_html' => $lesson->support_html,
                     'locale' => $lesson->locale,
                     'page_match' => $lesson->page_match,
+                    'page_matches' => $lesson->page_matches,
                 ];
             }),
         ]);

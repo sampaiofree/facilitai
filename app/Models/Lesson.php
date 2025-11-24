@@ -35,6 +35,20 @@ class Lesson extends Model
         return $query->orderBy('position')->orderBy('id');
     }
 
+    public function getPageMatchesAttribute(): array
+    {
+        return collect(explode(',', (string) $this->page_match))
+            ->map(fn ($path) => trim($path))
+            ->filter()
+            ->map(function (string $path) {
+                $normalized = '/' . ltrim($path, '/');
+                return rtrim($normalized, '/') ?: '/';
+            })
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     public function getEmbedUrlAttribute(): string
     {
         $youtubeId = $this->extractYoutubeId($this->video_url);

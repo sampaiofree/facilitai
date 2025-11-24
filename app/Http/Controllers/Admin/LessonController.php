@@ -74,16 +74,24 @@ class LessonController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        $data['page_match'] = $this->normalizePath($data['page_match']);
+        $data['page_match'] = implode(',', $this->normalizePaths($data['page_match']));
         $data['position'] = $data['position'] ?? (Lesson::max('position') ?? 0) + 1;
         $data['is_active'] = $request->boolean('is_active', true);
 
         return $data;
     }
 
-    private function normalizePath(string $path): string
+    private function normalizePaths(string $raw): array
     {
-        $normalized = '/' . ltrim($path, '/');
-        return rtrim($normalized, '/') ?: '/';
+        return collect(explode(',', $raw))
+            ->map(fn ($path) => trim($path))
+            ->filter()
+            ->map(function (string $path) {
+                $normalized = '/' . ltrim($path, '/');
+                return rtrim($normalized, '/') ?: '/';
+            })
+            ->unique()
+            ->values()
+            ->all();
     }
 }
