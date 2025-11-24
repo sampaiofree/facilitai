@@ -23,9 +23,9 @@ class ProcessSequences extends Command
         SequenceChat::with(['sequence', 'chat.tags', 'chat.instance'])
             ->where('status', 'em_andamento')
             ->where(function ($q) {
-                $agoraUtc = Carbon::now('UTC');
+                $agoraLocal = Carbon::now('America/Sao_Paulo');
                 $q->whereNull('proximo_envio_em')
-                  ->orWhere('proximo_envio_em', '<=', $agoraUtc);
+                  ->orWhere('proximo_envio_em', '<=', $agoraLocal);
             })
             ->chunk(100, function ($batch) use (&$ultimoEnvioLocal, $intervaloMinutos) {
                 foreach ($batch as $inscricao) {
@@ -59,16 +59,14 @@ class ProcessSequences extends Command
                         continue;
                     }
 
-                    $agoraUtc = Carbon::now('UTC');
-                    if ($inscricao->proximo_envio_em && $inscricao->proximo_envio_em->gt($agoraUtc)) {
+                    $agoraLocal = Carbon::now('America/Sao_Paulo');
+                    if ($inscricao->proximo_envio_em && $inscricao->proximo_envio_em->gt($agoraLocal)) {
                         Log::info('Sequencia aguardando proximo_envio_em', [
                             'sequence_chat_id' => $inscricao->id,
                             'proximo_envio_em' => $inscricao->proximo_envio_em,
                         ]);
                         continue;
                     }
-
-                    $agoraLocal = Carbon::now('America/Sao_Paulo');
 
                     // Espacamento minimo entre disparos consecutivos para evitar spam
                     $proximoPermitido = $ultimoEnvioLocal?->copy()->addMinutes($intervaloMinutos);
@@ -183,7 +181,7 @@ class ProcessSequences extends Command
             $inicioLocal = $inscricao->iniciado_em ?? now('America/Sao_Paulo');
             $inscricao->iniciado_em = $inicioLocal;
             $proximoEnvio = $this->aplicarAtraso($step, $inicioLocal);
-            $inscricao->proximo_envio_em = $proximoEnvio->clone()->setTimezone('UTC');
+            $inscricao->proximo_envio_em = $proximoEnvio;
             $inscricao->save();
         }
 
@@ -195,7 +193,7 @@ class ProcessSequences extends Command
         // horário/dia
         if ($step->janela_inicio || $step->janela_fim || $step->dias_semana) {
             if (!$this->estaNaJanela($step, $now)) {
-                $inscricao->proximo_envio_em = $this->proximaJanela($step, $now)->clone()->setTimezone('UTC');
+                $inscricao->proximo_envio_em = $this->proximaJanela($step, $now);
                 $inscricao->save();
                 return false;
             }
@@ -259,7 +257,7 @@ class ProcessSequences extends Command
         $base = $now->copy();
         $proximoEnvio = $this->aplicarAtraso($proximo, $base);
         $inscricao->passo_atual_id = $proximo->id;
-        $inscricao->proximo_envio_em = $proximoEnvio->clone()->setTimezone('UTC');
+        $inscricao->proximo_envio_em = $proximoEnvio;
         $inscricao->save();
     }
 
