@@ -28,12 +28,12 @@
         </select>
     </div>
 
-    <div class="space-y-2">
+    <!--<div class="space-y-2">
         <label class="block text-sm font-medium text-gray-700" for="locale">Locale</label>
         <input type="text" name="locale" id="locale" value="{{ old('locale', $lesson->locale ?? 'pt-BR') }}" required
                class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
         <p class="text-xs text-gray-500">Deixe "pt-BR" por padrão. No futuro, cadastre outras versões por idioma.</p>
-    </div>
+    </div>-->
 
     <div class="space-y-2">
         <label class="block text-sm font-medium text-gray-700" for="position">Ordem</label>

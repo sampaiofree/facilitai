@@ -17,6 +17,9 @@ class ProcessSequences extends Command
 
     public function handle(): int
     {
+        $intervaloMinutos = 2;
+        $ultimoEnvioLocal = null;
+
         SequenceChat::with(['sequence', 'chat.tags', 'chat.instance'])
             ->where('status', 'em_andamento')
             ->where(function ($q) {
@@ -24,7 +27,7 @@ class ProcessSequences extends Command
                 $q->whereNull('proximo_envio_em')
                   ->orWhere('proximo_envio_em', '<=', $agoraUtc);
             })
-            ->chunk(100, function ($batch) {
+            ->chunk(100, function ($batch) use (&$ultimoEnvioLocal, $intervaloMinutos) {
                 foreach ($batch as $inscricao) {
                     $seq = $inscricao->sequence;
                     if (!$seq) {
@@ -54,6 +57,15 @@ class ProcessSequences extends Command
                     }
 
                     $agoraLocal = Carbon::now('America/Sao_Paulo');
+
+                    // Espacamento minimo entre disparos consecutivos para evitar spam
+                    $proximoPermitido = $ultimoEnvioLocal?->copy()->addMinutes($intervaloMinutos);
+                    if ($proximoPermitido && $agoraLocal->lt($proximoPermitido)) {
+                        $inscricao->proximo_envio_em = $proximoPermitido->clone()->setTimezone('UTC');
+                        $inscricao->save();
+                        continue;
+                    }
+
                     if (!$this->prontoParaDisparar($inscricao, $step, $agoraLocal)) {
                         // reagendado para próxima janela válida
                         continue;
@@ -75,6 +87,7 @@ class ProcessSequences extends Command
 
                         $this->log($inscricao, $step, 'sucesso', 'Passo enviado.');
                         $momentoEnvio = Carbon::now('America/Sao_Paulo');
+                        $ultimoEnvioLocal = $momentoEnvio;
                         $this->avancarPasso($inscricao, $step, $momentoEnvio);
                     } catch (\Throwable $e) {
                         Log::error('Erro ao disparar sequência', [
