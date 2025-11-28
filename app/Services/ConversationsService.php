@@ -273,6 +273,10 @@ class ConversationsService
         $messageType = $data['messageType']; //"messageType": "conversation" / "messageType": "audioMessage" / "messageType": "imageMessage", /"messageType": "documentMessage",
         $messageData = $data['message'];
 
+        // Quando vier texto concatenado pelo debounce, usa o $this->msg como conte�do principal
+        if ($messageType === 'conversation' && !empty($this->msg)) {
+            $messageData['conversation'] = $this->msg;
+        }
 
         $input = [];
         if($messageType == 'conversation'){
