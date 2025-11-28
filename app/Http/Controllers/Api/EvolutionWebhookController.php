@@ -11,6 +11,8 @@ use App\Jobs\ProcessWebhookJob;
 use App\Services\ConversationsService;
 use App\Jobs\ProcessarConversaJob;
 use Illuminate\Support\Facades\Cache;
+use App\Jobs\DebounceConversationJob;
+use Illuminate\Support\Carbon;
 
 class EvolutionWebhookController extends Controller
 {
@@ -284,7 +286,41 @@ class EvolutionWebhookController extends Controller
             Log::info("✅ Instância {$instanceName} encontrada");
         }
 
-        ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data); 
+        // Se n�o � texto (ex.: m�dia), processa imediatamente
+        if (empty($messageText)) {
+            ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data); 
+            return true;
+        }
+
+        // Tenta usar cache para debounce; se indispon�vel, processa direto
+        if (!$this->cacheDisponivel()) {
+            ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data); 
+            return true;
+        }
+
+        $cacheKey = "conv_buffer:{$instanceName}:{$contactNumber}";
+        $buffer = Cache::get($cacheKey, []);
+        $agora = Carbon::now()->timestamp;
+
+        if (empty($buffer)) {
+            $buffer = [
+                'started_at' => $agora,
+                'last_at' => $agora,
+                'messages' => [$messageText],
+                'data' => $data,
+            ];
+        } else {
+            $buffer['last_at'] = $agora;
+            $buffer['messages'][] = $messageText;
+            $buffer['data'] = $data; // mant�m dados da �ltima mensagem
+        }
+
+        // TTL curto para evitar vazar cache (120s)
+        Cache::put($cacheKey, $buffer, now()->addSeconds(120));
+
+        // Agenda job de debounce com delay de 5s e teto de 40s
+        DebounceConversationJob::dispatch($cacheKey, $contactNumber, $instanceName, 5, 40)
+            ->delay(now()->addSeconds(5));
 
         
         /*
@@ -314,5 +350,18 @@ class EvolutionWebhookController extends Controller
 
     return $numero;
 }
+
+    private function cacheDisponivel(): bool
+    {
+        try {
+            $key = 'conv_cache_test_' . uniqid();
+            Cache::put($key, 1, 5);
+            Cache::forget($key);
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('Cache indisponivel para debounce, processando direto.', ['erro' => $e->getMessage()]);
+            return false;
+        }
+    }
 
 }
