@@ -15,6 +15,8 @@ class Image extends Model
         'folder_id',
         'path',
         'original_name',
+        'title',
+        'description',
         'size',
     ];
 

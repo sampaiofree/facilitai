@@ -59,6 +59,8 @@ class ImageController extends Controller
                 // Limite de 10MB (10240 KB) - ajuste conforme necessario
                 'max:10240', 
             ],
+            'title' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:500'],
             'folder_id' => [
                 'nullable',
                 'integer',
@@ -84,11 +86,29 @@ class ImageController extends Controller
             'folder_id' => $request->input('folder_id'),
             'path' => $path,
             'original_name' => $file->getClientOriginalName(),
+            'title' => $request->input('title'),
+            'description' => $request->input('description'),
             'size' => round($file->getSize() / 1024), // Salva o tamanho em KB
         ]);
 
         return back()->with('success', 'Imagem enviada com sucesso!');
     } 
+
+    public function update(Request $request, Image $image)
+    {
+        if ($image->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'title' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $image->update($validated);
+
+        return back()->with('success', 'Midia atualizada com sucesso.');
+    }
 
     public function move(Request $request)
     {

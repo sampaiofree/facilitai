@@ -123,7 +123,7 @@ Route::middleware('auth', 'verified')->group(function () {
 
     //CRIAR IMAGENS
     Route::post('/images/move', [ImageController::class, 'move'])->name('images.move');
-    Route::resource('images', ImageController::class)->only(['index', 'store', 'destroy']);
+    Route::resource('images', ImageController::class)->only(['index', 'store', 'destroy', 'update']);
 
     //BIBLIOTECA DE TEXTOS
     Route::resource('library', LibraryEntryController::class)->except(['show']);

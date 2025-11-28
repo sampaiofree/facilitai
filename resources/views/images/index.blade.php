@@ -46,6 +46,20 @@
                             <p class="mt-2 text-xs text-gray-500">PNG, JPG ou MP4. Máximo de 10MB.</p>
                         </div>
                         <div class="mt-4">
+                            <label class="block text-sm text-gray-600 mb-1" for="title">Titulo (opcional)</label>
+                            <input type="text" name="title" id="title" value="{{ old('title') }}" maxlength="255" class="border rounded-lg px-3 py-2 text-sm w-full md:w-96" placeholder="Ex.: Apresentacao da campanha">
+                            @error('title')
+                                <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm text-gray-600 mb-1" for="description">Descricao (opcional)</label>
+                            <textarea name="description" id="description" rows="3" maxlength="500" class="border rounded-lg px-3 py-2 text-sm w-full md:w-96" placeholder="Notas para lembrar o conteudo, ate 500 caracteres.">{{ old('description') }}</textarea>
+                            @error('description')
+                                <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div class="mt-4">
                             <label class="block text-sm text-gray-600 mb-1" for="folder_id">Pasta (opcional)</label>
                             <select name="folder_id" id="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full md:w-60">
                                 <option value="">Sem pasta</option>
@@ -173,75 +187,83 @@
                         <p class="text-sm text-gray-700 mb-2 font-semibold">Arquivos sem pasta</p>
                     @endif
 
-                    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                       @forelse ($images as $file)
-    @php
-        // Pega a extensão do arquivo
-        $ext = strtolower(pathinfo($file->url, PATHINFO_EXTENSION));
-        $isVideo = in_array($ext, ['mp4', 'mov', 'avi', 'mkv', 'webm']);
-        $isAudio = in_array($ext, ['mp3']);
-        $isPDF = in_array($ext, ['pdf']);
-    @endphp
 
-    <div x-data="{ url: '{{ $file->url }}' }" class="relative group border rounded-lg overflow-hidden">
-        <label class="absolute top-2 left-2 z-20 bg-white/80 rounded-md p-1 shadow">
-            <input type="checkbox" class="image-checkbox h-4 w-4" data-image-id="{{ $file->id }}">
-        </label>
-        @if($isVideo)
-            {{-- Imagem padrão para vídeos --}}
-            <div class="h-40 w-full bg-gray-800 flex items-center justify-center relative">
-                <img src="/storage/user_images/1/videoFundo.jpg" class="absolute inset-0 w-full h-full object-cover opacity-50">
-                <span class="text-white font-semibold text-sm text-center px-2 break-words z-10">
-                    Vídeo: {{ $file->original_name }}
-                </span>
-            </div>
-        @elseif($isAudio)
-            <div class="h-40 w-full bg-gray-800 flex items-center justify-center relative">
-                <img src="/storage/user_images/1/fundomp3.jpg" class="absolute inset-0 w-full h-full object-cover opacity-50">
-                <span class="text-white font-semibold text-sm text-center px-2 break-words z-10">
-                    Audio: {{ $file->original_name }}
-                </span>
-            </div>
-        @elseif($isPDF)
-            {{-- Imagem padrão para PDFs --}}
-            <div class="h-40 w-full bg-gray-800 flex items-center justify-center relative">
-                <img src="/storage/user_images/1/fundopdf.jpg" class="absolute inset-0 w-full h-full object-cover opacity-50">
-                <span class="text-white font-semibold text-sm text-center px-2 break-words z-10">
-                    PDF: {{ $file->original_name }}
-                </span>
-            </div>
-        @else
-            {{-- Se for imagem, exibe a própria imagem --}}
-            <img src="{{ $file->url }}" alt="{{ $file->original_name }}" class="h-40 w-full object-cover">
-        @endif
-
-        <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 transition-all flex flex-col justify-between p-2">
-            {{-- Info do arquivo --}}
-            <div class="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                <p class="font-semibold truncate">{{ $file->original_name }}</p>
-                <p>{{ $file->size }} KB</p>
-                <p class="mt-1">Pasta: {{ $file->folder->name ?? 'Sem pasta' }}</p>
-            </div>
-
-            {{-- Ações --}}
-            <div class="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end space-x-1">
-                <button type="button" class="copy-image-link p-1.5 bg-white/80 rounded-full text-gray-700 hover:bg-white" data-url="{{ $file->url }}" title="Copiar URL">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                </button>
-                <form action="{{ route('images.destroy', $file) }}" method="POST" onsubmit="return confirm('Tem certeza?');">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" title="Excluir" class="p-1.5 bg-red-500/80 rounded-full text-white hover:bg-red-500">
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-@empty
-    <p class="col-span-full text-center text-gray-500">Nenhum arquivo enviado ainda.</p>
-@endforelse
-
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-2 w-10">
+                                        <span class="sr-only">Selecionar</span>
+                                    </th>
+                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Nome</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Tipo</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Pasta</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Tamanho</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Acoes</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @forelse ($images as $file)
+                                    @php
+                                        $ext = strtolower(pathinfo($file->url, PATHINFO_EXTENSION));
+                                        $isVideo = in_array($ext, ['mp4', 'mov', 'avi', 'mkv', 'webm']);
+                                        $isAudio = in_array($ext, ['mp3']);
+                                        $isPDF = in_array($ext, ['pdf']);
+                                        $typeLabel = $isVideo ? 'Video' : ($isAudio ? 'Audio' : ($isPDF ? 'PDF' : 'Imagem'));
+                                        $displayTitle = $file->title ?: $file->original_name;
+                                        $hasDescription = !empty($file->description);
+                                        $shortDescription = $hasDescription ? \Illuminate\Support\Str::limit($file->description, 80) : '-';
+                                    @endphp
+                                    <tr>
+                                        <td class="px-3 py-2 align-top">
+                                            <input type="checkbox" class="image-checkbox h-4 w-4 mt-1" data-image-id="{{ $file->id }}">
+                                        </td>
+                                        <td class="px-3 py-2 align-top">
+                                            <div class="flex flex-col gap-1">
+                                                <span class="font-semibold text-gray-800 truncate max-w-xs" title="{{ $displayTitle }}">{{ $displayTitle }}</span>
+                                                <p class="text-xs text-gray-600">
+                                                    {{ $hasDescription ? $shortDescription : '-' }}
+                                                </p>
+                                                
+                                            </div>
+                                        </td>
+                                        <td class="px-3 py-2 align-top text-gray-700">
+                                            {{ $typeLabel }}
+                                        </td>
+                                        <td class="px-3 py-2 align-top text-gray-700">
+                                            {{ $file->folder->name ?? 'Sem pasta' }}
+                                        </td>
+                                        <td class="px-3 py-2 align-top text-gray-700">
+                                            {{ $file->size }} KB
+                                        </td>
+                                        <td class="px-3 py-2 align-top">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <button type="button" class="edit-image inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-md hover:bg-blue-200" data-update-url="{{ route('images.update', $file) }}" data-title="{{ e($file->title ?? '') }}" data-description="{{ e($file->description ?? '') }}" data-fallback-title="{{ e($file->original_name) }}">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-4-9l3 3m-4-3l-7 7v3h3l7-7"></path></svg>
+                                                    Editar
+                                                </button>
+                                                <button type="button" class="copy-image-link inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-md hover:bg-gray-200" data-url="{{ $file->url }}" title="Copiar URL">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                                    Link
+                                                </button>
+                                                <form action="{{ route('images.destroy', $file) }}" method="POST" onsubmit="return confirm('Tem certeza?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" title="Excluir" class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-semibold rounded-md hover:bg-red-200">
+                                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                                                        Excluir
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="px-3 py-6 text-center text-gray-500">Nenhum arquivo enviado ainda.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
                     </div>
 
                     {{-- Links de Paginação --}}
@@ -252,6 +274,31 @@
             </div>
         </div>
     </div>
+
+<div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-lg max-w-lg w-full mx-4 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Editar midia</h3>
+            <button type="button" id="edit-modal-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+        </div>
+        <form id="edit-form" method="POST">
+            @csrf
+            @method('PATCH')
+            <div class="mb-4">
+                <label for="edit-title" class="block text-sm text-gray-700 mb-1">Titulo</label>
+                <input id="edit-title" type="text" name="title" maxlength="255" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Digite o titulo">
+            </div>
+            <div class="mb-4">
+                <label for="edit-description" class="block text-sm text-gray-700 mb-1">Descricao</label>
+                <textarea id="edit-description" name="description" rows="4" maxlength="500" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Digite a descricao"></textarea>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="edit-cancel" class="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancelar</button>
+                <button type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -306,7 +353,7 @@
                 const url = btn.dataset.url;
                 try {
                     await copyText(url);
-                    showAlert?.('✅ URL copiada!', 'success');
+                    showAlert?.('URL copiada!', 'success');
                     btn.title = 'Copiado!';
                     btn.classList.add('bg-green-100');
                     setTimeout(() => {
@@ -314,9 +361,49 @@
                         btn.classList.remove('bg-green-100');
                     }, 1500);
                 } catch (e) {
-                    showAlert?.('❌ Não foi possível copiar o link.', 'error');
+                    showAlert?.('Nao foi possivel copiar o link.', 'error');
                 }
             });
+        });
+
+        document.querySelectorAll('.view-description').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const title = btn.dataset.title || 'Descricao';
+                const description = btn.dataset.description || '';
+                alert(`${title}\\n\\n${description}`);
+            });
+        });
+
+        const editModal = document.getElementById('edit-modal');
+        const editForm = document.getElementById('edit-form');
+        const editTitle = document.getElementById('edit-title');
+        const editDescription = document.getElementById('edit-description');
+        const editClose = document.getElementById('edit-modal-close');
+        const editCancel = document.getElementById('edit-cancel');
+
+        const closeEditModal = () => {
+            editModal.classList.add('hidden');
+            editModal.classList.remove('flex');
+        };
+
+        document.querySelectorAll('.edit-image').forEach(btn => {
+            btn.addEventListener('click', () => {
+                editForm.action = btn.dataset.updateUrl;
+                editTitle.value = btn.dataset.title || btn.dataset.fallbackTitle || '';
+                editDescription.value = btn.dataset.description || '';
+                editModal.classList.remove('hidden');
+                editModal.classList.add('flex');
+            });
+        });
+
+        [editClose, editCancel].forEach(el => {
+            el?.addEventListener('click', closeEditModal);
+        });
+
+        editModal?.addEventListener('click', (event) => {
+            if (event.target === editModal) {
+                closeEditModal();
+            }
         });
     });
 </script>
