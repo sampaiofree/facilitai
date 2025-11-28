@@ -30,60 +30,80 @@
 
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <!-- Seção de Upload -->
+            <!-- Secao de Upload -->
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-8">
-                <div class="p-6 text-gray-900">
-                    <h3 class="text-lg font-medium mb-4">Enviar Nova Imagem, Áudio, PDF ou Vídeo</h3>
-                    
+                <div class="p-6 text-gray-900 flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                        <h3 class="text-lg font-medium">Enviar Nova Imagem, Audio, PDF ou Video</h3>
+                        <p class="text-sm text-gray-600 mt-1">Arquivos ate 10MB (imagem, video, audio ou PDF).</p>
+                    </div>
+                    <button id="open-upload-modal" type="button" class="inline-flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        Adicionar midia
+                    </button>
+                </div>
+            </div>
 
-                    <form action="{{ route('images.store') }}" method="POST" enctype="multipart/form-data">
+            <!-- Modal Upload -->
+            <div id="upload-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+                <div class="bg-white rounded-lg shadow-lg max-w-xl w-full mx-4 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">Enviar midia</h3>
+                        <button type="button" id="upload-modal-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                    </div>
+                    <form id="upload-form" action="{{ route('images.store') }}" method="POST" enctype="multipart/form-data">
                         @csrf
-                        <div>
-                            <input type="file" name="image" required class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                        <div class="mb-4">
+                            <label class="block text-sm text-gray-700 mb-1" for="upload-image">Arquivo</label>
+                            <input id="upload-image" type="file" name="image" required class="block w-full text-sm text-gray-700 border rounded-lg px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                             @error('image')
                                 <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
                             @enderror
-                            <p class="mt-2 text-xs text-gray-500">PNG, JPG ou MP4. Máximo de 10MB.</p>
+                            <p class="mt-1 text-xs text-gray-500">PNG, JPG, MP4, MP3 ou PDF. Ate 10MB.</p>
                         </div>
-                        <div class="mt-4">
-                            <label class="block text-sm text-gray-600 mb-1" for="title">Titulo (opcional)</label>
-                            <input type="text" name="title" id="title" value="{{ old('title') }}" maxlength="255" class="border rounded-lg px-3 py-2 text-sm w-full md:w-96" placeholder="Ex.: Apresentacao da campanha">
+                        <div class="mb-4">
+                            <label class="block text-sm text-gray-700 mb-1" for="upload-title">Titulo (opcional)</label>
+                            <input id="upload-title" type="text" name="title" value="{{ old('title') }}" maxlength="255" class="border rounded-lg px-3 py-2 text-sm w-full" placeholder="Ex.: Apresentacao da campanha">
                             @error('title')
                                 <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
                             @enderror
                         </div>
-                        <div class="mt-4">
-                            <label class="block text-sm text-gray-600 mb-1" for="description">Descricao (opcional)</label>
-                            <textarea name="description" id="description" rows="3" maxlength="500" class="border rounded-lg px-3 py-2 text-sm w-full md:w-96" placeholder="Notas para lembrar o conteudo, ate 500 caracteres.">{{ old('description') }}</textarea>
+                        <div class="mb-4">
+                            <label class="block text-sm text-gray-700 mb-1" for="upload-description">Descricao (opcional)</label>
+                            <textarea id="upload-description" name="description" rows="3" maxlength="500" class="border rounded-lg px-3 py-2 text-sm w-full" placeholder="Notas para lembrar o conteudo, ate 500 caracteres.">{{ old('description') }}</textarea>
                             @error('description')
                                 <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
                             @enderror
                         </div>
-                        <div class="mt-4">
-                            <label class="block text-sm text-gray-600 mb-1" for="folder_id">Pasta (opcional)</label>
-                            <select name="folder_id" id="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full md:w-60">
+                        <div class="mb-4">
+                            <label class="block text-sm text-gray-700 mb-1" for="upload-folder">Pasta (opcional)</label>
+                            <select id="upload-folder" name="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full">
                                 <option value="">Sem pasta</option>
                                 @foreach($folders as $folder)
-                                    <option value="{{ $folder->id }}">{{ $folder->name }}</option>
+                                    <option value="{{ $folder->id }}" {{ old('folder_id') == $folder->id ? 'selected' : '' }}>{{ $folder->name }}</option>
                                 @endforeach
                             </select>
                         </div>
-                        <div class="mt-4">
-                            <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Enviar</button>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" id="upload-cancel" class="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancelar</button>
+                            <button id="upload-submit" type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Enviar</button>
                         </div>
                     </form>
                 </div>
             </div>
 
+            <div id="upload-loading" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center z-50">
+                <div class="bg-white rounded-lg shadow-lg px-6 py-4 flex items-center gap-3">
+                    <svg class="w-5 h-5 text-blue-600 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle class="opacity-25" cx="12" cy="12" r="10" stroke-width="4"></circle><path class="opacity-75" stroke-width="4" d="M4 12a8 8 0 018-8"></path></svg>
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">Enviando arquivo...</p>
+                        <p class="text-xs text-gray-600">Isso pode levar alguns segundos para arquivos maiores.</p>
+                    </div>
+                </div>
+            </div>
             <!-- Seção da Galeria -->
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6 text-gray-900">
-                    @if (session('success'))
-                        <div class="mb-4 p-4 bg-green-100 text-green-700 rounded-lg" role="alert">{{ session('success') }}</div>
-                    @endif
-                    @if (session('error'))
-                        <div class="mb-4 p-4 bg-red-100 text-red-700 rounded-lg" role="alert">{{ session('error') }}</div>
-                    @endif
 
                     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
                         <div class="flex items-center gap-3">
@@ -210,6 +230,7 @@
                                         $isAudio = in_array($ext, ['mp3']);
                                         $isPDF = in_array($ext, ['pdf']);
                                         $typeLabel = $isVideo ? 'Video' : ($isAudio ? 'Audio' : ($isPDF ? 'PDF' : 'Imagem'));
+                                        $typeColor = $isVideo ? 'text-red-700 bg-red-50' : ($isAudio ? 'text-indigo-700 bg-indigo-50' : ($isPDF ? 'text-amber-700 bg-amber-50' : 'text-green-700 bg-green-50'));
                                         $displayTitle = $file->title ?: $file->original_name;
                                         $hasDescription = !empty($file->description);
                                         $shortDescription = $hasDescription ? \Illuminate\Support\Str::limit($file->description, 80) : '-';
@@ -228,7 +249,18 @@
                                             </div>
                                         </td>
                                         <td class="px-3 py-2 align-top text-gray-700">
-                                            {{ $typeLabel }}
+                                            <span class="inline-flex items-center gap-2 px-2 py-1 rounded-lg text-xs font-semibold {{ $typeColor }}">
+                                                @if($isVideo)
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-5.197-3.132A1 1 0 008 8.868v6.264a1 1 0 001.555.832l5.197-3.132a1 1 0 000-1.664z"></path></svg>
+                                                @elseif($isAudio)
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l10-2v13"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19a3 3 0 11-6 0 3 3 0 016 0zm10-2a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                                @elseif($isPDF)
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h7m-7 4h7m2 9H7a2 2 0 01-2-2V6a2 2 0 012-2h7l5 5v9a2 2 0 01-2 2z"></path></svg>
+                                                @else
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h18M3 19h18M3 5v14l7-7 7 7V5"></path></svg>
+                                                @endif
+                                                <span>{{ $typeLabel }}</span>
+                                            </span>
                                         </td>
                                         <td class="px-3 py-2 align-top text-gray-700">
                                             {{ $file->folder->name ?? 'Sem pasta' }}
@@ -242,7 +274,7 @@
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-4-9l3 3m-4-3l-7 7v3h3l7-7"></path></svg>
                                                     Editar
                                                 </button>
-                                                <button type="button" class="copy-image-link inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-md hover:bg-gray-200" data-url="{{ $file->url }}" title="Copiar URL">
+                                                <button type="button" class="copy-image-link inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-md hover:bg-gray-200" data-url="{{ $file->url }}" data-title="{{ e($file->title ?? '') }}" data-description="{{ e($file->description ?? '') }}" title="Copiar URL">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                                                     Link
                                                 </button>
@@ -307,6 +339,13 @@
         const selectedCount = document.getElementById('selected-count');
         const moveForm = document.getElementById('move-form');
         const imagesContainer = document.getElementById('move-form-images');
+        const uploadModal = document.getElementById('upload-modal');
+        const uploadLoading = document.getElementById('upload-loading');
+        const openUploadModal = document.getElementById('open-upload-modal');
+        const uploadModalClose = document.getElementById('upload-modal-close');
+        const uploadCancel = document.getElementById('upload-cancel');
+        const uploadForm = document.getElementById('upload-form');
+        const uploadSubmit = document.getElementById('upload-submit');
 
         const copyText = async (text) => {
             if (navigator.clipboard && window.isSecureContext) {
@@ -348,12 +387,51 @@
             });
         });
 
+        const openUpload = () => {
+            uploadModal.classList.remove('hidden');
+            uploadModal.classList.add('flex');
+        };
+
+        const closeUpload = () => {
+            uploadModal.classList.add('hidden');
+            uploadModal.classList.remove('flex');
+        };
+
+        openUploadModal?.addEventListener('click', openUpload);
+        uploadModalClose?.addEventListener('click', closeUpload);
+        uploadCancel?.addEventListener('click', closeUpload);
+        uploadModal?.addEventListener('click', (event) => {
+            if (event.target === uploadModal) {
+                closeUpload();
+            }
+        });
+
+        uploadForm?.addEventListener('submit', () => {
+            uploadLoading?.classList.remove('hidden');
+            uploadLoading?.classList.add('flex');
+            if (uploadSubmit) {
+                uploadSubmit.disabled = true;
+                uploadSubmit.textContent = 'Enviando...';
+            }
+        });
+
+        @if($errors->has('image') || $errors->has('title') || $errors->has('description') || $errors->has('folder_id'))
+            openUpload();
+        @endif
+
         document.querySelectorAll('.copy-image-link').forEach(btn => {
             btn.addEventListener('click', async () => {
+                const title = (btn.dataset.title || '').trim();
+                const description = (btn.dataset.description || '').trim();
                 const url = btn.dataset.url;
+                const parts = [];
+                if (title) parts.push(`**Titulo:** ${title}`);
+                if (description) parts.push(`**Descricao:** ${description}`);
+                parts.push(`**Link:** ${url}`);
+                const text = parts.join('\n');
                 try {
-                    await copyText(url);
-                    showAlert?.('URL copiada!', 'success');
+                    await copyText(text);
+                    showAlert?.('Link copiado!', 'success');
                     btn.title = 'Copiado!';
                     btn.classList.add('bg-green-100');
                     setTimeout(() => {

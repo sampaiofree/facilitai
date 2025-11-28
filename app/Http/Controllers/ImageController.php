@@ -91,7 +91,7 @@ class ImageController extends Controller
             'size' => round($file->getSize() / 1024), // Salva o tamanho em KB
         ]);
 
-        return back()->with('success', 'Imagem enviada com sucesso!');
+        return back()->with('success', 'Mídia enviada com sucesso!');
     } 
 
     public function update(Request $request, Image $image)
