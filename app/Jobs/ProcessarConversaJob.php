@@ -32,6 +32,13 @@ class ProcessarConversaJob implements ShouldQueue
     public function handle()
     {
 
+        Log::info('processar_conversa.start', [
+            'instance' => $this->instanceName,
+            'contact' => $this->contactNumber,
+            'chars' => strlen((string)$this->messageText),
+            'preview' => mb_substr((string)$this->messageText, 0, 200),
+        ]);
+
         $open = new ConversationsService(
             $this->messageText,
             $this->contactNumber,

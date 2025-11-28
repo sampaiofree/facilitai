@@ -72,6 +72,7 @@ class DebounceConversationJob implements ShouldQueue
             'instance' => $this->instanceName,
             'contact' => $this->contactNumber,
             'messages' => count($buffer['messages']),
+            'preview' => mb_substr($combined, 0, 200),
         ]);
 
         ProcessarConversaJob::dispatch($combined, $this->contactNumber, $this->instanceName, $data);
