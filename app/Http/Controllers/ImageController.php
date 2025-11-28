@@ -48,7 +48,7 @@ class ImageController extends Controller
     // Salva a nova imagem
     public function store(Request $request)
     {
-        // Validação: obrigatório, deve ser imagem, tipos permitidos, tamanho máximo de 2MB (2048 KB)
+        // Validação: obrigatório, deve ser imagem, tipos permitidos, tamanho máximo de 10MB (10240 KB)
         $request->validate([
             'image' => [
                 'required',
@@ -56,8 +56,8 @@ class ImageController extends Controller
                 'file',
                 // 'mimetypes' aceita uma lista de tipos MIME para vídeo e imagem
                 'mimetypes:video/mp4,video/quicktime,image/jpeg,image/png,image/jpg,application/pdf,audio/mpeg,audio/mp3',
-                // Aumenta o limite para 20MB (20480 KB) - ajuste conforme necessário
-                'max:20480', 
+                // Limite de 10MB (10240 KB) - ajuste conforme necessario
+                'max:10240', 
             ],
             'folder_id' => [
                 'nullable',

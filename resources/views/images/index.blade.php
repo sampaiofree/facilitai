@@ -43,7 +43,7 @@
                             @error('image')
                                 <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
                             @enderror
-                            <p class="mt-2 text-xs text-gray-500">PNG, JPG ou MP4. Máximo de 2MB.</p>
+                            <p class="mt-2 text-xs text-gray-500">PNG, JPG ou MP4. Máximo de 10MB.</p>
                         </div>
                         <div class="mt-4">
                             <label class="block text-sm text-gray-600 mb-1" for="folder_id">Pasta (opcional)</label>
