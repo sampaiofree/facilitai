@@ -1340,7 +1340,7 @@ class ConversationsService
                 return "⚠️ Não foi possível obter conteúdo da URL.";
             }
 
-            $maxChars = 30000; //limite de caracteres
+            $maxChars = 80000; //limite de caracteres (≈20k tokens; evita estourar contexto do modelo)
             $conteudo = $this->extrairTextoPlano((string)$conteudo, $headers);
             if (strlen($conteudo) > $maxChars) {
                 $conteudo = mb_substr($conteudo, 0, $maxChars, 'UTF-8');
@@ -1361,6 +1361,8 @@ class ConversationsService
         }
 
         $conteudo = str_ireplace(['<br>', '<br/>', '<br />'], "\n", $conteudo);
+        $conteudo = preg_replace('#<li[^>]*>#i', "- ", $conteudo);
+        $conteudo = preg_replace('#</(p|div|section|article|header|footer|main|aside|nav|li|ul|ol|h[1-6]|table|tr|td|th)>#i', "\n", $conteudo);
         $conteudo = preg_replace('#<(script|style)[^>]*>.*?</\1>#is', ' ', $conteudo);
         $texto = strip_tags($conteudo);
         $texto = html_entity_decode($texto, ENT_QUOTES | ENT_HTML5, 'UTF-8');
