@@ -171,11 +171,17 @@ class EvolutionWebhookController extends Controller
         $instance = Instance::where('id', $instanceName)->first(); //BUSCAR INSTANCIA
         
         if(isset($data['messageType']) AND $data['messageType']=='reactionMessage'){
-            //Log::warning("reação");
+            //Log::warning("reacao");
             return true;
         }
-        
 
+        Log::info('conv.received', [
+            'instance' => $instanceName,
+            'contact' => $contactNumber,
+            'from_me' => $fromMe,
+            'message_type' => $data['messageType'] ?? 'text',
+            'has_text' => !empty($messageText),
+        ]);
 
         if (!$instance) {
             Log::warning("⚠️ Instância {$instanceName} não encontrada");
@@ -286,18 +292,26 @@ class EvolutionWebhookController extends Controller
             Log::info("✅ Instância {$instanceName} encontrada");
         }
 
-        // Se n�o � texto (ex.: m�dia), processa imediatamente
+        // Se nao e texto (ex.: midia), processa imediatamente
         if (empty($messageText)) {
-            ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data); 
+            Log::info('conv.media_immediate', [
+                'instance' => $instanceName,
+                'contact' => $contactNumber,
+                'message_type' => $data['messageType'] ?? 'media',
+            ]);
+            ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data);
             return true;
         }
 
-        // Tenta usar cache para debounce; se indispon�vel, processa direto
+        // Tenta usar cache para debounce; se indisponivel, processa direto
         if (!$this->cacheDisponivel()) {
-            ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data); 
+            Log::warning('conv.debounce_fallback_no_cache', [
+                'instance' => $instanceName,
+                'contact' => $contactNumber,
+            ]);
+            ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data);
             return true;
         }
-
         $cacheKey = "conv_buffer:{$instanceName}:{$contactNumber}";
         $buffer = Cache::get($cacheKey, []);
         $agora = Carbon::now()->timestamp;
@@ -312,15 +326,29 @@ class EvolutionWebhookController extends Controller
         } else {
             $buffer['last_at'] = $agora;
             $buffer['messages'][] = $messageText;
-            $buffer['data'] = $data; // mant�m dados da �ltima mensagem
+            $buffer['data'] = $data; // mantem dados da ultima mensagem
         }
 
-        // TTL curto para evitar vazar cache (120s)
+        Log::info('conv.buffer_update', [
+            'instance' => $instanceName,
+            'contact' => $contactNumber,
+            'messages' => count($buffer['messages']),
+            'started_at' => $buffer['started_at'],
+            'last_at' => $buffer['last_at'],
+        ]);
+
+// TTL curto para evitar vazar cache (120s)
         Cache::put($cacheKey, $buffer, now()->addSeconds(120));
 
         // Agenda job de debounce com delay de 5s e teto de 40s
         DebounceConversationJob::dispatch($cacheKey, $contactNumber, $instanceName, 5, 40)
             ->delay(now()->addSeconds(5));
+
+        Log::info('conv.debounce_scheduled', [
+            'instance' => $instanceName,
+            'contact' => $contactNumber,
+            'messages' => count($buffer['messages']),
+        ]);
 
         
         /*

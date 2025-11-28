@@ -34,6 +34,11 @@ class DebounceConversationJob implements ShouldQueue
     {
         $buffer = Cache::get($this->cacheKey);
         if (empty($buffer) || empty($buffer['messages'])) {
+            \Log::info('debounce.skip_empty', [
+                'cache_key' => $this->cacheKey,
+                'instance' => $this->instanceName,
+                'contact' => $this->contactNumber,
+            ]);
             return;
         }
 
@@ -44,6 +49,13 @@ class DebounceConversationJob implements ShouldQueue
         // Ainda dentro da janela de debounce e dentro do limite total
         if ($lastAt->gt($now->subSeconds($this->debounceSeconds)) && $startedAt->gt($now->subSeconds($this->maxWaitSeconds))) {
             // Reagenda mais um ciclo de debounce
+            \Log::info('debounce.reschedule', [
+                'cache_key' => $this->cacheKey,
+                'instance' => $this->instanceName,
+                'contact' => $this->contactNumber,
+                'messages' => count($buffer['messages']),
+                'last_at' => $buffer['last_at'] ?? null,
+            ]);
             self::dispatch($this->cacheKey, $this->contactNumber, $this->instanceName, $this->debounceSeconds, $this->maxWaitSeconds)
                 ->delay(now()->addSeconds($this->debounceSeconds));
             return;
@@ -54,6 +66,13 @@ class DebounceConversationJob implements ShouldQueue
         $data = $buffer['data'] ?? [];
 
         Cache::forget($this->cacheKey);
+
+        \Log::info('debounce.flush', [
+            'cache_key' => $this->cacheKey,
+            'instance' => $this->instanceName,
+            'contact' => $this->contactNumber,
+            'messages' => count($buffer['messages']),
+        ]);
 
         ProcessarConversaJob::dispatch($combined, $this->contactNumber, $this->instanceName, $data);
     }
