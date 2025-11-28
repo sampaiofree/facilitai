@@ -1333,17 +1333,17 @@ class ConversationsService
             ]);
 
             $conteudo = @file_get_contents($url, false, $context);
-
-            $maxChars = 30000; //limite de caracteres
-            $conteudo = trim($conteudo);
-            if (strlen($conteudo) > $maxChars) {
-                $conteudo = mb_substr($conteudo, 0, $maxChars, 'UTF-8');
-            }
+            $headers = $http_response_header ?? [];
 
             if ($conteudo === false) {
-                //Log::info('conteudo: ', $conteudo);
                 Log::error('Erro ao obter conteúdo de: ' . $url);
                 return "⚠️ Não foi possível obter conteúdo da URL.";
+            }
+
+            $maxChars = 30000; //limite de caracteres
+            $conteudo = $this->extrairTextoPlano((string)$conteudo, $headers);
+            if (strlen($conteudo) > $maxChars) {
+                $conteudo = mb_substr($conteudo, 0, $maxChars, 'UTF-8');
             }
 
             return trim($conteudo);
@@ -1352,6 +1352,33 @@ class ConversationsService
             Log::error('Erro em buscar_get: ' . $e->getMessage());
             return "❌ Erro ao buscar conteúdo da URL.";
         }
+    }
+
+    private function extrairTextoPlano(string $conteudo, array $headers): string
+    {
+        if (!$this->respostaPareceHtml($conteudo, $headers)) {
+            return trim($conteudo);
+        }
+
+        $conteudo = str_ireplace(['<br>', '<br/>', '<br />'], "\n", $conteudo);
+        $conteudo = preg_replace('#<(script|style)[^>]*>.*?</\1>#is', ' ', $conteudo);
+        $texto = strip_tags($conteudo);
+        $texto = html_entity_decode($texto, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $texto = preg_replace('/[ \t]+/', ' ', $texto);
+        $texto = preg_replace('/\n{2,}/', "\n", $texto);
+
+        return trim($texto);
+    }
+
+    private function respostaPareceHtml(string $conteudo, array $headers): bool
+    {
+        foreach ($headers as $header) {
+            if (stripos($header, 'content-type:') === 0 && stripos($header, 'text/html') !== false) {
+                return true;
+            }
+        }
+
+        return stripos($conteudo, '<html') !== false || stripos($conteudo, '<body') !== false;
     }
 
 
