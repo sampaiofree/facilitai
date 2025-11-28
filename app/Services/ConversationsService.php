@@ -1363,6 +1363,15 @@ class ConversationsService
         $conteudo = str_ireplace(['<br>', '<br/>', '<br />'], "\n", $conteudo);
         $conteudo = preg_replace('#<li[^>]*>#i', "- ", $conteudo);
         $conteudo = preg_replace('#</(p|div|section|article|header|footer|main|aside|nav|li|ul|ol|h[1-6]|table|tr|td|th)>#i', "\n", $conteudo);
+        $conteudo = preg_replace_callback(
+            '#<a[^>]+href=[\'"]([^\'"]+)[\'"][^>]*>(.*?)</a>#is',
+            function ($m) {
+                $texto = trim(strip_tags($m[2]));
+                $href = trim($m[1]);
+                return $texto ? "{$texto} ({$href})" : $href;
+            },
+            $conteudo
+        );
         $conteudo = preg_replace('#<(script|style)[^>]*>.*?</\1>#is', ' ', $conteudo);
         $texto = strip_tags($conteudo);
         $texto = html_entity_decode($texto, ENT_QUOTES | ENT_HTML5, 'UTF-8');
