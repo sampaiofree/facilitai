@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Instance; // <-- IMPORTANTE: Precisamos do modelo Instance aqui
+use App\Models\ProxyIpBan;
 use Illuminate\Support\Facades\Http;
 
 class WebshareService
@@ -26,6 +27,8 @@ class WebshareService
         // 1. Pega todos os IPs de proxy que já estão em uso no nosso banco de dados.
         // O método pluck é extremamente eficiente para isso.
         $usedIps = Instance::pluck('proxy_ip')->toArray();
+        $bannedIps = ProxyIpBan::pluck('ip')->toArray();
+        $blockedIps = array_filter(array_merge($usedIps, $bannedIps));
 
         $page = 1;
         $pageSize = 25; // Podemos ajustar se necessário
@@ -57,7 +60,7 @@ class WebshareService
             // 5. Itera sobre cada proxy retornado na página atual.
             foreach ($proxiesOnPage as $proxy) {
                 // 6. Verifica se o IP do proxy atual NÃO está na nossa lista de IPs já usados.
-                if (!in_array($proxy['proxy_address'], $usedIps)) {
+                if (!in_array($proxy['proxy_address'], $blockedIps)) {
                     // SUCESSO! Encontramos um proxy livre.
                     // Retorna os dados dele imediatamente, encerrando o loop e a função.
                     return $proxy;

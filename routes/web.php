@@ -23,6 +23,7 @@ use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\AgendaPublicaController; 
 use App\Http\Controllers\SequenceController;
 use App\Http\Controllers\LessonPublicController;
+use App\Http\Controllers\ProxyBanController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
@@ -100,6 +101,9 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth', 'verified')->group(function () {
+    Route::middleware('admin')->group(function () {
+        Route::get('/proxy-ban', [ProxyBanController::class, 'index'])->name('proxy-ban.index');
+    });
     
     // AGENDAS E DISPONIBILIDADES
     Route::post('/agendas/{agenda}/gerar-disponibilidades', [AgendaController::class, 'gerarDisponibilidades'])->name('agendas.gerarDisponibilidades');

@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule; 
 use App\Models\Instance;
+use App\Models\ProxyIpBan;
 use App\Models\Credential;
 use App\Services\OpenAIService;
 use App\Services\WebshareService; 
@@ -261,7 +262,12 @@ class InstanceController extends Controller
             if ($response->successful() || $response->notFound()) {
                 Log::info("Instância {$instance->id} excluída com sucesso (ou já não existia) no Evolution.");
                 
-                // 4. Exclui a instância do nosso banco de dados local
+                // 4. Registra o proxy como banido para não reutilizar
+                if (!empty($instance->proxy_ip)) {
+                    ProxyIpBan::firstOrCreate(['ip' => $instance->proxy_ip]);
+                }
+
+                // 5. Exclui a instância do nosso banco de dados local
                 $instance->delete();
 
                 // Opcional: Desvincular o pagamento

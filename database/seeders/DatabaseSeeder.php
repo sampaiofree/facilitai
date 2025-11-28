@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use Database\Seeders\ExampleUserDataSeeder;
 use Database\Seeders\AdminUserSeeder;
+use Database\Seeders\ProxyIpBanSeeder;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -27,5 +28,6 @@ class DatabaseSeeder extends Seeder
         $this->call(AdminUserSeeder::class);
 
         $this->call(ExampleUserDataSeeder::class);
+        $this->call(ProxyIpBanSeeder::class);
     }
 }
