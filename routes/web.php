@@ -45,6 +45,11 @@ Route::get('/lp-2', function () {return view('homepage.lp4');})->name('lp2');
 Route::get('/lp-3', function () {return view('homepage.lp4');})->name('lp3');
 Route::get('/lp-4', function () {return view('homepage.lp4');})->name('lp4');
 
+// Landing page por cidade
+Route::get('/cidade/{city}', function (string $city) {
+    return view('cidade', ['city' => $city]);
+})->name('cidade.show');
+
 //LANDING PAGES
 Route::get('/lp/adv', function () {return view('lp.adv1');});
 Route::get('/lp/odonto', function () {return view('lp.ondonto');});
