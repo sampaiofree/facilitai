@@ -27,6 +27,7 @@
     if(Auth::user()->is_admin) {
         $ferramentas[] = ['label' => 'Aulas (Admin)', 'route' => 'admin.lessons.index', 'highlight' => true];
         $ferramentas[] = ['label' => 'Proxy Ban', 'route' => 'proxy-ban.index', 'highlight' => true];
+        $ferramentas[] = ['label' => 'Logs Webhook', 'route' => 'admin.webhook-requests.index', 'highlight' => true];
     }
     
 @endphp

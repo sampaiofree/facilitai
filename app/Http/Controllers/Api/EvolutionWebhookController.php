@@ -13,6 +13,7 @@ use App\Jobs\ProcessarConversaJob;
 use Illuminate\Support\Facades\Cache;
 use App\Jobs\DebounceConversationJob;
 use Illuminate\Support\Carbon;
+use App\Models\WebhookRequest;
 
 class EvolutionWebhookController extends Controller
 {
@@ -148,45 +149,62 @@ class EvolutionWebhookController extends Controller
         return response()->json(['status' => 'queued_for_processing']);
     }
 
+    
     public function conversation(Request $request) 
     {
+        $data = $request->input('data', []);
+        $instanceName = $request->input('instance');
 
-        if (str_contains($request->input('data.key.remoteJid'), '@lid')) {
-            $remoteJid = $request->input('data.key.remoteJidAlt'); 
-        }else{
-            $remoteJid = $request->input('data.key.remoteJid'); 
+        $remoteJidInput = (string) $request->input('data.key.remoteJid');
+        if (str_contains($remoteJidInput, '@lid')) {
+            $remoteJid = $request->input('data.key.remoteJidAlt');
+        } else {
+            $remoteJid = $remoteJidInput;
         }
 
-        //VERIFICAR SE MENSAGEM VEIO DE GRUPO OU NÃO
-        if (str_ends_with($remoteJid, '@g.us')) { return true; }
+        $contactNumber = $this->padronizarNumero(preg_replace('/[^0-9]/', '', (string) $remoteJid));
+        $fromMe = $request->input('data.key.fromMe'); // 'data.key.fromMe'
+        $messageText = $request->input('data.message.conversation'); // 'data.message.conversation'
+        $eventId = $request->input('data.key.id') ?? $request->input('data.id') ?? null;
+        $messageTimestamp = $request->input('data.messageTimestamp');
+        $messageType = $data['messageType'] ?? null;
 
+        try {
+            WebhookRequest::create([
+                'instance_id' => $instanceName,
+                'remote_jid' => $remoteJid,
+                'contact' => $contactNumber ?: null,
+                'from_me' => $fromMe,
+                'message_type' => $messageType,
+                'event_id' => $eventId,
+                'message_timestamp' => $messageTimestamp,
+                'message_text' => $messageText,
+                'payload' => $request->all(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('webhook_request_log_failed', ['error' => $e->getMessage()]);
+        }
 
-        Log::info("instance:".$request->input('instance')." - Request: " . json_encode($request->input('data.key'), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        //VERIFICAR SE MENSAGEM VEIO DE GRUPO OU NAO
+        if (str_ends_with((string) $remoteJid, '@g.us')) { return true; }
 
+        Log::info("instance:".$instanceName." - Request: " . json_encode($request->input('data.key'), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
-        //Log::info('🚨 Dados do Evolution:', $request->all());
-        // 2. Extrair dados cruciais do JSON (com base na estrutura que você forneceu)
-        $instanceName = $request->input('instance'); // 'instance'
+        //Log::info('Dados do Evolution:', $request->all());
+        // 2. Extrair dados cruciais do JSON (com base na estrutura que voce forneceu)
          // 'data.key.remoteJid'
         
         //$sender = $request->input('sender') ?? '';
        
 
-        $fromMe = $request->input('data.key.fromMe'); // 'data.key.fromMe'
-        $messageText = $request->input('data.message.conversation'); // 'data.message.conversation'
-        $data = $request->input('data'); // 'data'
-        $contactNumber = $this->padronizarNumero(preg_replace('/[^0-9]/', '', $remoteJid));
         $instance = Instance::where('id', $instanceName)->first(); //BUSCAR INSTANCIA
-        $eventId = $request->input('data.key.id') ?? $request->input('data.id') ?? null;
-        $messageTimestamp = $request->input('data.messageTimestamp');
-        
         if(isset($data['messageType']) AND $data['messageType']=='reactionMessage'){
             //Log::warning("reacao");
             return true;
         }
 
         if(!$contactNumber){
-            Log::warning("⚠️ Número do contato não pôde ser determinado.");
+            Log::warning("Numero do contato nao pode ser determinado.");
             return response()->json(['status' => 'ignored', 'reason' => 'invalid_contact_number']);
         }
 
@@ -217,21 +235,21 @@ class EvolutionWebhookController extends Controller
         }
 
         if (!$instance or $instance->default_assistant_id===null) {
-            Log::warning("⚠️ Instância {$instanceName} não encontrada ou sem assistente vinculado.");
+            Log::warning("Instancia {$instanceName} nao encontrada ou sem assistente vinculado.");
             return response()->json(['status' => 'ignored', 'reason' => 'instance_not_found']);
         }
         
 
        
         // ===================================================================
-        // LÓGICA DA TABELA CHATS
+        // LOGICA DA TABELA CHATS
         // ===================================================================
         
 
-        // Busca o registro de chat para este contato nesta instância
+        // Busca o registro de chat para este contato nesta instancia
         $chat = Chat::where('instance_id', $instance->id)->where('contact', $contactNumber)->first();
 
-        //CRIA UM NOVO REGISTRO NA TABELA CHAT CASO NÃO EXISTA
+        //CRIA UM NOVO REGISTRO NA TABELA CHAT CASO NAO EXISTA
         if(!$chat){
             $chat = new Chat();
             $chat->instance_id = $instance->id;
@@ -240,22 +258,21 @@ class EvolutionWebhookController extends Controller
             $chat->assistant_id = $instance->default_assistant_id;
 
             $chat->contact = $contactNumber;
-            $chat->bot_enabled = 1; //ATIVA O BOT POR PADRÃO
+            $chat->bot_enabled = 1; //ATIVA O BOT POR PADRAO
             $chat->save();
         }
         
-        // Se o registro de chat ainda não existe, o bot está ativo por padrão.
+        // Se o registro de chat ainda nao existe, o bot esta ativo por padrao.
 
-        //VERIFICAR SE MENSAGEM VEIO DE GRUPO OU NÃO
+        //VERIFICAR SE MENSAGEM VEIO DE GRUPO OU NAO
         if (str_ends_with($remoteJid, '@g.us')) { return true; }
 
         
-        
         // ===================================================================
-        // REGRA DE NEGÓCIO 1: IGNORAR MENSAGENS ENVIADAS PELA PRÓPRIA INSTÂNCIA
+        // REGRA DE NEGOCIO 1: IGNORAR MENSAGENS ENVIADAS PELA PROPRIA INSTANCIA
         // ===================================================================
         
-        if ($fromMe === true) { //MENSAGEM DO PRÓPRIO ADM
+        if ($fromMe === true) { //MENSAGEM DO PROPRIO ADM
 
             
             // REGISTRAR BOT COMO FALSO CASO EXISTA UM REGISTRO
@@ -271,12 +288,11 @@ class EvolutionWebhookController extends Controller
                 
             }
 
-
             return true;
         }
 
         // ===================================================================
-        // REGRA DE NEGÓCIO 2: IGNORAR MENSAGENS com bot_enabled FALSE
+        // REGRA DE NEGOCIO 2: IGNORAR MENSAGENS com bot_enabled FALSE
         // ===================================================================
         if (isset($chat->bot_enabled) and !$chat->bot_enabled) {Log::info("return true"); return true;}
 
@@ -291,32 +307,32 @@ class EvolutionWebhookController extends Controller
             }
 
             // Log inicial de recebimento
-            Log::info("📩 Mensagem recebida de {$contactNumber}: {$messageText}");
+            Log::info("Mensagem recebida de {$contactNumber}: {$messageText}");
 
             // Recupera mensagens existentes no cache
             $mensagens = Cache::get($key, []);
-            Log::info("🗂️ Mensagens atuais no cache ({$key}):", $mensagens);
+            Log::info("Mensagens atuais no cache ({$key}):", $mensagens);
 
             // Adiciona a nova mensagem
             $mensagens[] = $messageText;
 
             // Salva novamente com o novo timeout
             Cache::put($key, $mensagens, now()->addSeconds($timeout));
-            Log::info("💾 Cache atualizado ({$key}) com timeout de {$timeout}s:", $mensagens);
+            Log::info("Cache atualizado ({$key}) com timeout de {$timeout}s:", $mensagens);
 
             // Dispara o job com delay
             ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data, $key)->delay(now()->addSeconds($timeout));
 
-            Log::info("🚀 Job agendado para {$contactNumber} com delay de {$timeout}s (chave {$key})");
+            Log::info("Job agendado para {$contactNumber} com delay de {$timeout}s (chave {$key})");
             return true;
         }*/
 
         $instance = Instance::find($instanceName);
         if(!$instance){
-            Log::warning("⚠️ Instância {$instanceName} não encontrada");
+            Log::warning("Instancia {$instanceName} nao encontrada");
             return true;
         }else{
-            Log::info("✅ Instância {$instanceName} encontrada");
+            Log::info("Instancia {$instanceName} encontrada");
         }
 
         // Se nao e texto (ex.: midia), processa imediatamente
@@ -390,8 +406,8 @@ class EvolutionWebhookController extends Controller
         
         return true;
  
-    
     }
+
 
     function padronizarNumero($numero) {
     // Remove espaços, traços, parênteses e tudo que não for número
