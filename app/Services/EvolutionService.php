@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
@@ -7,6 +8,34 @@ use Illuminate\Support\Facades\Log;
 class EvolutionService
 {
     public function enviar_msg_evolution($telefone, $mensagem, $instancia)
+    {
+        $partes = $this->splitMensagem((string) $mensagem);
+        $totalPartes = count($partes);
+        $resultados = [];
+
+        foreach ($partes as $indice => $texto) {
+            $texto = trim($texto);
+            if ($texto === '') {
+                continue;
+            }
+
+            $resultados[] = $this->enviarSegmentoTexto(
+                $telefone,
+                $texto,
+                $instancia,
+                $indice + 1,
+                $totalPartes
+            );
+        }
+
+        if (empty($resultados)) {
+            return "Mensagem vazia, nada enviado para {$telefone}";
+        }
+
+        return $totalPartes === 1 ? $resultados[0] : $resultados;
+    }
+
+    private function enviarSegmentoTexto($telefone, $mensagem, $instancia, $parte, $total)
     {
         $url = config('services.evolution.url') . "/message/sendText/{$instancia}";
         $apiKey = config('services.evolution.key');
@@ -19,12 +48,10 @@ class EvolutionService
         try {
             $response = Http::withHeaders(['apiKey' => $apiKey])->post($url, $payload);
 
-            // Se deu certo, retorna o resultado
             if ($response->successful()) {
                 return $response->json();
             }
 
-            // Se falhou, tenta novamente removendo o "9" após o DDD
             if ($response->status() >= 400) {
                 $telefoneAjustado = $this->removerNoveAposDDD($telefone);
 
@@ -33,33 +60,38 @@ class EvolutionService
                     $retry = Http::withHeaders(['apiKey' => $apiKey])->post($url, $payload);
 
                     if ($retry->successful()) {
-                        Log::info("✅ Envio bem-sucedido após remover o 9: {$telefoneAjustado}");
+                        Log::info("Envio bem-sucedido apos remover o 9: {$telefoneAjustado}");
                         return $retry->json();
                     }
 
-                    Log::error('🚨 Falha mesmo após remover o 9', [
+                    Log::error('Falha mesmo apos remover o 9', [
                         'telefone_original' => $telefone,
                         'telefone_tentado' => $telefoneAjustado,
                         'status' => $retry->status(),
                         'body' => $retry->body(),
+                        'parte' => $parte,
+                        'total_partes' => $total,
                     ]);
                 }
             }
 
-            // Se tudo falhar
-            Log::error('EvolutionService: Falha ao enviar mensagem', [ 
+            Log::error('EvolutionService: Falha ao enviar mensagem', [
                 'telefone' => $telefone,
                 'mensagem' => $mensagem,
                 'instancia' => $instancia,
                 'status' => $response->status(),
                 'body' => $response->body(),
+                'parte' => $parte,
+                'total_partes' => $total,
             ]);
         } catch (\Exception $e) {
-            Log::error('EvolutionService: Erro na requisição ao Evolution', [
+            Log::error('EvolutionService: Erro na requisicao ao Evolution', [
                 'exception' => $e->getMessage(),
                 'telefone' => $telefone,
                 'mensagem' => $mensagem,
                 'instancia' => $instancia,
+                'parte' => $parte,
+                'total_partes' => $total,
             ]);
         }
 
@@ -67,52 +99,47 @@ class EvolutionService
     }
 
     /**
-     * Remove o 9 após o DDD (formato brasileiro)
-     * Ex: 5548996774890 → 554896774890
+     * Remove o 9 apos o DDD (formato brasileiro)
+     * Ex: 5548996774890 -> 554896774890
      */
     private function removerNoveAposDDD($numero)
     {
-        // Captura DDI (55) + DDD + 9 + número
-        // Exemplo: 5548996774890 → 554896774890
         return preg_replace('/^(\d{4,5})(9)(\d{8})$/', '$1$3', $numero);
     }
 
-
-    public function notificar_adm($arguments, $instance, $contact){
-
+    public function notificar_adm($arguments, $instance, $contact)
+    {
         $dados = json_decode($arguments, true);
 
-        // Agora você acessa assim:
         $telefones = $dados['numeros_telefone'];
-        $mensagem = $dados['mensagem']. " Referente ao contato: ".$contact;
-        
-        foreach( $telefones as  $telefone){$return[] = $this->enviar_msg_evolution($telefone, $mensagem, $instance);}
+        $mensagem = $dados['mensagem'] . " Referente ao contato: " . $contact;
 
-        return $return;
+        foreach ($telefones as $telefone) {
+            $return[] = $this->enviar_msg_evolution($telefone, $mensagem, $instance);
+        }
 
+        return $return ?? [];
     }
-    
 
     function conectarInstancia($id)
     {
         $response = Http::withHeaders([
             'apikey' => config('services.evolution.key')
-        ])->get(config('services.evolution.url')."/instance/connect/{$id}");
+        ])->get(config('services.evolution.url') . "/instance/connect/{$id}");
 
         $res = $response->json();
 
-        if(isset($res['base64']) AND !empty($res['base64'])){
+        if (isset($res['base64']) and !empty($res['base64'])) {
             return $res;
-        }else{
-            $mensagem = "Problema na geração de QR CODE, alterar o CONFIG_SESSION_PHONE_VERSION";
+        } else {
+            $mensagem = "Problema na geracao de QR CODE, alterar o CONFIG_SESSION_PHONE_VERSION";
             $this->enviar_msg_evolution('5562995772922', $mensagem, '177');
         }
     }
 
     function enviarMedia(string $numero, string $mediaUrl, string $instance)
     {
-        
-        Log::info('Iniciando envio de mídia para Evolution', compact('numero', 'mediaUrl', 'instance'));
+        Log::info('Iniciando envio de midia para Evolution', compact('numero', 'mediaUrl', 'instance'));
 
         $url = config('services.evolution.url') . "/message/sendMedia/{$instance}";
         $apiKey = config('services.evolution.key');
@@ -120,28 +147,21 @@ class EvolutionService
         Log::info('URL final da API Evolution', ['url' => $url]);
         Log::info('API Key usada', ['apikey' => $apiKey]);
 
-        // Extrair o nome do arquivo
         $fileName = basename(parse_url($mediaUrl, PHP_URL_PATH));
-        Log::info('Nome do arquivo extraído da URL', ['fileName' => $fileName]);
+        Log::info('Nome do arquivo extraido da URL', ['fileName' => $fileName]);
 
-        // Detectar o MIME type com base na extensão
         $extensao = pathinfo($fileName, PATHINFO_EXTENSION);
-        Log::info('Extensão detectada', ['extensao' => $extensao]);
-
-        
+        Log::info('Extensao detectada', ['extensao' => $extensao]);
 
         $mimeTypes = [
-            // Imagens
             'jpg' => 'image/jpeg',
             'jpeg' => 'image/jpeg',
             'png' => 'image/png',
             'webp' => 'image/webp',
-            // Vídeos
             'mp4' => 'video/mp4',
             'mov' => 'video/quicktime',
             'avi' => 'video/x-msvideo',
             'mkv' => 'video/x-matroska',
-            // Documentos
             'pdf' => 'application/pdf',
             'doc' => 'application/msword',
             'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -164,19 +184,14 @@ class EvolutionService
         }
         Log::info('EvolutionService: mediatype definido', ['mediatype' => $mediaType]);
 
-
-        
-
         $dados = [
             'mediatype' => $mediaType,
             'media' => $mediaUrl,
             'fileName' => $fileName,
-            //'mimetype' => $mimetype,
             'caption' => '',
             'number' => $numero
         ];
 
-        // Se for MP3 → chama o método de áudio e retorna
         if ($extensao === 'mp3') {
             $url = config('services.evolution.url') . "/message/sendWhatsAppAudio/{$instance}";
             $dados['audio'] = $mediaUrl;
@@ -198,16 +213,14 @@ class EvolutionService
             'body' => $response->body()
         ]);
 
-        return "Midia não enviada";
+        return "Midia nao enviada";
 
         throw new \Exception('Erro ao enviar Midia para Evolution: ' . $response->body());
     }
 
-
     function enviarMedia2(string $numero, string $mediaUrl, string $instance)
     {
-        
-        Log::info('Iniciando envio de mídia para Evolution', compact('numero', 'mediaUrl', 'instance'));
+        Log::info('Iniciando envio de midia para Evolution', compact('numero', 'mediaUrl', 'instance'));
 
         $url = config('services.evolution.url') . "/message/sendMedia/{$instance}";
         $apiKey = config('services.evolution.key');
@@ -215,13 +228,11 @@ class EvolutionService
         Log::info('URL final da API Evolution', ['url' => $url]);
         Log::info('API Key usada', ['apikey' => $apiKey]);
 
-        // Extrair o nome do arquivo
         $fileName = basename(parse_url($mediaUrl, PHP_URL_PATH));
-        Log::info('Nome do arquivo extraído da URL', ['fileName' => $fileName]);
+        Log::info('Nome do arquivo extraido da URL', ['fileName' => $fileName]);
 
-        // Detectar o MIME type com base na extensão
         $extensao = pathinfo($fileName, PATHINFO_EXTENSION);
-        Log::info('Extensão detectada', ['extensao' => $extensao]);
+        Log::info('Extensao detectada', ['extensao' => $extensao]);
 
         $imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
         $videoExtensions = ['mp4', 'mov', 'avi', 'mkv'];
@@ -261,12 +272,93 @@ class EvolutionService
             'body' => $response->body()
         ]);
 
-        return "Midia não enviada";
+        return "Midia nao enviada";
 
         throw new \Exception('Erro ao enviar Midia para Evolution: ' . $response->body());
     }
 
- 
+    private function splitMensagem(string $mensagem, int $limite = 1800): array
+    {
+        $mensagem = trim(str_replace(["\r\n", "\r"], "\n", $mensagem));
+        if ($mensagem === '') {
+            return [''];
+        }
 
+        $paragrafos = preg_split('/\n\s*\n/', $mensagem) ?: [$mensagem];
 
+        $resultados = [];
+        $buffer = '';
+
+        foreach ($paragrafos as $paragrafo) {
+            $paragrafo = trim($paragrafo);
+            if ($paragrafo === '') {
+                continue;
+            }
+
+            if (mb_strlen($paragrafo) > $limite) {
+                $resultados = array_merge($resultados, $this->quebrarParagrafoGrande($paragrafo, $limite));
+                continue;
+            }
+
+            $candidato = $buffer === '' ? $paragrafo : $buffer . "\n\n" . $paragrafo;
+            if (mb_strlen($candidato) > $limite) {
+                if ($buffer !== '') {
+                    $resultados[] = $buffer;
+                }
+                $buffer = $paragrafo;
+            } else {
+                $buffer = $candidato;
+            }
+        }
+
+        if ($buffer !== '') {
+            $resultados[] = $buffer;
+        }
+
+        return $resultados ?: [$mensagem];
+    }
+
+    private function quebrarParagrafoGrande(string $paragrafo, int $limite): array
+    {
+        $palavras = preg_split('/\s+/', $paragrafo) ?: [];
+        $blocos = [];
+        $linha = '';
+
+        foreach ($palavras as $palavra) {
+            $candidato = $linha === '' ? $palavra : $linha . ' ' . $palavra;
+
+            if (mb_strlen($palavra) > $limite) {
+                $blocos = array_merge($blocos, $this->quebrarPalavraLonga($palavra, $limite));
+                $linha = '';
+                continue;
+            }
+
+            if (mb_strlen($candidato) > $limite) {
+                if ($linha !== '') {
+                    $blocos[] = $linha;
+                }
+                $linha = $palavra;
+            } else {
+                $linha = $candidato;
+            }
+        }
+
+        if ($linha !== '') {
+            $blocos[] = $linha;
+        }
+
+        return $blocos;
+    }
+
+    private function quebrarPalavraLonga(string $palavra, int $limite): array
+    {
+        $pedacos = [];
+        $tamanho = mb_strlen($palavra);
+
+        for ($i = 0; $i < $tamanho; $i += $limite) {
+            $pedacos[] = mb_substr($palavra, $i, $limite);
+        }
+
+        return $pedacos;
+    }
 }
