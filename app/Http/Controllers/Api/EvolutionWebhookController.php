@@ -185,6 +185,11 @@ class EvolutionWebhookController extends Controller
             return true;
         }
 
+        if(!$contactNumber){
+            Log::warning("⚠️ Número do contato não pôde ser determinado.");
+            return response()->json(['status' => 'ignored', 'reason' => 'invalid_contact_number']);
+        }
+
         Log::info('conv.received', [
             'instance' => $instanceName,
             'contact' => $contactNumber,
