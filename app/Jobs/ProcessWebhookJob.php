@@ -17,6 +17,10 @@ class ProcessWebhookJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public int $tries = 1;
+    public int $timeout = 120;
+    public int $backoff = 30;
+
     protected Instance $instance;
     protected string $contactNumber;
     protected array $webhookData;

@@ -23,6 +23,9 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Tag;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
+use App\Models\Agenda;
+use App\Models\AgendaReminder;
+use Carbon\Carbon;
 
 class ConversationsService
 {
@@ -878,9 +881,9 @@ class ConversationsService
 
             // Se for erro de conversa bloqueada, aguarda e tenta novamente
             if ($erro === 'conversation_locked' OR $erro ==='rate_limit_exceeded') {
-                return false;
-                //Log::warning("🔄 Tentativa {$tentativa}/{$maxTentativas} - Conversa bloqueada. Aguardando 30s...");
-                //sleep(30);
+                //return false;
+                Log::warning("🔄 Tentativa {$tentativa}/{$maxTentativas} - Conversa bloqueada. Aguardando 30s...");
+                sleep(5);
             } else {
                 return false;
             }
@@ -1012,6 +1015,15 @@ class ConversationsService
                 $diaMsg = $dadosAgenda['data'] ?? '-';
                 $inicioMsg = $dadosAgenda['inicio'] ?? '-';
                 $fimMsg = $dadosAgenda['fim'] ?? '-';
+                if (in_array($arguments['acao'] ?? '', ['agendar', 'alterar'], true)) {
+                    $this->criarLembretesAgenda(
+                        $this->instance->agenda_id,
+                        $dadosAgenda['slot_ids'] ?? [],
+                        $dadosAgenda['data'] ?? null,
+                        $dadosAgenda['inicio'] ?? null,
+                        $arguments['telefone'] ?? $this->numero
+                    );
+                }
                 $msg = match ($arguments['acao']) {
                     'consultar' => $this->formatarConsulta($resultado['data']),
                     'agendar'   => "✅ Horário agendado com sucesso para *{$diaMsg}* das *{$inicioMsg}* às *{$fimMsg}*.",
@@ -1036,6 +1048,63 @@ class ConversationsService
                 "call_id" => $arguments['call_id'] ?? null,
                 "output" => "❌ Erro interno ao tentar gerenciar a agenda. Tente novamente mais tarde."
             ];
+        }
+    }
+
+
+
+    private function criarLembretesAgenda(?int $agendaId, array $slotIds, ?string $data, ?string $inicio, ?string $telefone): void
+    {
+        if (!$agendaId || !$data || !$inicio) {
+            return;
+        }
+
+        $agenda = Agenda::find($agendaId);
+        if (!$agenda) {
+            return;
+        }
+
+        $offsets = [];
+        if ($agenda->reminder_24h) {
+            $offsets[] = -1440;
+        }
+        if ($agenda->reminder_2h) {
+            $offsets[] = -120;
+        }
+
+        if (empty($offsets)) {
+            return;
+        }
+
+        $slotId = $slotIds[0] ?? null;
+        if (!$slotId) {
+            return;
+        }
+
+        $horarioAgendado = Carbon::parse("{$data} {$inicio}", 'America/Sao_Paulo');
+        $template = $agenda->reminder_template ?: null;
+        $telefoneEnvio = $telefone ?: $this->numero;
+
+        foreach ($offsets as $offset) {
+            $disparoEm = $horarioAgendado->copy()->addMinutes($offset);
+            AgendaReminder::updateOrCreate(
+                [
+                    'disponibilidade_id' => $slotId,
+                    'offset_minutos' => $offset,
+                ],
+                [
+                    'agenda_id' => $agendaId,
+                    'telefone' => $telefoneEnvio,
+                    'instance_id' => $this->instanceId,
+                    'mensagem_template' => $template,
+                    'agendado_em' => $horarioAgendado,
+                    'disparo_em' => $disparoEm,
+                    'status' => 'pendente',
+                    'tentativas' => 0,
+                    'last_error' => null,
+                    'sent_at' => null,
+                ]
+            );
         }
     }
 
@@ -1156,26 +1225,34 @@ class ConversationsService
     {
         try {
             if (!$this->chat) {
-                Log::warning("registrar_info_chat: Chat não encontrado para o número {$this->numero}");
+                Log::warning("registrar_info_chat: Chat n?o encontrado para o n?mero {$this->numero}");
                 return false;
+            }
+
+            $informacoesAtuais = trim((string) ($this->chat->informacoes ?? ''));
+            $novaInformacao = trim((string) ($informacoes ?? ''));
+
+            $timezone = config('app.timezone', 'America/Sao_Paulo');
+            $timestamp = now($timezone)->format('d/m/Y H:i');
+            if ($novaInformacao !== '') {
+                $novaInformacao = "[{$timestamp}] " . $novaInformacao;
+            }
+
+            if ($informacoesAtuais !== '' && $novaInformacao !== '') {
+                $novaInformacao = $informacoesAtuais . "\n" . $novaInformacao;
+            } elseif ($informacoesAtuais !== '') {
+                $novaInformacao = $informacoesAtuais;
             }
 
             $this->chat->update([
                 'nome' => $nome,
-                'informacoes' => $informacoes,
-                'aguardando_atendimento' => true,
-            ]);
-
-            /*Log::info("📝 Chat atualizado com sucesso", [
-                'chat_id' => $this->chat->id,
-                'nome' => $nome,
-                'informacoes' => $informacoes,
+                'informacoes' => $novaInformacao,
                 'aguardando_atendimento' => $aguardando,
-            ]);*/
+            ]);
 
             return true;
         } catch (\Throwable $e) {
-            Log::error("Erro ao registrar informações do chat: " . $e->getMessage());
+            Log::error("Erro ao registrar informa??es do chat: " . $e->getMessage());
             return false;
         }
     }

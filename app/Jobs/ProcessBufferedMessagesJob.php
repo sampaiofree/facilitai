@@ -18,6 +18,10 @@ class ProcessBufferedMessagesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public int $tries = 1;
+    public int $timeout = 180;
+    public int $backoff = 30;
+
     public Instance $instance;
     public Chat $chat;
     public string $assistantId;

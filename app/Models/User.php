@@ -153,9 +153,10 @@ class User extends Authenticatable implements MustVerifyEmail
                 if($this->hotmartWebhooks()->offer_code=='hkasortp'){return 3;} //PLANO 3 CONEXÃO
                 if($this->hotmartWebhooks()->offer_code=='ghpkyyuq'){return 3;} //PLANO 3 CONEXÃO
                 if($this->hotmartWebhooks()->offer_code=='bxgewgqh'){return 3;} //PLANO 3 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='kbejejiv'){return 3;} //PLANO 3 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='x8jw71pc'){return 3;} //PLANO 3 CONEXÃO
                 
+                
+                if($this->hotmartWebhooks()->offer_code=='kbejejiv'){return 5;} //PLANO 3 CONEXÃO
+                if($this->hotmartWebhooks()->offer_code=='x8jw71pc'){return 5;} //PLANO 3 CONEXÃO
                 if($this->hotmartWebhooks()->offer_code=='seesl6xb'){return 5;} //PLANO 5 CONEXÔES 
                 if($this->hotmartWebhooks()->offer_code=='ca9g29lkJWT'){return 5;} //PLANO 5 CONEXÔES
                 if($this->hotmartWebhooks()->offer_code=='cyvxmia3'){return 5;} //PLANO 5 CONEXÔES

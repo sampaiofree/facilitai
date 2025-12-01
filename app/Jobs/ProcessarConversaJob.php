@@ -16,6 +16,10 @@ class ProcessarConversaJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public int $tries = 1;
+    public int $timeout = 240;
+    public int $backoff = 30;
+
     protected $messageText;
     protected $contactNumber;
     protected $instanceName;

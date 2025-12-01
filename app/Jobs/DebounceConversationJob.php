@@ -15,6 +15,10 @@ class DebounceConversationJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public int $tries = 1;
+    public int $timeout = 60;
+    public int $backoff = 15;
+
     protected string $cacheKey;
     protected string $contactNumber;
     protected string $instanceName;

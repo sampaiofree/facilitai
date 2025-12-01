@@ -151,24 +151,34 @@ class EvolutionWebhookController extends Controller
     public function conversation(Request $request) 
     {
 
-        //Log::info('🚨 Dados do Evolution:', $request->all());
-        // 2. Extrair dados cruciais do JSON (com base na estrutura que você forneceu)
-        $instanceName = $request->input('instance'); // 'instance'
-         // 'data.key.remoteJid'
-        
-        $sender = $request->input('sender') ?? '';
-
         if (str_contains($request->input('data.key.remoteJid'), '@lid')) {
             $remoteJid = $request->input('data.key.remoteJidAlt'); 
         }else{
             $remoteJid = $request->input('data.key.remoteJid'); 
         }
 
+        //VERIFICAR SE MENSAGEM VEIO DE GRUPO OU NÃO
+        if (str_ends_with($remoteJid, '@g.us')) { return true; }
+
+
+        Log::info("instance:".$request->input('instance')." - Request: " . json_encode($request->input('data.key'), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+
+        //Log::info('🚨 Dados do Evolution:', $request->all());
+        // 2. Extrair dados cruciais do JSON (com base na estrutura que você forneceu)
+        $instanceName = $request->input('instance'); // 'instance'
+         // 'data.key.remoteJid'
+        
+        //$sender = $request->input('sender') ?? '';
+       
+
         $fromMe = $request->input('data.key.fromMe'); // 'data.key.fromMe'
         $messageText = $request->input('data.message.conversation'); // 'data.message.conversation'
         $data = $request->input('data'); // 'data'
         $contactNumber = $this->padronizarNumero(preg_replace('/[^0-9]/', '', $remoteJid));
         $instance = Instance::where('id', $instanceName)->first(); //BUSCAR INSTANCIA
+        $eventId = $request->input('data.key.id') ?? $request->input('data.id') ?? null;
+        $messageTimestamp = $request->input('data.messageTimestamp');
         
         if(isset($data['messageType']) AND $data['messageType']=='reactionMessage'){
             //Log::warning("reacao");
@@ -183,19 +193,31 @@ class EvolutionWebhookController extends Controller
             'has_text' => !empty($messageText),
         ]);
 
-        if (!$instance) {
-            Log::warning("⚠️ Instância {$instanceName} não encontrada");
+        $dedupKeySeed = $eventId ?: hash('sha256', json_encode([
+            $instanceName,
+            $contactNumber,
+            $messageTimestamp,
+            $messageText,
+            $data['messageType'] ?? null,
+        ]));
+        $dedupKey = "webhook:conv:{$instanceName}:{$dedupKeySeed}";
+        if (!Cache::add($dedupKey, true, now()->addMinutes(10))) {
+            Log::info('conv.duplicate_skip', [
+                'instance' => $instanceName,
+                'contact' => $contactNumber,
+                'event_id' => $eventId,
+                'message_timestamp' => $messageTimestamp,
+            ]);
+            return true;
+        }
+
+        if (!$instance or $instance->default_assistant_id===null) {
+            Log::warning("⚠️ Instância {$instanceName} não encontrada ou sem assistente vinculado.");
             return response()->json(['status' => 'ignored', 'reason' => 'instance_not_found']);
         }
         
 
-        //Log::info("Request: " . json_encode($request->all(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-
-        if($sender=='554184263004@s.whatsapp.net'){ 
-           // Log::info("Request: " . json_encode($request->all(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        }  
-        //exit;
-
+       
         // ===================================================================
         // LÓGICA DA TABELA CHATS
         // ===================================================================

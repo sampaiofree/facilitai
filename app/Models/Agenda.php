@@ -13,7 +13,10 @@ class Agenda extends Model
         'titulo',
         'descricao',
         'slug',
-        'limite_por_horario'
+        'limite_por_horario',
+        'reminder_24h',
+        'reminder_2h',
+        'reminder_template',
     ];
 
     public function user()
