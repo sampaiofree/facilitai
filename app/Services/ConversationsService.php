@@ -1083,8 +1083,7 @@ class ConversationsService
 
         $horarioAgendado = Carbon::parse("{$data} {$inicio}", 'America/Sao_Paulo');
         $template = $agenda->reminder_template ?: null;
-        $telefoneEnvio = $telefone ?: $this->numero;
-
+        
         foreach ($offsets as $offset) {
             $disparoEm = $horarioAgendado->copy()->addMinutes($offset);
             AgendaReminder::updateOrCreate(
@@ -1094,7 +1093,7 @@ class ConversationsService
                 ],
                 [
                     'agenda_id' => $agendaId,
-                    'telefone' => $telefoneEnvio,
+                    'telefone' => $this->numero,
                     'instance_id' => $this->instanceId,
                     'mensagem_template' => $template,
                     'agendado_em' => $horarioAgendado,
