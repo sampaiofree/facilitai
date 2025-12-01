@@ -69,6 +69,17 @@
                                     Se você atende apenas uma pessoa por vez, deixe "1". Se for um grupo ou evento, defina o número máximo de participantes (até 30).
                                 </p>
                             </div>
+
+                            <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <label class="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                                    <input type="checkbox" name="reminder_24h" value="1" class="rounded text-indigo-600 focus:ring-indigo-500">
+                                    <span class="text-sm text-gray-800">Enviar lembrete 24h antes</span>
+                                </label>
+                                <label class="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                                    <input type="checkbox" name="reminder_2h" value="1" class="rounded text-indigo-600 focus:ring-indigo-500">
+                                    <span class="text-sm text-gray-800">Enviar lembrete 2h antes</span>
+                                </label>
+                            </div>
                         </div>
 
                         <button type="submit" class="bg-indigo-600 text-white px-6 py-3 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition duration-200 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 focus-visible:outline-offset-2">
@@ -193,6 +204,16 @@
                                         <label class="block text-sm font-medium text-gray-700 mb-1">Limite de Pessoas por Horário:</label>
                                         <input type="number" name="limite_por_horario" min="1" max="30" value="{{ old('limite_por_horario', $agenda->limite_por_horario ?? 1) }}" class="border-gray-300 rounded-md p-2 w-full text-md">
                                         <p class="text-xs text-gray-500 mt-1">Máximo de 30 pessoas por horário.</p>
+                                    </div>
+                                    <div class="flex flex-col gap-2">
+                                        <label class="inline-flex items-center gap-2">
+                                            <input type="checkbox" name="reminder_24h" value="1" @checked(old('reminder_24h', $agenda->reminder_24h)) class="rounded text-indigo-600 focus:ring-indigo-500">
+                                            <span class="text-sm text-gray-800">Enviar lembrete 24h antes</span>
+                                        </label>
+                                        <label class="inline-flex items-center gap-2">
+                                            <input type="checkbox" name="reminder_2h" value="1" @checked(old('reminder_2h', $agenda->reminder_2h)) class="rounded text-indigo-600 focus:ring-indigo-500">
+                                            <span class="text-sm text-gray-800">Enviar lembrete 2h antes</span>
+                                        </label>
                                     </div>
                                 </div>
 

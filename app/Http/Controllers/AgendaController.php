@@ -33,7 +33,9 @@ class AgendaController extends Controller
         $request->validate([
             'titulo' => 'required|string|max:255',
             'descricao' => 'nullable|string|max:500',
-            // Validação customizada para slots disponíveis
+            'reminder_24h' => 'nullable|boolean',
+            'reminder_2h' => 'nullable|boolean',
+            // Valida??o customizada para slots disponíveis
             'available_slots_check' => [
                 Rule::when($user->availableAgendaSlots() <= 0, ['required'], ['size:0', 'prohibited']),
                 function ($attribute, $value, $fail) use ($user) {
@@ -52,10 +54,14 @@ class AgendaController extends Controller
             'titulo' => $request->titulo,
             'descricao' => $request->descricao,
             'slug' => Str::slug($request->titulo) . '-' . Str::random(5),
+            'reminder_24h' => $request->boolean('reminder_24h'),
+            'reminder_2h' => $request->boolean('reminder_2h'),
         ]);
 
         return redirect()->route('agendas.index')->with('success', 'Agenda criada com sucesso!');
     }
+
+
 
     /**
      * Exibe o formulário para gerar novas disponibilidades.
@@ -267,12 +273,12 @@ class AgendaController extends Controller
      */
     public function update(Request $request, Agenda $agenda)
     {
-        // Autorização
+        // Autoriza??o
         if ($agenda->user_id !== Auth::id()) {
-            abort(403, 'Você não tem permissão para editar esta agenda.');
+            abort(403, 'Você não tem permiss?o para editar esta agenda.');
         }
 
-        // Validação dos campos
+        // Valida??o dos campos
         $validated = $request->validate([
             'titulo' => 'required|string|max:255',
             'descricao' => 'nullable|string|max:500',
@@ -283,12 +289,17 @@ class AgendaController extends Controller
                 Rule::unique('agendas')->ignore($agenda->id),
             ],
             'limite_por_horario' => 'required|integer|min:1|max:20',
+            'reminder_24h' => 'nullable|boolean',
+            'reminder_2h' => 'nullable|boolean',
         ]);
 
-        // Atualiza o slug se o título for alterado e o usuário não tiver definido manualmente
+        // Atualiza o slug se o t?tulo for alterado e o usu?rio não tiver definido manualmente
         if ($request->titulo !== $agenda->titulo && empty($request->slug)) {
             $validated['slug'] = Str::slug($request->titulo) . '-' . Str::random(5);
         }
+
+        $validated['reminder_24h'] = $request->boolean('reminder_24h');
+        $validated['reminder_2h'] = $request->boolean('reminder_2h');
 
         $agenda->update($validated);
 
