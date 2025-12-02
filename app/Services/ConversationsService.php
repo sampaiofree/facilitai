@@ -887,7 +887,7 @@ class ConversationsService
             if ($erro === 'conversation_locked' OR $erro ==='rate_limit_exceeded') {
                 //return false;
                 Log::warning("🔄 Tentativa {$tentativa}/{$maxTentativas} - Conversa bloqueada. Aguardando 30s...");
-                sleep(5);
+                sleep(25);
             } else {
                 return false;
             }

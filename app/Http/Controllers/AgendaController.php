@@ -33,6 +33,7 @@ class AgendaController extends Controller
         $request->validate([
             'titulo' => 'required|string|max:255',
             'descricao' => 'nullable|string|max:500',
+            'limite_por_horario' => 'required|integer|min:1|max:20',
             'reminder_24h' => 'nullable|boolean',
             'reminder_2h' => 'nullable|boolean',
             // Valida??o customizada para slots disponíveis
@@ -54,8 +55,9 @@ class AgendaController extends Controller
             'titulo' => $request->titulo,
             'descricao' => $request->descricao,
             'slug' => Str::slug($request->titulo) . '-' . Str::random(5),
+            'limite_por_horario' => $request->limite_por_horario,
             'reminder_24h' => $request->boolean('reminder_24h'),
-            'reminder_2h' => $request->boolean('reminder_2h'),
+            'reminder_2h' => $request->boolean('reminder_2h'), 
         ]);
 
         return redirect()->route('agendas.index')->with('success', 'Agenda criada com sucesso!');
