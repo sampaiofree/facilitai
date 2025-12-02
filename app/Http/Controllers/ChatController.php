@@ -10,6 +10,7 @@ use App\Models\Tag;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
 
 class ChatController extends Controller
 {
@@ -90,6 +91,166 @@ class ChatController extends Controller
         ]);
 
         return redirect()->route('chats.index')->with('success', 'Chat criado com sucesso.');
+    }
+
+    public function import(Request $request)
+    {
+        $validated = $request->validate([
+            'instance_id' => ['required', 'integer', 'exists:instances,id'],
+            'tags' => ['nullable', 'array'],
+            'tags.*' => ['string', 'max:100'],
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:10240'],
+        ], [
+            'file.max' => 'O arquivo deve ter no máximo 10MB.',
+            'file.mimes' => 'Envie um arquivo CSV (.csv).',
+        ]);
+
+        $instance = Auth::user()
+            ->instances()
+            ->findOrFail($validated['instance_id']);
+
+        $assistantId = $instance->default_assistant_id ?? null;
+        if (!$assistantId) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('warning', 'Defina um assistente padrão na instância selecionada antes de importar.');
+        }
+
+        $tagIds = $this->resolveTagIds($validated['tags'] ?? [], Auth::id());
+
+        $file = $validated['file'];
+        $path = $file->getRealPath();
+
+        if (!$path || !is_readable($path)) {
+            return redirect()->back()->with('warning', 'Não foi possível ler o arquivo enviado.');
+        }
+
+        $delimiter = $this->detectCsvDelimiter($path);
+        $handle = fopen($path, 'r');
+
+        if (!$handle) {
+            return redirect()->back()->with('warning', 'Não foi possível abrir o CSV para leitura.');
+        }
+
+        $header = fgetcsv($handle, 0, $delimiter);
+        if (!$this->isValidImportHeader($header)) {
+            fclose($handle);
+            return redirect()
+                ->back()
+                ->with('warning', 'Cabeçalho inválido. Use as colunas: nome,telefone');
+        }
+
+        $lineNumber = 1; // header
+        $total = 0;
+        $created = 0;
+        $updated = 0;
+        $errors = [];
+        $rows = [];
+        $seenContacts = [];
+
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+            $lineNumber++;
+
+            if ($this->rowIsEmpty($row)) {
+                continue;
+            }
+
+            $total++;
+
+            if (count($row) < 2) {
+                $errors[] = ['line' => $lineNumber, 'message' => 'Linha incompleta (esperado: nome, telefone).'];
+                continue;
+            }
+
+            $nome = isset($row[0]) ? trim($row[0]) : '';
+            $telefoneRaw = isset($row[1]) ? trim($row[1]) : '';
+
+            if ($telefoneRaw === '') {
+                $errors[] = ['line' => $lineNumber, 'message' => 'Telefone vazio.'];
+                continue;
+            }
+
+            $contact = $this->normalizePhone($telefoneRaw);
+
+            if (strlen($contact) < 11) {
+                $errors[] = ['line' => $lineNumber, 'message' => 'Telefone com menos de 11 dígitos mesmo após adicionar 55.'];
+                continue;
+            }
+
+            if (isset($seenContacts[$contact])) {
+                $errors[] = ['line' => $lineNumber, 'message' => 'Telefone duplicado no arquivo.'];
+                continue;
+            }
+
+            $seenContacts[$contact] = true;
+
+            $rows[] = [
+                'contact' => Str::limit($contact, 255, ''),
+                'nome' => $nome !== '' ? Str::limit($nome, 255, '') : null,
+            ];
+        }
+
+        fclose($handle);
+
+        if (empty($rows)) {
+            return redirect()
+                ->back()
+                ->with('warning', 'Nenhuma linha válida encontrada no arquivo.');
+        }
+
+        $contacts = collect($rows)->pluck('contact')->unique();
+
+        $existingChats = Chat::where('user_id', Auth::id())
+            ->where('instance_id', $instance->id)
+            ->whereIn('contact', $contacts)
+            ->get()
+            ->keyBy('contact');
+
+        foreach ($rows as $row) {
+            $contact = $row['contact'];
+            $nome = $row['nome'];
+
+            if (isset($existingChats[$contact])) {
+                $chat = $existingChats[$contact];
+                $chat->assistant_id = $assistantId;
+                if ($nome !== null) {
+                    $chat->nome = $nome;
+                }
+                $chat->save();
+                $chat->tags()->sync($tagIds);
+                $updated++;
+            } else {
+                $chat = Chat::create([
+                    'user_id' => Auth::id(),
+                    'instance_id' => $instance->id,
+                    'assistant_id' => $assistantId,
+                    'contact' => $contact,
+                    'nome' => $nome,
+                ]);
+
+                $chat->tags()->sync($tagIds);
+                $created++;
+            }
+        }
+
+        $summary = [
+            'total' => $total,
+            'created' => $created,
+            'updated' => $updated,
+            'errors' => count($errors),
+            'error_details' => $errors,
+        ];
+
+        $message = "Importação concluída. Lidas: {$total}, criadas: {$created}, atualizadas: {$updated}";
+        if ($errors) {
+            $message .= ", com " . count($errors) . " linha(s) com erro.";
+        }
+
+        return redirect()
+            ->route('chats.index')
+            ->with('success', $message)
+            ->with('import_summary', $summary);
     }
 
     public function export(Request $request)
@@ -393,6 +554,71 @@ class ChatController extends Controller
         $query->orderBy($column, $direction);
 
         return $query;
+    }
+
+    private function normalizePhone(?string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $phone);
+
+        if (strlen($digits) < 12) {
+            $digits = '55' . $digits;
+        }
+
+        return $digits;
+    }
+
+    private function detectCsvDelimiter(string $path): string
+    {
+        $handle = fopen($path, 'r');
+        if (!$handle) {
+            return ',';
+        }
+
+        $sample = fgets($handle) ?: '';
+        fclose($handle);
+
+        return substr_count($sample, ';') > substr_count($sample, ',') ? ';' : ',';
+    }
+
+    private function isValidImportHeader(?array $header): bool
+    {
+        if (!$header || count($header) < 2) {
+            return false;
+        }
+
+        $normalized = array_map(fn ($h) => strtolower(trim((string) $h)), $header);
+
+        return $normalized[0] === 'nome' && $normalized[1] === 'telefone';
+    }
+
+    private function rowIsEmpty(array $row): bool
+    {
+        foreach ($row as $value) {
+            if (trim((string) $value) !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function resolveTagIds(array $tags, int $userId): array
+    {
+        $names = collect($tags)
+            ->map(fn ($t) => trim($t))
+            ->filter()
+            ->unique();
+
+        $tagIds = [];
+        foreach ($names as $name) {
+            $tag = Tag::firstOrCreate(
+                ['user_id' => $userId, 'name' => $name],
+                ['color' => null, 'description' => null]
+            );
+            $tagIds[] = $tag->id;
+        }
+
+        return $tagIds;
     }
 
     private function authorizeChatOwnership(Chat $chat): void

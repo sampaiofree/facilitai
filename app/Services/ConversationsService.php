@@ -556,7 +556,7 @@ class ConversationsService
             ];
         }
 
-        if(isset($this->instance->agenda_id)){
+        if (str_contains($this->systemPrompt, 'gerenciar_agenda')) {
             $tools[] =
             [
             'type' => 'function',
@@ -582,6 +582,10 @@ class ConversationsService
                         'type' => 'string',
                         'enum' => ['consultar', 'agendar', 'cancelar', 'alterar'],
                         'description' => 'Tipo de operação desejada na agenda.'
+                    ],
+                    'agenda_id' => [
+                        'type' => 'integer',
+                        'description' => 'ID da agenda a ser usada (opcional; se não vier, usar a agenda padrão da instância).'
                     ],
                     'mes' => [
                         'type' => 'integer',
@@ -979,9 +983,18 @@ class ConversationsService
 
     public function gerenciar_agenda(array $arguments)
     {
-        if(!isset($this->instance->agenda_id)){
-            $resultado['output'] = "⚠️ A funcionalidade de agenda não está habilitada para esta instância.";
-            return $resultado;
+        $agendaIdParam = $arguments['agenda_id'] ?? null;
+        $agendaId = $agendaIdParam ?? ($this->instance->agenda_id ?? null);
+        $userId = $this->instance->user_id ?? null;
+
+        if (!$agendaId || !$userId) {
+            return ['output' => "⚠️ A funcionalidade de agenda não está habilitada para esta instância."];
+        }
+
+        $agenda = Agenda::find($agendaId);
+        if (!$agenda || $agenda->user_id !== $userId) {
+            Log::warning("Agenda {$agendaId} não pertence ao usuário {$userId} ou não existe.");
+            return ['output' => "⚠️ Agenda não encontrada para este usuário."];
         }
 
         try {
@@ -994,7 +1007,7 @@ class ConversationsService
             $resultado = $agendaService->executarAcao(
                 $arguments['acao'] ?? '',
                 [
-                    'agenda_id' => $this->instance->agenda_id ?? null,
+                    'agenda_id' => $agendaId,
                     'chat_id' => $this->chat->id ?? null,
                     'telefone' => $arguments['telefone'] ?? ($this->chat->contact ?? null),
                     'nome' => $arguments['nome'] ?? ($this->chat->nome ?? null),
@@ -1017,7 +1030,7 @@ class ConversationsService
                 $fimMsg = $dadosAgenda['fim'] ?? '-';
                 if (in_array($arguments['acao'] ?? '', ['agendar', 'alterar'], true)) {
                     $this->criarLembretesAgenda(
-                        $this->instance->agenda_id,
+                        $agendaId,
                         $dadosAgenda['slot_ids'] ?? [],
                         $dadosAgenda['data'] ?? null,
                         $dadosAgenda['inicio'] ?? null,

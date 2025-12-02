@@ -142,6 +142,7 @@ Route::middleware('auth', 'verified')->group(function () {
     //CHATS
     Route::get('/chats/export', [ChatController::class, 'export'])->name('chats.export');
     Route::post('/chats/bulk-atendido', [ChatController::class, 'bulkMarkAttended'])->name('chats.bulk_attended');
+    Route::post('/chats/import', [ChatController::class, 'import'])->name('chats.import');
     Route::post('/chats/{chat}/toggle-bot', [ChatController::class, 'toggleBot'])->name('chats.toggle_bot');
     Route::post('/chats/{chat}/tags', [ChatController::class, 'applyTags'])->name('chats.tags.apply');
     Route::delete('/chats/{chat}/tags/{tag}', [ChatController::class, 'removeTag'])->name('chats.tags.remove');

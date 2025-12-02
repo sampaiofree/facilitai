@@ -9,16 +9,6 @@
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6 text-gray-900 space-y-6">
-                    @if (session('success'))
-                        <div class="px-4 py-3 bg-green-100 text-green-800 rounded-md">
-                            {{ session('success') }}
-                        </div>
-                    @endif
-                    @if (session('warning'))
-                        <div class="px-4 py-3 bg-yellow-100 text-yellow-800 rounded-md">
-                            {{ session('warning') }}
-                        </div>
-                    @endif
 
                     <div class="rounded-lg border border-gray-100 bg-gray-50/60 p-4 space-y-4">
                         <form action="{{ route('chats.index') }}" method="GET" class="space-y-4" id="filtersForm">
@@ -248,13 +238,20 @@
                             </div>
                         </form>
                     </div>
+
                     <div class="flex flex-wrap items-center justify-end gap-3">
-    
+
                         <button type="button" id="open-create-chat" class="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-500">
                             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.5v15m7.5-7.5h-15" />
                             </svg>
                             Novo chat
+                        </button>
+                        <button type="button" id="open-import-modal" class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4.5 6.75h15m-12 3.75h9m-6 3.75h3" />
+                            </svg>
+                            Importar CSV
                         </button>
 
                         <a href="{{ route('chats.export', request()->query()) }}" class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50">
@@ -502,6 +499,81 @@
         </div>
     </div>
 
+    <div id="importModal" class="fixed inset-0 hidden z-50 items-center justify-center bg-black/40 backdrop-blur">
+        <div class="w-full max-w-3xl rounded-xl bg-white p-6 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">Importar contatos em massa</h3>
+                    <p class="text-sm text-gray-600">CSV com cabeçalho <code>nome,telefone</code>. Aceita vírgula ou ponto e vírgula, até 10MB.</p>
+                </div>
+                <button type="button" class="text-gray-500 hover:text-gray-700 close-import-modal">✕</button>
+            </div>
+            <div class="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-900 space-y-1">
+                <div>O telefone é limpo para ficar só com números; se tiver menos de 11 dígitos, prefixamos 55. Linhas com telefone curto ou vazias são ignoradas.</div>
+                <div>Se já houver o contato na mesma instância, ele será atualizado e as tags serão substituídas pelas selecionadas aqui.</div>
+            </div>
+            <form id="bulkImportForm" method="POST" action="{{ route('chats.import') }}" enctype="multipart/form-data" class="mt-4 space-y-4">
+                @csrf
+                <div class="grid gap-4 md:grid-cols-2">
+                    <div class="space-y-2">
+                        <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Instância</label>
+                        <select name="instance_id" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">Selecione uma instância</option>
+                            @foreach ($instances as $instance)
+                                <option value="{{ $instance->id }}">{{ $instance->name }}</option>
+                            @endforeach
+                        </select>
+                        <p class="text-[11px] text-gray-500">Usa sempre o assistente padrão configurado na instância.</p>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Arquivo CSV</label>
+                        <input type="file" name="file" id="importFile" accept=".csv,text/csv" required
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 bg-white">
+                        <p class="text-[11px] text-gray-500">Máx. 10MB. Cabeçalho: nome,telefone.</p>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Tags (opcional)</label>
+                        <span class="text-[11px] text-gray-500">Clique para adicionar ou remover.</span>
+                    </div>
+                    <div id="importAvailableTags" class="flex flex-wrap gap-2">
+                        @forelse ($tags as $tag)
+                            <button type="button"
+                                class="import-tag-chip rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                                data-tag="{{ $tag->name }}">
+                                {{ $tag->name }}
+                            </button>
+                        @empty
+                            <span class="text-xs text-gray-400">Nenhuma tag cadastrada ainda.</span>
+                        @endforelse
+                    </div>
+                    <div class="rounded-md border border-gray-200 bg-gray-50 p-3">
+                        <div class="text-[11px] font-semibold text-gray-700">Selecionadas</div>
+                        <div id="importSelectedTags" class="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+                            Nenhuma tag selecionada.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-3">
+                    <button type="button" class="close-import-modal rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="importSubmit"
+                        class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500">
+                        <svg id="importSpinner" class="hidden h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        <span id="importSubmitText">Importar CSV</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="viewModal" class="fixed inset-0 hidden z-40 items-center justify-center bg-black/40 backdrop-blur">
         <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
@@ -646,6 +718,18 @@
             toggleFilters?.addEventListener('click', () => {
                 filtersPanel?.classList.toggle('hidden');
             });
+            const importForm = document.getElementById('bulkImportForm');
+            const importFileInput = document.getElementById('importFile');
+            const importSubmit = document.getElementById('importSubmit');
+            const importSpinner = document.getElementById('importSpinner');
+            const importSubmitText = document.getElementById('importSubmitText');
+            const MAX_IMPORT_SIZE = 10 * 1024 * 1024;
+            const importModal = document.getElementById('importModal');
+            const openImportBtn = document.getElementById('open-import-modal');
+            const closeImportBtns = document.querySelectorAll('.close-import-modal');
+            const importAvailableTagsButtons = document.querySelectorAll('.import-tag-chip');
+            const importSelectedTagsContainer = document.getElementById('importSelectedTags');
+            let importSelectedTags = [];
             const createModal = document.getElementById('createChatModal');
             const openCreateBtn = document.getElementById('open-create-chat');
             const closeCreateBtns = document.querySelectorAll('.close-create-chat');
@@ -672,6 +756,124 @@
                 createModal?.classList.remove('hidden');
                 createModal?.classList.add('flex');
             });
+
+            const renderImportTags = () => {
+                if (!importSelectedTagsContainer || !importForm) return;
+
+                importSelectedTagsContainer.innerHTML = '';
+                importForm.querySelectorAll('input[name="tags[]"]').forEach(el => el.remove());
+
+                if (!importSelectedTags.length) {
+                    const span = document.createElement('span');
+                    span.className = 'text-xs text-gray-400';
+                    span.textContent = 'Nenhuma tag selecionada.';
+                    importSelectedTagsContainer.appendChild(span);
+                } else {
+                    importSelectedTags.forEach((tag) => {
+                        const chip = document.createElement('span');
+                        chip.className = 'inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700';
+                        chip.textContent = tag;
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'text-blue-600';
+                        btn.textContent = '✕';
+                        btn.addEventListener('click', () => {
+                            importSelectedTags = importSelectedTags.filter(t => t !== tag);
+                            renderImportTags();
+                        });
+                        chip.appendChild(btn);
+                        importSelectedTagsContainer.appendChild(chip);
+
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'tags[]';
+                        input.value = tag;
+                        importForm.appendChild(input);
+                    });
+                }
+
+                importAvailableTagsButtons.forEach((btn) => {
+                    const tag = btn.dataset.tag;
+                    if (importSelectedTags.includes(tag)) {
+                        btn.classList.add('bg-blue-600', 'text-white', 'border-blue-600');
+                    } else {
+                        btn.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
+                    }
+                });
+            };
+
+            importAvailableTagsButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const tag = btn.dataset.tag;
+                    if (!tag) return;
+                    if (importSelectedTags.includes(tag)) {
+                        importSelectedTags = importSelectedTags.filter(t => t !== tag);
+                    } else {
+                        importSelectedTags.push(tag);
+                    }
+                    renderImportTags();
+                });
+            });
+
+            const closeImportModal = () => {
+                importModal?.classList.add('hidden');
+                importModal?.classList.remove('flex');
+                importSubmit?.removeAttribute('disabled');
+                importSubmit?.classList.remove('opacity-70', 'cursor-not-allowed');
+                importSpinner?.classList.add('hidden');
+                if (importSubmitText) {
+                    importSubmitText.textContent = 'Importar CSV';
+                }
+            };
+
+            openImportBtn?.addEventListener('click', () => {
+                renderImportTags();
+                importModal?.classList.remove('hidden');
+                importModal?.classList.add('flex');
+            });
+
+            closeImportBtns.forEach(btn => btn?.addEventListener('click', closeImportModal));
+
+            importModal?.addEventListener('click', (event) => {
+                if (event.target === importModal) {
+                    closeImportModal();
+                }
+            });
+
+            importForm?.addEventListener('submit', (event) => {
+                const file = importFileInput?.files?.[0];
+
+                if (!file) {
+                    event.preventDefault();
+                    Swal.fire('Envie um arquivo CSV para importar.');
+                    return;
+                }
+
+                const name = (file.name || '').toLowerCase();
+                const mime = (file.type || '').toLowerCase();
+                const isCsv = name.endsWith('.csv') || mime === 'text/csv' || mime === 'application/vnd.ms-excel';
+
+                if (!isCsv) {
+                    event.preventDefault();
+                    Swal.fire('Envie um arquivo CSV (.csv).');
+                    return;
+                }
+
+                if (file.size > MAX_IMPORT_SIZE) {
+                    event.preventDefault();
+                    Swal.fire('O arquivo excede 10MB.');
+                    return;
+                }
+
+                renderImportTags();
+                importSubmit?.setAttribute('disabled', 'disabled');
+                importSubmit?.classList.add('opacity-70', 'cursor-not-allowed');
+                importSpinner?.classList.remove('hidden');
+                if (importSubmitText) {
+                    importSubmitText.textContent = 'Importando...';
+                }
+            });
+            renderImportTags();
 
             closeCreateBtns.forEach(btn => btn?.addEventListener('click', () => {
                 createModal?.classList.add('hidden');
