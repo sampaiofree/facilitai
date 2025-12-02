@@ -250,6 +250,13 @@
                     </div>
                     <div class="flex flex-wrap items-center justify-end gap-3">
     
+                        <button type="button" id="open-create-chat" class="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+                            Novo chat
+                        </button>
+
                         <a href="{{ route('chats.export', request()->query()) }}" class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50">
                         <!-- Ícone Nuvem -->
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-gray-500">
@@ -430,6 +437,71 @@
         </div>
     </div>
 
+    <div id="createChatModal" class="fixed inset-0 hidden z-50 items-center justify-center bg-black/40 backdrop-blur">
+        <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-800">Adicionar chat</h3>
+                <button type="button" class="text-gray-500 hover:text-gray-700 close-create-chat">
+                    x
+                </button>
+            </div>
+            <form method="POST" action="{{ route('chats.store') }}" class="mt-4 space-y-4">
+                @csrf
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Instancia</label>
+                    <select name="instance_id" id="createInstance" required class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">Selecione uma instancia</option>
+                        @foreach ($instances as $instance)
+                            <option value="{{ $instance->id }}"
+                                data-assistant-id="{{ $instance->default_assistant_id ?? '' }}"
+                                data-assistant-name="{{ $instance->assistente->name ?? 'Sem assistente padrao' }}">
+                                {{ $instance->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-600">Assistente padrao: <span id="createAssistantPreview" class="font-semibold text-gray-800">Selecione uma instancia</span></p>
+                    <input type="hidden" id="createAssistantId" name="assistant_id">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Contato</label>
+                    <input type="text" name="contact" id="createContact" required placeholder="+5511999999999"
+                        class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Nome</label>
+                        <input type="text" name="nome" id="createNome"
+                            class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Conv ID (opcional)</label>
+                        <input type="text" name="conv_id" id="createConvId"
+                            class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Informacoes</label>
+                    <textarea name="informacoes" id="createInformacoes" rows="3"
+                        class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <input type="checkbox" name="aguardando_atendimento" id="createAguardando" value="1"
+                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    Aguardando atendimento
+                </label>
+                <div class="flex items-center justify-end gap-3">
+                    <button type="button" class="close-create-chat rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                        class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500">
+                        Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="viewModal" class="fixed inset-0 hidden z-40 items-center justify-center bg-black/40 backdrop-blur">
         <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
@@ -574,6 +646,46 @@
             toggleFilters?.addEventListener('click', () => {
                 filtersPanel?.classList.toggle('hidden');
             });
+            const createModal = document.getElementById('createChatModal');
+            const openCreateBtn = document.getElementById('open-create-chat');
+            const closeCreateBtns = document.querySelectorAll('.close-create-chat');
+            const instanceSelect = document.getElementById('createInstance');
+            const assistantPreview = document.getElementById('createAssistantPreview');
+            const assistantHidden = document.getElementById('createAssistantId');
+
+            const syncAssistantFromInstance = () => {
+                const selectedOption = instanceSelect?.selectedOptions?.[0];
+                const assistantId = selectedOption?.dataset.assistantId || '';
+                const assistantName = selectedOption?.dataset.assistantName || 'Sem assistente padrao';
+                if (assistantHidden) {
+                    assistantHidden.value = assistantId;
+                }
+                if (assistantPreview) {
+                    assistantPreview.textContent = assistantId
+                        ? `${assistantName} (${assistantId})`
+                        : 'Defina o assistente padrao na instancia';
+                }
+            };
+
+            openCreateBtn?.addEventListener('click', () => {
+                syncAssistantFromInstance();
+                createModal?.classList.remove('hidden');
+                createModal?.classList.add('flex');
+            });
+
+            closeCreateBtns.forEach(btn => btn?.addEventListener('click', () => {
+                createModal?.classList.add('hidden');
+                createModal?.classList.remove('flex');
+            }));
+
+            createModal?.addEventListener('click', (event) => {
+                if (event.target === createModal) {
+                    createModal.classList.add('hidden');
+                    createModal.classList.remove('flex');
+                }
+            });
+
+            instanceSelect?.addEventListener('change', syncAssistantFromInstance);
             const deleteForms = document.querySelectorAll('form.delete-chat-form');
             deleteForms.forEach(form => {
                 form.addEventListener('submit', function(e) {

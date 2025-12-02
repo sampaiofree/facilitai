@@ -10,7 +10,7 @@ class WebhookRequestController extends Controller
 {
     public function index(Request $request)
     {
-        $query = WebhookRequest::query()->latest();
+        $query = WebhookRequest::query()->orderByDesc('created_at');
 
         if ($request->filled('instance_id')) {
             $query->where('instance_id', $request->input('instance_id'));

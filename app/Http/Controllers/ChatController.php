@@ -9,12 +9,17 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Models\Tag;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
+use Illuminate\Validation\Rule;
 
 class ChatController extends Controller
 {
     public function index(Request $request)
     {
-        $instances = Auth::user()->instances()->orderBy('name')->get(['id', 'name']);
+        $instances = Auth::user()
+            ->instances()
+            ->with(['defaultAssistant', 'defaultAssistantByOpenAi'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'default_assistant_id']);
         $assistants = Auth::user()->assistants()->orderBy('name')->get(['id', 'name']);
         $sequences = Auth::user()->sequences()->orderBy('name')->get(['id', 'name', 'active']);
         $tags = Auth::user()->tags()->orderBy('name')->get(['name']);
@@ -39,6 +44,52 @@ class ChatController extends Controller
         ];
 
         return view('chats.index', compact('chats', 'filters', 'instances', 'assistants', 'sequences', 'tags'));
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'instance_id' => ['required', 'integer', 'exists:instances,id'],
+            'contact' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('chats')->where(fn ($query) => $query
+                    ->where('instance_id', $request->input('instance_id'))
+                    ->where('user_id', Auth::id())
+                ),
+            ],
+            'nome' => ['nullable', 'string', 'max:255'],
+            'informacoes' => ['nullable', 'string', 'max:1000'],
+            'conv_id' => ['nullable', 'string', 'max:255'],
+            'aguardando_atendimento' => ['sometimes', 'boolean'],
+        ]);
+
+        $instance = Auth::user()
+            ->instances()
+            ->with(['defaultAssistant', 'defaultAssistantByOpenAi'])
+            ->findOrFail($validated['instance_id']);
+
+        $assistantId = $instance->default_assistant_id ?? null;
+        if (!$assistantId) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('warning', 'Defina um assistente padrao na instancia selecionada antes de criar o chat.');
+        }
+
+        Chat::create([
+            'user_id' => Auth::id(),
+            'instance_id' => $instance->id,
+            'assistant_id' => $assistantId,
+            'contact' => $validated['contact'],
+            'nome' => $validated['nome'] ?? null,
+            'informacoes' => $validated['informacoes'] ?? null,
+            'conv_id' => $validated['conv_id'] ?? null,
+            'aguardando_atendimento' => $request->boolean('aguardando_atendimento'),
+        ]);
+
+        return redirect()->route('chats.index')->with('success', 'Chat criado com sucesso.');
     }
 
     public function export(Request $request)

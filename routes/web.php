@@ -146,7 +146,7 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::post('/chats/{chat}/tags', [ChatController::class, 'applyTags'])->name('chats.tags.apply');
     Route::delete('/chats/{chat}/tags/{tag}', [ChatController::class, 'removeTag'])->name('chats.tags.remove');
     Route::post('/chats/inscrever-sequencia', [ChatController::class, 'inscreverSequencia'])->name('chats.sequence.subscribe');
-    Route::resource('chats', ChatController::class)->only(['index', 'update', 'destroy']);
+    Route::resource('chats', ChatController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::resource('tags', TagController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::resource('sequences', SequenceController::class);
     Route::delete('sequences/{sequence}/chats/{sequenceChat}', [SequenceController::class, 'removeChat'])
