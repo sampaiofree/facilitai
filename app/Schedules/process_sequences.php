@@ -3,5 +3,5 @@
 use Illuminate\Support\Facades\Schedule;
 
 return Schedule::command('sequences:process')
-    ->everyFiveMinutes()
+    ->everyMinute()
     ->withoutOverlapping();
