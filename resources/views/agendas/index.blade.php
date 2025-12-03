@@ -5,7 +5,7 @@
         </h2>
     </x-slot>
 
-    <div class="py-10 bg-gray-50">
+    <div x-data="{ showCreateModal: false }" @keydown.escape.window="showCreateModal = false" class="py-10 bg-gray-50">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
 
             {{-- Explicação inicial sobre o que são as agendas --}}
@@ -26,66 +26,100 @@
 
             {{-- Seção para criar uma nova agenda --}}
             @if ($availableSlots > 0)
-                <div class="p-8 bg-white border border-gray-200 rounded-xl shadow-lg mb-8">
-                    <h3 class="text-2xl font-semibold text-gray-900 mb-4">
-                        Crie uma nova agenda
-                    </h3>
-                    <p class="text-md text-gray-700 mb-6">
-                        Você ainda tem <span class="font-bold text-green-700">{{ $availableSlots }}</span> espaço(s) disponível(is) para novos tipos de agenda. Vamos começar?
-                    </p>
-                    <form method="POST" action="{{ route('agendas.store') }}">
-                        @csrf
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                            <div>
-                                <label for="titulo" class="block text-lg font-medium text-gray-800 mb-2">
-                                    <span class="text-red-500">*</span> Nome da sua Agenda:
-                                </label>
-                                <input type="text" id="titulo" name="titulo" placeholder="Ex: Atendimento Terapêutico, Aula de Inglês, Reunião de Equipe"
-                                       class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-3 w-full text-lg @error('titulo') border-red-500 @enderror" required>
-                                <p class="text-sm text-gray-500 mt-2">
-                                    Dê um nome claro para o tipo de serviço ou compromisso que esta agenda irá gerenciar.
-                                </p>
-                                @error('titulo') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
-                            </div>
-
-                            <div>
-                                <label for="descricao" class="block text-lg font-medium text-gray-800 mb-2">
-                                    Descrição da Agenda (Opcional):
-                                </label>
-                                <textarea id="descricao" name="descricao" rows="3" placeholder="Ex: Consultas online de 60 minutos via Google Meet. Aberto para novos clientes."
-                                          class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-3 w-full text-lg"></textarea>
-                                <p class="text-sm text-gray-500 mt-2">
-                                    Adicione detalhes que ajudem seus clientes a entender sobre o que é esta agenda.
-                                </p>
-                            </div>
-
-                            <div class="md:col-span-2"> {{-- Ocupa duas colunas para dar mais destaque --}}
-                                <label for="limite_por_horario" class="block text-lg font-medium text-gray-800 mb-2">
-                                    <span class="text-red-500">*</span> Quantas pessoas podem agendar no mesmo horário?
-                                </label>
-                                <input type="number" id="limite_por_horario" name="limite_por_horario" min="1" max="30" value="1"
-                                       class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-3 w-full md:w-1/3 text-lg" required>
-                                <p class="text-sm text-gray-500 mt-2">
-                                    Se você atende apenas uma pessoa por vez, deixe "1". Se for um grupo ou evento, defina o número máximo de participantes (até 30).
-                                </p>
-                            </div>
-
-                            <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <label class="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
-                                    <input type="checkbox" name="reminder_24h" value="1" class="rounded text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm text-gray-800">Enviar lembrete 24h antes</span>
-                                </label>
-                                <label class="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
-                                    <input type="checkbox" name="reminder_2h" value="1" class="rounded text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm text-gray-800">Enviar lembrete 2h antes</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <button type="submit" class="bg-indigo-600 text-white px-6 py-3 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition duration-200 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 focus-visible:outline-offset-2">
-                            Criar nova agenda
+                <div class="p-6 bg-white border border-gray-200 rounded-xl shadow-lg mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-gray-900">
+                            Crie uma nova agenda
+                        </h3>
+                        <p class="text-md text-gray-700 mt-2">
+                            Você ainda tem <span class="font-bold text-green-700">{{ $availableSlots }}</span> espaço(s) disponível(is) para novos tipos de agenda. Vamos começar?
+                        </p>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+                        <button type="button" @click="showCreateModal = true"
+                                class="bg-indigo-600 text-white px-6 py-3 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition duration-200 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 focus-visible:outline-offset-2">
+                            Nova agenda
                         </button>
-                    </form>
+                    </div>
+                </div>
+
+                <div x-cloak x-show="showCreateModal" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center">
+                    <div class="absolute inset-0 bg-gray-900 bg-opacity-60" @click="showCreateModal = false"></div>
+                    <div x-show="showCreateModal" x-transition.scale class="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 overflow-y-auto max-h-[90vh]">
+                        <div class="flex justify-between items-center border-b border-gray-100 px-6 py-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Preencha os dados abaixo para criar uma agenda</p>
+                                <h3 class="text-2xl font-semibold text-gray-900">Nova agenda</h3>
+                            </div>
+                            <button type="button" @click="showCreateModal = false"
+                                    class="text-gray-500 hover:text-gray-700 transition">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="p-8">
+                            <form method="POST" action="{{ route('agendas.store') }}">
+                                @csrf
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label for="titulo" class="block text-lg font-medium text-gray-800 mb-2">
+                                            <span class="text-red-500">*</span> Nome da sua Agenda:
+                                        </label>
+                                        <input type="text" id="titulo" name="titulo" placeholder="Ex: Atendimento Terapêutico, Aula de Inglês, Reunião de Equipe"
+                                               class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-3 w-full text-lg @error('titulo') border-red-500 @enderror" required>
+                                        <p class="text-sm text-gray-500 mt-2">
+                                            Dê um nome claro para o tipo de serviço ou compromisso que esta agenda irá gerenciar.
+                                        </p>
+                                        @error('titulo') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
+                                    </div>
+
+                                    <div>
+                                        <label for="descricao" class="block text-lg font-medium text-gray-800 mb-2">
+                                            Descrição da Agenda (Opcional):
+                                        </label>
+                                        <textarea id="descricao" name="descricao" rows="3" placeholder="Ex: Consultas online de 60 minutos via Google Meet. Aberto para novos clientes."
+                                                  class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-3 w-full text-lg"></textarea>
+                                        <p class="text-sm text-gray-500 mt-2">
+                                            Adicione detalhes que ajudem seus clientes a entender sobre o que é esta agenda.
+                                        </p>
+                                    </div>
+
+                                    <div class="md:col-span-2"> {{-- Ocupa duas colunas para dar mais destaque --}}
+                                        <label for="limite_por_horario" class="block text-lg font-medium text-gray-800 mb-2">
+                                            <span class="text-red-500">*</span> Quantas pessoas podem agendar no mesmo horário?
+                                        </label>
+                                        <input type="number" id="limite_por_horario" name="limite_por_horario" min="1" max="30" value="1"
+                                               class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-3 w-full md:w-1/3 text-lg" required>
+                                        <p class="text-sm text-gray-500 mt-2">
+                                            Se você atende apenas uma pessoa por vez, deixe "1". Se for um grupo ou evento, defina o número máximo de participantes (até 30).
+                                        </p>
+                                    </div>
+
+                                    <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <label class="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                                            <input type="checkbox" name="reminder_24h" value="1" class="rounded text-indigo-600 focus:ring-indigo-500">
+                                            <span class="text-sm text-gray-800">Enviar lembrete 24h antes</span>
+                                        </label>
+                                        <label class="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                                            <input type="checkbox" name="reminder_2h" value="1" class="rounded text-indigo-600 focus:ring-indigo-500">
+                                            <span class="text-sm text-gray-800">Enviar lembrete 2h antes</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-end gap-3 pt-2">
+                                    <button type="button" @click="showCreateModal = false"
+                                            class="px-4 py-2 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-100 transition">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" class="bg-indigo-600 text-white px-6 py-3 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition duration-200 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 focus-visible:outline-offset-2">
+                                        Criar nova agenda
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             @else
                 <div class="p-6 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 rounded-lg mb-8 shadow-md">
@@ -109,7 +143,7 @@
                 Aqui estão todas as agendas que você já criou. Clique em "Gerenciar Horários" para definir seus dias e horários de atendimento, ou edite as informações rápidas de cada uma.
             </p>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8"> {{-- Layout em grade para agendas --}}
+            <div class="grid grid-cols-1 gap-8"> {{-- Layout em grade para agendas --}}
                 @forelse ($agendas as $agenda)
                     <div class="border border-gray-200 rounded-xl p-8 bg-white shadow-lg hover:shadow-xl transition-shadow duration-300">
                         <div class="flex justify-between items-start mb-5">
@@ -117,7 +151,7 @@
                                 <svg class="h-7 w-7 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
-                                {{ $agenda->titulo }}
+                                {{ $agenda->titulo }} - ID ({{ $agenda->id }})
                             </h3>
                             <div class="flex items-center gap-2">
                                 <a href="{{ route('agendas.gerenciar', $agenda) }}"
@@ -226,74 +260,108 @@
                         </details>
 
                         {{-- Form de geração de horários --}}
-                        <div x-data="agendaGenerator()" class="pt-6 border-t border-gray-100 mt-6">
-                            <h4 class="text-xl font-semibold text-gray-900 mb-4">
-                                Crie horários disponíveis para agendamento
-                            </h4>
-                            <p class="text-md text-gray-700 mb-6">
-                                Use esta ferramenta para gerar seus horários de atendimento para um mês inteiro, de uma vez só!
-                            </p>
-                            <form method="POST" action="{{ route('agendas.gerarDisponibilidades', $agenda) }}">
-                                @csrf
-                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Qual Mês?</label>
-                                        <select name="mes" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5 w-full">
-                                            @foreach (range(1,12) as $m)
-                                                <option value="{{ $m }}" @selected($m == now()->month)>
-                                                    {{ \Carbon\Carbon::create()->month($m)->translatedFormat('F') }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                        <p class="text-xs text-gray-500 mt-1">Escolha o mês para gerar os horários.</p>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Qual Ano?</label>
-                                        <select name="ano" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5 w-full">
-                                            @foreach (range(now()->year, now()->year+2) as $y)
-                                                <option value="{{ $y }}" @selected($y == now()->year)>{{ $y }}</option>
-                                            @endforeach
-                                        </select>
-                                        <p class="text-xs text-gray-500 mt-1">Selecione o ano.</p>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Horário de Início:</label>
-                                        <input type="time" name="hora_inicio" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5 w-full" value="09:00">
-                                        <p class="text-xs text-gray-500 mt-1">A partir de que horas você estará disponível.</p>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Horário de Fim:</label>
-                                        <input type="time" name="hora_fim" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5 w-full" value="17:00">
-                                        <p class="text-xs text-gray-500 mt-1">Até que horas você estará disponível.</p>
-                                    </div>
-                                </div>
-
-                                <div class="mb-6">
-                                    <p class="text-md font-medium text-gray-800 mb-3">Em quais dias da semana você atende?</p>
-                                    <div class="flex flex-wrap gap-3">
-                                        <template x-for="(day, key) in days" :key="key">
-                                            <label class="flex items-center gap-2 cursor-pointer bg-gray-50 hover:bg-gray-100 p-3 rounded-xl border border-gray-200 transition duration-200"
-                                                   :class="selectedDays.includes(day.value) ? 'bg-indigo-50 border-indigo-400 text-indigo-700 font-semibold shadow-sm' : ''">
-                                                <input type="checkbox" :value="day.value" name="dias_semana[]" x-model="selectedDays" class="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
-                                                <span x-text="day.label" class="text-md"></span>
-                                            </label>
-                                        </template>
-                                    </div>
-                                    <p class="text-sm text-gray-500 mt-3">Selecione os dias da semana em que você deseja criar horários.</p>
-                                </div>
-
-                                <div class="mb-6">
-                                    <label class="block text-md font-medium text-gray-800 mb-2">Duração de cada Atendimento (em minutos):</label>
-                                    <input type="number" name="intervalo" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-3 w-full md:w-1/3 text-lg" placeholder="30" value="30" min="5" max="240">
-                                    <p class="text-sm text-gray-500 mt-2">
-                                        Por exemplo, se seus atendimentos duram 30 minutos, o sistema criará horários de 30 em 30 minutos.
+                        <div x-data="agendaGenerator()" @keydown.escape.window="showScheduleModal = false" class="pt-6 border-t border-gray-100 mt-6">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                                <div>
+                                    <h4 class="text-xl font-semibold text-gray-900">
+                                        Crie horários disponíveis para agendamento
+                                    </h4>
+                                    <p class="text-md text-gray-700">
+                                        Use esta ferramenta para gerar seus horários de atendimento para um mês inteiro, de uma vez só!
                                     </p>
                                 </div>
-
-                                <button type="submit" class="bg-indigo-600 text-white px-6 py-3 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition duration-200 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 focus-visible:outline-offset-2">
-                                    Gerar horários do mês
+                                <button type="button" @click="showScheduleModal = true"
+                                        class="bg-indigo-600 text-white px-5 py-2 rounded-lg text-md font-semibold hover:bg-indigo-700 transition duration-200 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 focus-visible:outline-offset-2">
+                                    Criar horários
                                 </button>
-                            </form>
+                            </div>
+
+                            <div x-cloak x-show="showScheduleModal" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center">
+                                <div class="absolute inset-0 bg-gray-900 bg-opacity-60" @click="showScheduleModal = false"></div>
+                                <div x-show="showScheduleModal" x-transition.scale class="relative bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 overflow-y-auto max-h-[90vh]">
+                                    <div class="flex justify-between items-center border-b border-gray-100 px-6 py-4">
+                                        <div>
+                                            <p class="text-sm text-gray-500">Configure os dias e horários disponíveis desta agenda</p>
+                                            <h3 class="text-2xl font-semibold text-gray-900">Criar horários</h3>
+                                        </div>
+                                        <button type="button" @click="showScheduleModal = false"
+                                                class="text-gray-500 hover:text-gray-700 transition">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <div class="p-8">
+                                        <form method="POST" action="{{ route('agendas.gerarDisponibilidades', $agenda) }}">
+                                            @csrf
+                                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-2">Qual Mês?</label>
+                                                    <select name="mes" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5 w-full">
+                                                        @foreach (range(1,12) as $m)
+                                                            <option value="{{ $m }}" @selected($m == now()->month)>
+                                                                {{ \Carbon\Carbon::create()->month($m)->translatedFormat('F') }}
+                                                            </option>
+                                                        @endforeach
+                                                    </select>
+                                                    <p class="text-xs text-gray-500 mt-1">Escolha o mês para gerar os horários.</p>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-2">Qual Ano?</label>
+                                                    <select name="ano" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5 w-full">
+                                                        @foreach (range(now()->year, now()->year+2) as $y)
+                                                            <option value="{{ $y }}" @selected($y == now()->year)>{{ $y }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <p class="text-xs text-gray-500 mt-1">Selecione o ano.</p>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-2">Horário de Início:</label>
+                                                    <input type="time" name="hora_inicio" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5 w-full" value="09:00">
+                                                    <p class="text-xs text-gray-500 mt-1">A partir de que horas você estará disponível.</p>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-2">Horário de Fim:</label>
+                                                    <input type="time" name="hora_fim" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-2.5 w-full" value="17:00">
+                                                    <p class="text-xs text-gray-500 mt-1">Até que horas você estará disponível.</p>
+                                                </div>
+                                            </div>
+
+                                            <div class="mb-6">
+                                                <p class="text-md font-medium text-gray-800 mb-3">Em quais dias da semana você atende?</p>
+                                                <div class="flex flex-wrap gap-3">
+                                                    <template x-for="(day, key) in days" :key="key">
+                                                        <label class="flex items-center gap-2 cursor-pointer bg-gray-50 hover:bg-gray-100 p-3 rounded-xl border border-gray-200 transition duration-200"
+                                                               :class="selectedDays.includes(day.value) ? 'bg-indigo-50 border-indigo-400 text-indigo-700 font-semibold shadow-sm' : ''">
+                                                            <input type="checkbox" :value="day.value" name="dias_semana[]" x-model="selectedDays" class="h-5 w-5 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300">
+                                                            <span x-text="day.label" class="text-md"></span>
+                                                        </label>
+                                                    </template>
+                                                </div>
+                                                <p class="text-sm text-gray-500 mt-3">Selecione os dias da semana em que você deseja criar horários.</p>
+                                            </div>
+
+                                            <div class="mb-6">
+                                                <label class="block text-md font-medium text-gray-800 mb-2">Duração de cada Atendimento (em minutos):</label>
+                                                <input type="number" name="intervalo" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg p-3 w-full md:w-1/3 text-lg" placeholder="30" value="30" min="5" max="240">
+                                                <p class="text-sm text-gray-500 mt-2">
+                                                    Por exemplo, se seus atendimentos duram 30 minutos, o sistema criará horários de 30 em 30 minutos.
+                                                </p>
+                                            </div>
+
+                                            <div class="flex items-center justify-end gap-3">
+                                                <button type="button" @click="showScheduleModal = false"
+                                                        class="px-4 py-2 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-100 transition">
+                                                    Cancelar
+                                                </button>
+                                                <button type="submit" class="bg-indigo-600 text-white px-6 py-3 rounded-xl text-lg font-semibold hover:bg-indigo-700 transition duration-200 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 focus-visible:outline-offset-2">
+                                                    Gerar horários do mês
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 @empty
@@ -318,6 +386,7 @@
     <script>
         function agendaGenerator() {
             return {
+                showScheduleModal: false,
                 days: [
                     { label: 'Segunda-feira', value: 'monday' },
                     { label: 'Terça-feira', value: 'tuesday' },

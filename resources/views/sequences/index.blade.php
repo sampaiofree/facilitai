@@ -15,9 +15,7 @@
         <div class="max-w-6xl mx-auto sm:px-6 lg:px-8">
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6 text-gray-900 space-y-4">
-                    @if (session('success'))
-                        <div class="rounded-md bg-green-50 px-4 py-3 text-green-800">{{ session('success') }}</div>
-                    @endif
+                    
 
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">

@@ -8,6 +8,7 @@ use App\Models\Disponibilidade;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule; // Importar Rule
 
 class AgendaController extends Controller
@@ -229,9 +230,17 @@ class AgendaController extends Controller
         }
 
         // Lista de meses disponíveis (YYYY-MM-01) para o grid
+        $driver = DB::getDriverName();
+        $mesExpr = match ($driver) {
+            'sqlite' => "strftime('%Y-%m-01', data)",
+            'pgsql'  => "to_char(data, 'YYYY-MM-01')",
+            'sqlsrv' => "FORMAT(data, 'yyyy-MM-01')",
+            default  => "DATE_FORMAT(data, '%Y-%m-01')",
+        };
+
         $meses = Disponibilidade::where('agenda_id', $agenda->id)
-            ->selectRaw('DATE_FORMAT(data, "%Y-%m-01") as mes_ref')
-            ->groupBy('mes_ref')
+            ->selectRaw("$mesExpr as mes_ref")
+            ->groupBy(DB::raw($mesExpr))
             ->orderBy('mes_ref', 'asc')
             ->pluck('mes_ref')
             ->map(fn($d) => \Carbon\Carbon::parse($d));
