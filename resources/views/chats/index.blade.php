@@ -327,10 +327,13 @@
                                         </td>
                                         <td class="px-4 py-3 font-mono text-sm text-gray-800">
                                             {{ $chat->contact }}
-                                            <a href="{{ route('chats.conv', ['conv' => $chat->conv_id]) }}">
-                                                <div class="text-xs text-gray-500">{{ $chat->conv_id }}</div>
-                                            </a>
-
+                                            @if(!empty($chat->conv_id))
+                                                <a href="{{ route('chats.conv', ['conv' => $chat->conv_id]) }}">
+                                                    <div class="text-xs text-gray-500">{{ $chat->conv_id }}</div>
+                                                </a>
+                                            @else
+                                                <div class="text-xs text-gray-400">sem conv_id</div>
+                                            @endif
                                         </td>
                                         <td class="px-4 py-3 text-center">
                                             <button type="button"
