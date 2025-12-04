@@ -59,6 +59,10 @@ Route::get('/workshop', [LandingPageController::class, 'workshop'])->name('works
 Route::get('/workshop-b', function () {return view('lp.workshop-v10');});
 Route::get('/exemplos/pizza', function () {return view('exemplos.pizza');});
 Route::get('/biblioteca/{slug}', [LibraryEntryController::class, 'publicShow'])->name('library.public.show');
+Route::get('/library/public/{token}', [LibraryEntryController::class, 'publicEditForm'])->name('library.public.edit');
+Route::post('/library/public/{token}/auth', [LibraryEntryController::class, 'publicAuthenticate'])->middleware('throttle:5,1')->name('library.public.auth');
+Route::post('/library/public/{token}/logout', [LibraryEntryController::class, 'publicLogout'])->name('library.public.logout');
+Route::post('/library/public/{token}', [LibraryEntryController::class, 'publicUpdate'])->name('library.public.update');
 
 //AGENDAS PÚBLICAS
 // Rota para a página pública de agendamento (o ponto de entrada do seu agendador em Blade/Alpine)
@@ -137,6 +141,7 @@ Route::middleware('auth', 'verified')->group(function () {
 
     //CRIAR IMAGENS
     Route::post('/images/move', [ImageController::class, 'move'])->name('images.move');
+    Route::delete('/images/bulk-destroy', [ImageController::class, 'bulkDestroy'])->name('images.bulkDestroy');
     Route::resource('images', ImageController::class)->only(['index', 'store', 'destroy', 'update']);
 
     //BIBLIOTECA DE TEXTOS
@@ -169,6 +174,7 @@ Route::middleware('auth', 'verified')->group(function () {
     // INSTANCIAS
     // Nova rota POST para a criação direta
     Route::post('/instances/create-direct', [InstanceController::class, 'storeDirect'])->name('instances.store_direct');
+    Route::post('/instances/{instance}/restart', [InstanceController::class, 'restart'])->name('instances.restart');
     // Mantém as outras rotas do resource, mas remove a 'create' que não usamos mais
     Route::resource('instances', InstanceController::class)->except(['create']);
 

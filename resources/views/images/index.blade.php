@@ -45,50 +45,70 @@
             </div>
 
             <!-- Modal Upload -->
-            <div id="upload-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-                <div class="bg-white rounded-lg shadow-lg max-w-xl w-full mx-4 p-6">
+            <div id="upload-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-start justify-center z-50 overflow-y-auto py-6">
+                <div class="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-800">Enviar midia</h3>
                         <button type="button" id="upload-modal-close" class="text-gray-500 hover:text-gray-700">&times;</button>
                     </div>
                     <form id="upload-form" action="{{ route('images.store') }}" method="POST" enctype="multipart/form-data">
                         @csrf
-                        <div class="mb-4">
-                            <label class="block text-sm text-gray-700 mb-1" for="upload-image">Arquivo</label>
-                            <input id="upload-image" type="file" name="image" required class="block w-full text-sm text-gray-700 border rounded-lg px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                            @error('image')
-                                <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
-                            @enderror
-                            <p class="mt-1 text-xs text-gray-500">PNG, JPG, MP4, MP3 ou PDF. Ate 10MB.</p>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm text-gray-700 mb-1" for="upload-images">Arquivos</label>
+                                <input id="upload-images" type="file" name="images[]" multiple required accept="image/jpeg,image/png,video/mp4,video/quicktime,application/pdf,audio/mpeg,audio/mp3" class="block w-full text-sm text-gray-700 border rounded-lg px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                                @error('images')
+                                    <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
+                                @enderror
+                                @error('images.*')
+                                    <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
+                                @enderror
+                                @error('image')
+                                    <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
+                                @enderror
+                                <p class="mt-1 text-xs text-gray-500">Selecione um ou mais arquivos. PNG, JPG, MP4, MP3 ou PDF. Ate 10MB por arquivo.</p>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-1" for="upload-folder-all">Pasta para todos (opcional)</label>
+                                    <select id="upload-folder-all" name="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full">
+                                        <option value="">Sem pasta</option>
+                                        @foreach($folders as $folder)
+                                            <option value="{{ $folder->id }}" {{ old('folder_id') == $folder->id ? 'selected' : '' }}>{{ $folder->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @error('folder_id')
+                                        <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
+                                    @enderror
+                                </div>
+                                <div class="text-xs text-gray-600 sm:flex sm:items-end">
+                                    <p>Edite titulo, descricao e pasta de cada arquivo na lista abaixo. A pasta escolhida aqui pode ser aplicada a todos os itens.</p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <h4 class="text-sm font-semibold text-gray-800">Arquivos selecionados</h4>
+                                    <span id="upload-files-count" class="text-xs text-gray-500">0 selecionados</span>
+                                </div>
+                                <div id="upload-empty" class="border border-dashed border-gray-300 rounded-lg p-4 text-sm text-gray-500 bg-gray-50">Selecione um ou mais arquivos para visualizar e editar.</div>
+                                <div id="upload-list" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
+                                @if($errors->has('titles.*') || $errors->has('descriptions.*') || $errors->has('folders.*'))
+                                    <p class="text-red-500 text-xs mt-2">Corrija os campos invalidos antes de reenviar.</p>
+                                @endif
+                            </div>
                         </div>
-                        <div class="mb-4">
-                            <label class="block text-sm text-gray-700 mb-1" for="upload-title">Titulo (opcional)</label>
-                            <input id="upload-title" type="text" name="title" value="{{ old('title') }}" maxlength="255" class="border rounded-lg px-3 py-2 text-sm w-full" placeholder="Ex.: Apresentacao da campanha">
-                            @error('title')
-                                <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div class="mb-4">
-                            <label class="block text-sm text-gray-700 mb-1" for="upload-description">Descricao (opcional)</label>
-                            <textarea id="upload-description" name="description" rows="3" maxlength="500" class="border rounded-lg px-3 py-2 text-sm w-full" placeholder="Notas para lembrar o conteudo, ate 500 caracteres.">{{ old('description') }}</textarea>
-                            @error('description')
-                                <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div class="mb-4">
-                            <label class="block text-sm text-gray-700 mb-1" for="upload-folder">Pasta (opcional)</label>
-                            <select id="upload-folder" name="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full">
-                                <option value="">Sem pasta</option>
-                                @foreach($folders as $folder)
-                                    <option value="{{ $folder->id }}" {{ old('folder_id') == $folder->id ? 'selected' : '' }}>{{ $folder->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="flex justify-end gap-2">
+                        <div class="flex justify-end gap-2 pt-4">
                             <button type="button" id="upload-cancel" class="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancelar</button>
                             <button id="upload-submit" type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Enviar</button>
                         </div>
                     </form>
+                    <template id="folder-options-template">
+                        <option value="">Sem pasta</option>
+                        @foreach($folders as $folder)
+                            <option value="{{ $folder->id }}">{{ $folder->name }}</option>
+                        @endforeach
+                    </template>
                 </div>
             </div>
 
@@ -96,7 +116,7 @@
                 <div class="bg-white rounded-lg shadow-lg px-6 py-4 flex items-center gap-3">
                     <svg class="w-5 h-5 text-blue-600 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle class="opacity-25" cx="12" cy="12" r="10" stroke-width="4"></circle><path class="opacity-75" stroke-width="4" d="M4 12a8 8 0 018-8"></path></svg>
                     <div>
-                        <p class="text-sm font-semibold text-gray-800">Enviando arquivo...</p>
+                        <p class="text-sm font-semibold text-gray-800">Enviando arquivo(s)...</p>
                         <p class="text-xs text-gray-600">Isso pode levar alguns segundos para arquivos maiores.</p>
                     </div>
                 </div>
@@ -172,8 +192,17 @@
                                 @endforeach
                             </select>
                             <div id="move-form-images"></div>
-                            <button type="submit" class="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">Mover selecionados</button>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <button type="submit" class="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">Mover selecionados</button>
+                                <button type="button" id="delete-selected" class="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">Excluir selecionados</button>
+                                <button type="button" id="copy-selected" class="bg-gray-100 text-gray-800 text-sm font-semibold px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-200">Copiar todos os links</button>
+                            </div>
                         </div>
+                    </form>
+                    <form id="delete-form" action="{{ route('images.bulkDestroy') }}" method="POST" class="hidden">
+                        @csrf
+                        @method('DELETE')
+                        <div id="delete-form-images"></div>
                     </form>
 
                     @if($showFolders)
@@ -237,7 +266,15 @@
                                     @endphp
                                     <tr>
                                         <td class="px-3 py-2 align-top">
-                                            <input type="checkbox" class="image-checkbox h-4 w-4 mt-1" data-image-id="{{ $file->id }}">
+                                            <input
+                                                type="checkbox"
+                                                class="image-checkbox h-4 w-4 mt-1"
+                                                data-image-id="{{ $file->id }}"
+                                                data-url="{{ $file->url }}"
+                                                data-title="{{ e($file->title ?? '') }}"
+                                                data-description="{{ e($file->description ?? '') }}"
+                                                data-name="{{ e($file->original_name) }}"
+                                            >
                                         </td>
                                         <td class="px-3 py-2 align-top">
                                             <div class="flex flex-col gap-1">
@@ -339,6 +376,10 @@
         const selectedCount = document.getElementById('selected-count');
         const moveForm = document.getElementById('move-form');
         const imagesContainer = document.getElementById('move-form-images');
+        const deleteForm = document.getElementById('delete-form');
+        const deleteImagesContainer = document.getElementById('delete-form-images');
+        const deleteSelectedBtn = document.getElementById('delete-selected');
+        const copySelectedBtn = document.getElementById('copy-selected');
         const uploadModal = document.getElementById('upload-modal');
         const uploadLoading = document.getElementById('upload-loading');
         const openUploadModal = document.getElementById('open-upload-modal');
@@ -346,6 +387,12 @@
         const uploadCancel = document.getElementById('upload-cancel');
         const uploadForm = document.getElementById('upload-form');
         const uploadSubmit = document.getElementById('upload-submit');
+        const uploadImagesInput = document.getElementById('upload-images');
+        const uploadList = document.getElementById('upload-list');
+        const uploadEmpty = document.getElementById('upload-empty');
+        const uploadFilesCount = document.getElementById('upload-files-count');
+        const uploadFolderAll = document.getElementById('upload-folder-all');
+        const folderOptionsTemplate = document.getElementById('folder-options-template');
 
         const copyText = async (text) => {
             if (navigator.clipboard && window.isSecureContext) {
@@ -363,8 +410,10 @@
             document.body.removeChild(textarea);
         };
 
+        const getSelectedIds = () => checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.imageId);
+
         const updateSelection = () => {
-            const selected = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.imageId);
+            const selected = getSelectedIds();
             selectedCount.textContent = selected.length;
             selectionBar.classList.toggle('hidden', selected.length === 0);
         };
@@ -372,7 +421,7 @@
         checkboxes.forEach(cb => cb.addEventListener('change', updateSelection));
 
         moveForm.addEventListener('submit', (event) => {
-            const selected = checkboxes.filter(cb => cb.checked).map(cb => cb.dataset.imageId);
+            const selected = getSelectedIds();
             if (selected.length === 0) {
                 event.preventDefault();
                 return;
@@ -387,12 +436,236 @@
             });
         });
 
+        deleteSelectedBtn?.addEventListener('click', () => {
+            const selected = getSelectedIds();
+            if (selected.length === 0) {
+                if (typeof showAlert === 'function') {
+                    showAlert('Selecione ao menos um item para excluir.', 'error');
+                } else {
+                    alert('Selecione ao menos um item para excluir.');
+                }
+                return;
+            }
+
+            const confirmDelete = confirm(`Excluir ${selected.length} arquivo(s)? Esta ação não pode ser desfeita.`);
+            if (!confirmDelete) return;
+
+            if (!deleteForm || !deleteImagesContainer) return;
+            deleteImagesContainer.innerHTML = '';
+            selected.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'images[]';
+                input.value = id;
+                deleteImagesContainer.appendChild(input);
+            });
+
+            deleteForm.submit();
+        });
+
+        copySelectedBtn?.addEventListener('click', async () => {
+            const selectedCheckboxes = checkboxes.filter(cb => cb.checked);
+            if (!selectedCheckboxes.length) {
+                if (typeof showAlert === 'function') {
+                    showAlert('Selecione ao menos um item para copiar.', 'error');
+                } else {
+                    alert('Selecione ao menos um item para copiar.');
+                }
+                return;
+            }
+
+            const blocks = selectedCheckboxes.map((cb) => {
+                const title = (cb.dataset.title || cb.dataset.name || '').trim();
+                const description = (cb.dataset.description || '').trim();
+                const url = cb.dataset.url;
+                const parts = [];
+                if (title) parts.push(`**Titulo:** ${title}`);
+                if (description) parts.push(`**Descricao:** ${description}`);
+                if (url) parts.push(`**Link:** ${url}`);
+                return parts.join('\n');
+            }).filter(Boolean);
+
+            if (!blocks.length) return;
+
+            try {
+                await copyText(blocks.join('\n\n'));
+                if (typeof showAlert === 'function') {
+                    showAlert('Links copiados!', 'success');
+                }
+            } catch (e) {
+                if (typeof showAlert === 'function') {
+                    showAlert('Nao foi possivel copiar os links.', 'error');
+                } else {
+                    alert('Nao foi possivel copiar os links.');
+                }
+            }
+        });
+
+        const formatSize = (bytes) => {
+            const kb = bytes / 1024;
+            if (kb < 1024) {
+                return `${kb.toFixed(1)} KB`;
+            }
+            return `${(kb / 1024).toFixed(1)} MB`;
+        };
+
+        const getTypeLabel = (file) => {
+            const name = (file.name || '').toLowerCase();
+            const type = file.type || '';
+            if (type.startsWith('image/')) return 'Imagem';
+            if (type.startsWith('video/')) return 'Video';
+            if (type.startsWith('audio/')) return 'Audio';
+            if (name.endsWith('.pdf')) return 'PDF';
+            return 'Arquivo';
+        };
+
+        const createPreview = (file) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'w-24 h-16 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden';
+            const type = file.type || '';
+            const name = (file.name || '').toLowerCase();
+
+            if (type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.className = 'w-full h-full object-cover';
+                img.onload = () => URL.revokeObjectURL(img.src);
+                wrapper.appendChild(img);
+                return wrapper;
+            }
+
+            const badge = document.createElement('span');
+            badge.className = 'text-xs font-semibold text-gray-700 px-2 py-1 rounded-md bg-white border';
+            if (type.startsWith('video/')) {
+                badge.textContent = 'Video';
+            } else if (type.startsWith('audio/')) {
+                badge.textContent = 'Audio';
+            } else if (name.endsWith('.pdf')) {
+                badge.textContent = 'PDF';
+            } else {
+                badge.textContent = 'Arquivo';
+            }
+            wrapper.appendChild(badge);
+            return wrapper;
+        };
+
+        const applyFolderToAll = (value) => {
+            const selects = uploadList?.querySelectorAll('.file-folder') || [];
+            selects.forEach(select => {
+                select.value = value;
+            });
+        };
+
+        const renderFileList = () => {
+            if (!uploadImagesInput || !uploadList || !uploadEmpty || !uploadFilesCount) return;
+            const files = Array.from(uploadImagesInput.files || []);
+
+            uploadList.innerHTML = '';
+            uploadFilesCount.textContent = `${files.length} selecionado${files.length === 1 ? '' : 's'}`;
+            uploadEmpty.classList.toggle('hidden', files.length > 0);
+
+            if (!files.length) {
+                return;
+            }
+
+            const folderOptions = folderOptionsTemplate?.innerHTML || '<option value=\"\">Sem pasta</option>';
+
+            files.forEach((file, index) => {
+                const card = document.createElement('div');
+                card.className = 'border border-gray-200 rounded-lg p-3 bg-gray-50';
+
+                const header = document.createElement('div');
+                header.className = 'flex items-start gap-3';
+
+                const preview = createPreview(file);
+                header.appendChild(preview);
+
+                const meta = document.createElement('div');
+                meta.className = 'flex-1 min-w-0';
+
+                const nameRow = document.createElement('div');
+                nameRow.className = 'flex items-center justify-between gap-2';
+
+                const name = document.createElement('p');
+                name.className = 'text-sm font-semibold text-gray-800 truncate';
+                name.textContent = file.name || `Arquivo ${index + 1}`;
+
+                const badge = document.createElement('span');
+                badge.className = 'text-xs font-semibold text-gray-600 bg-white border rounded-md px-2 py-1';
+                badge.textContent = `${getTypeLabel(file)} · ${formatSize(file.size)}`;
+
+                nameRow.appendChild(name);
+                nameRow.appendChild(badge);
+
+                meta.appendChild(nameRow);
+
+                const fields = document.createElement('div');
+                fields.className = 'grid grid-cols-1 md:grid-cols-2 gap-3 mt-3';
+
+                const titleWrapper = document.createElement('div');
+                const titleLabel = document.createElement('label');
+                titleLabel.className = 'block text-xs text-gray-600 mb-1';
+                titleLabel.textContent = 'Titulo';
+                const titleInput = document.createElement('input');
+                titleInput.type = 'text';
+                titleInput.name = 'titles[]';
+                titleInput.maxLength = 255;
+                titleInput.className = 'border rounded-lg px-3 py-2 text-sm w-full';
+                titleInput.value = (file.name || '').replace(/\.[^/.]+$/, '').slice(0, 255);
+                titleWrapper.appendChild(titleLabel);
+                titleWrapper.appendChild(titleInput);
+
+                const folderWrapper = document.createElement('div');
+                const folderLabel = document.createElement('label');
+                folderLabel.className = 'block text-xs text-gray-600 mb-1';
+                folderLabel.textContent = 'Pasta';
+                const folderSelect = document.createElement('select');
+                folderSelect.name = 'folders[]';
+                folderSelect.className = 'border rounded-lg px-3 py-2 text-sm w-full file-folder';
+                folderSelect.innerHTML = folderOptions;
+                if (uploadFolderAll && uploadFolderAll.value !== undefined) {
+                    folderSelect.value = uploadFolderAll.value;
+                }
+                folderWrapper.appendChild(folderLabel);
+                folderWrapper.appendChild(folderSelect);
+
+                const descriptionWrapper = document.createElement('div');
+                descriptionWrapper.className = 'md:col-span-2';
+                const descriptionLabel = document.createElement('label');
+                descriptionLabel.className = 'block text-xs text-gray-600 mb-1';
+                descriptionLabel.textContent = 'Descricao';
+                const descriptionInput = document.createElement('textarea');
+                descriptionInput.name = 'descriptions[]';
+                descriptionInput.rows = 2;
+                descriptionInput.maxLength = 500;
+                descriptionInput.className = 'border rounded-lg px-3 py-2 text-sm w-full';
+                descriptionWrapper.appendChild(descriptionLabel);
+                descriptionWrapper.appendChild(descriptionInput);
+
+                fields.appendChild(titleWrapper);
+                fields.appendChild(folderWrapper);
+                fields.appendChild(descriptionWrapper);
+
+                meta.appendChild(fields);
+                header.appendChild(meta);
+                card.appendChild(header);
+                uploadList.appendChild(card);
+            });
+        };
+
+        const resetUploadForm = () => {
+            if (!uploadForm) return;
+            uploadForm.reset();
+            renderFileList();
+        };
+
         const openUpload = () => {
             uploadModal.classList.remove('hidden');
             uploadModal.classList.add('flex');
         };
 
         const closeUpload = () => {
+            resetUploadForm();
             uploadModal.classList.add('hidden');
             uploadModal.classList.remove('flex');
         };
@@ -406,7 +679,17 @@
             }
         });
 
-        uploadForm?.addEventListener('submit', () => {
+        uploadForm?.addEventListener('submit', (event) => {
+            const files = uploadImagesInput?.files || [];
+            if (!files.length) {
+                event.preventDefault();
+                if (typeof showAlert === 'function') {
+                    showAlert('Selecione ao menos um arquivo.', 'error');
+                } else {
+                    alert('Selecione ao menos um arquivo.');
+                }
+                return;
+            }
             uploadLoading?.classList.remove('hidden');
             uploadLoading?.classList.add('flex');
             if (uploadSubmit) {
@@ -415,7 +698,12 @@
             }
         });
 
-        @if($errors->has('image') || $errors->has('title') || $errors->has('description') || $errors->has('folder_id'))
+        uploadImagesInput?.addEventListener('change', renderFileList);
+        uploadFolderAll?.addEventListener('change', (event) => {
+            applyFolderToAll(event.target.value);
+        });
+
+        @if($errors->has('image') || $errors->has('images') || $errors->has('images.*') || $errors->has('title') || $errors->has('titles.*') || $errors->has('description') || $errors->has('descriptions.*') || $errors->has('folder_id') || $errors->has('folders.*'))
             openUpload();
         @endif
 

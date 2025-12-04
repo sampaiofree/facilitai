@@ -48,16 +48,15 @@ class ImageController extends Controller
     // Salva a nova imagem
     public function store(Request $request)
     {
-        // Validação: obrigatório, deve ser imagem, tipos permitidos, tamanho máximo de 10MB (10240 KB)
-        $request->validate([
+        $mimeTypes = 'mimetypes:video/mp4,video/quicktime,image/jpeg,image/png,image/jpg,application/pdf,audio/mpeg,audio/mp3';
+
+        $validated = $request->validate([
+            // Upload único (compatibilidade)
             'image' => [
-                'required',
-                // 'file' garante que é um arquivo válido
+                'required_without:images',
                 'file',
-                // 'mimetypes' aceita uma lista de tipos MIME para vídeo e imagem
-                'mimetypes:video/mp4,video/quicktime,image/jpeg,image/png,image/jpg,application/pdf,audio/mpeg,audio/mp3',
-                // Limite de 10MB (10240 KB) - ajuste conforme necessario
-                'max:10240', 
+                $mimeTypes,
+                'max:10240',
             ],
             'title' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:500'],
@@ -66,32 +65,66 @@ class ImageController extends Controller
                 'integer',
                 Rule::exists('folders', 'id')->where('user_id', Auth::id()),
             ],
+            // Upload múltiplo
+            'images' => ['required_without:image', 'array', 'min:1'],
+            'images.*' => [
+                'file',
+                $mimeTypes,
+                'max:10240',
+            ],
+            'titles' => ['array'],
+            'titles.*' => ['nullable', 'string', 'max:255'],
+            'descriptions' => ['array'],
+            'descriptions.*' => ['nullable', 'string', 'max:500'],
+            'folders' => ['array'],
+            'folders.*' => [
+                'nullable',
+                'integer',
+                Rule::exists('folders', 'id')->where('user_id', Auth::id()),
+            ],
         ]);
 
-        $file = $request->file('image');
         $user = Auth::user();
+
+        $files = [];
+        if ($request->hasFile('images')) {
+            $files = $request->file('images');
+        } elseif ($request->hasFile('image')) {
+            $files = [$request->file('image')];
+        }
 
         // Garante que a pasta do usuário existe com permissão correta
         $directory = 'user_images/' . $user->id;
         Storage::disk('public')->makeDirectory($directory);
-        
-        // Armazena o arquivo em uma pasta única para o usuário (storage/app/public/user_images/{user_id})
-        $path = $file->store('user_images/' . $user->id, 'public');
 
-        // Garante que o arquivo seja público (importante!)
-        Storage::disk('public')->setVisibility($path, 'public');
+        $titles = $request->input('titles', []);
+        $descriptions = $request->input('descriptions', []);
+        $folders = $request->input('folders', []);
+        $defaultFolder = $validated['folder_id'] ?? null;
+        $defaultTitle = $validated['title'] ?? null;
+        $defaultDescription = $validated['description'] ?? null;
 
-        // Cria o registro no banco de dados
-        $user->images()->create([
-            'folder_id' => $request->input('folder_id'),
-            'path' => $path,
-            'original_name' => $file->getClientOriginalName(),
-            'title' => $request->input('title'),
-            'description' => $request->input('description'),
-            'size' => round($file->getSize() / 1024), // Salva o tamanho em KB
-        ]);
+        foreach ($files as $index => $file) {
+            // Armazena o arquivo em uma pasta única para o usuário (storage/app/public/user_images/{user_id})
+            $path = $file->store('user_images/' . $user->id, 'public');
 
-        return back()->with('success', 'Mídia enviada com sucesso!');
+            // Garante que o arquivo seja público (importante!)
+            Storage::disk('public')->setVisibility($path, 'public');
+
+            $user->images()->create([
+                'folder_id' => $folders[$index] ?? $defaultFolder,
+                'path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'title' => $titles[$index] ?? $defaultTitle,
+                'description' => $descriptions[$index] ?? $defaultDescription,
+                'size' => round($file->getSize() / 1024), // Salva o tamanho em KB
+            ]);
+        }
+
+        $count = count($files);
+        $message = $count > 1 ? 'Mídias enviadas com sucesso!' : 'Mídia enviada com sucesso!';
+
+        return back()->with('success', $message);
     } 
 
     public function update(Request $request, Image $image)
@@ -132,6 +165,38 @@ class ImageController extends Controller
             ->update(['folder_id' => $validated['folder_id'] ?? null]);
 
         return back()->with('success', 'Imagens movidas com sucesso.');
+    }
+
+    public function bulkDestroy(Request $request)
+    {
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'images' => ['required', 'array', 'min:1'],
+            'images.*' => [
+                'integer',
+                Rule::exists('images', 'id')->where('user_id', $user->id),
+            ],
+        ]);
+
+        $images = $user->images()->whereIn('id', $validated['images'])->get();
+        $errors = [];
+
+        foreach ($images as $image) {
+            try {
+                Storage::disk('public')->delete($image->path);
+                $image->delete();
+            } catch (\Exception $e) {
+                $errors[] = $image->id;
+                Log::error("Erro ao excluir imagem {$image->id}: " . $e->getMessage());
+            }
+        }
+
+        if (!empty($errors)) {
+            return back()->with('error', 'Algumas mídias não puderam ser excluídas.');
+        }
+
+        return back()->with('success', 'Mídias excluídas com sucesso.');
     }
 
     // Exclui uma imagem

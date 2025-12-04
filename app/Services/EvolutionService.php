@@ -121,6 +121,33 @@ class EvolutionService
         return $return ?? [];
     }
 
+    public function reiniciarInstancia(string $instancia)
+    {
+        $url = config('services.evolution.url') . "/instance/restart/{$instancia}";
+        $apiKey = config('services.evolution.key');
+
+        try {
+            $response = Http::withHeaders(['apikey' => $apiKey])->put($url);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::error('EvolutionService: falha ao reiniciar instancia', [
+                'instancia' => $instancia,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('EvolutionService: erro na requisicao de restart', [
+                'instancia' => $instancia,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
+        return "Erro ao reiniciar instancia {$instancia}";
+    }
+
     function conectarInstancia($id)
     {
         $response = Http::withHeaders([

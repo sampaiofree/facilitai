@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Carbon\Carbon;
+use App\Models\Chat;
 
 class Instance extends Model
 {
@@ -83,6 +84,14 @@ class Instance extends Model
     public function tokenUsage()
     {
         return $this->hasMany(TokensOpenAI::class);
+    }
+
+    /**
+     * Chats vinculados a esta instância.
+     */
+    public function chats()
+    {
+        return $this->hasMany(Chat::class);
     }
 
     /**

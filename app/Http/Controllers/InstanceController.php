@@ -215,7 +215,7 @@ class InstanceController extends Controller
         $availableSlots = $user->availableInstanceSlots(); //PEGA A QUANTIDADE DE SLOTS DISPONÍVEIS
         
         // Pega as instâncias do usuário (como antes)
-        $instances = $user->instances()->get();
+        $instances = $user->instances()->withCount('chats')->get();
         
         // Itera sobre as instâncias para buscar o status da conexão (como antes)
         foreach ($instances as $instance) {
@@ -267,7 +267,8 @@ class InstanceController extends Controller
                     ProxyIpBan::firstOrCreate(['ip' => $instance->proxy_ip]);
                 }
 
-                // 5. Exclui a instância do nosso banco de dados local
+                // 5. Remove chats vinculados e exclui a instância do nosso banco de dados local
+                $instance->chats()->delete();
                 $instance->delete();
 
                 // Opcional: Desvincular o pagamento
@@ -275,7 +276,7 @@ class InstanceController extends Controller
                 // Payment::where('instance_id', $instance->id)->update(['instance_id' => null]);
                 // Isso liberaria o "crédito" para o usuário usar novamente.
 
-                return redirect()->route('instances.index')->with('success', 'Conexão excluída com sucesso.');
+                return redirect()->route('instances.index')->with('success', 'Conexão e chats excluídos com sucesso.');
             } else {
                 // Se a API do Evolution retornar um erro inesperado
                 throw new \Exception('A API do Evolution retornou um erro: ' . $response->body());
@@ -285,6 +286,24 @@ class InstanceController extends Controller
             Log::error("Falha ao excluir a instância {$instance->id}: " . $e->getMessage());
             return redirect()->route('instances.index')->with('error', 'Antes de excluir, desconecte o WhatsApp desta instância.');
         }
+    }
+
+    public function restart(Instance $instance, EvolutionService $evolutionService)
+    {
+        if ($instance->user_id !== Auth::id()) {
+            abort(403, 'Acesso não autorizado.');
+        }
+
+        $resultado = $evolutionService->reiniciarInstancia((string) $instance->id);
+
+        if (is_array($resultado)) {
+            return redirect()->route('instances.index')
+                ->with('success', 'Instância reiniciada. Aguarde alguns instantes.');
+        }
+
+        $mensagemErro = is_string($resultado) ? $resultado : 'Não foi possível reiniciar a instância.';
+
+        return redirect()->route('instances.index')->with('error', $mensagemErro);
     }
 
     public function create()

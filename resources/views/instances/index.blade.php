@@ -161,9 +161,23 @@
                                                         <span>Conectar</span>
                                                     </a>
                                                 @endif
+                                                @if ($instance->connection_state == 'open')
+                                                    {{-- Botão Reiniciar (apenas conectada) --}}
+                                                    <form action="{{ route('instances.restart', $instance->id) }}" method="POST" onsubmit="return confirm('Reiniciar esta instância? Ela ficará indisponível por alguns instantes.');">
+                                                        @csrf
+                                                        <button type="submit"
+                                                            class="flex items-center space-x-2 px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-xs font-semibold"
+                                                            title="Reiniciar instância">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.93 4.93a10 10 0 0114.14 0l-2.12 2.12M4.93 4.93L7.05 7.05M4.93 4.93a10 10 0 000 14.14l2.12-2.12m12.02-12.02a10 10 0 010 14.14l-2.12-2.12m0 0L16 16" />
+                                                            </svg>
+                                                            <span>Reiniciar</span>
+                                                        </button>
+                                                    </form>
+                                                @endif
                                                 
                                                 {{-- Botão Excluir --}}
-                                                <form action="{{ route('instances.destroy', $instance->id) }}" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir permanentemente esta conexão? Esta ação não pode ser desfeita.');">
+                                                <form action="{{ route('instances.destroy', $instance->id) }}" method="POST" data-delete-instance data-chat-count="{{ $instance->chats_count ?? 0 }}">
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" 
@@ -189,4 +203,67 @@
             </div>
         </div>
     </div>
+
+    {{-- Modal de confirmação para instâncias com chats --}}
+    <div id="confirm-delete-modal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center px-4 hidden z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full border border-yellow-200">
+            <div class="px-6 py-4 border-b border-yellow-100 bg-yellow-50 rounded-t-xl">
+                <p class="text-sm font-semibold text-yellow-800 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Atenção antes de excluir
+                </p>
+            </div>
+            <div class="px-6 py-5 space-y-3">
+                <p id="confirm-delete-text" class="text-sm text-gray-700"></p>
+                <p class="text-xs text-gray-500">Todos os chats desta instância serão excluídos junto com a conexão.</p>
+            </div>
+            <div class="px-6 py-4 bg-gray-50 rounded-b-xl flex items-center justify-end space-x-3">
+                <button id="cancel-delete-btn" type="button" class="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition">Cancelar</button>
+                <button id="confirm-delete-btn" type="button" class="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition">Excluir mesmo assim</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('confirm-delete-modal');
+            const text = document.getElementById('confirm-delete-text');
+            const cancelBtn = document.getElementById('cancel-delete-btn');
+            const confirmBtn = document.getElementById('confirm-delete-btn');
+            let pendingForm = null;
+
+            document.querySelectorAll('form[data-delete-instance]').forEach(form => {
+                form.addEventListener('submit', event => {
+                    const chatCount = parseInt(form.dataset.chatCount || '0', 10);
+
+                    if (chatCount > 0) {
+                        event.preventDefault();
+                        pendingForm = form;
+                        const label = chatCount === 1 ? 'chat' : 'chats';
+                        text.textContent = `Esta instância possui ${chatCount} ${label} vinculados. Eles serão excluídos junto com a conexão. Deseja continuar?`;
+                        modal.classList.remove('hidden');
+                    } else {
+                        const confirmar = confirm('Tem certeza que deseja excluir permanentemente esta conexão? Todos os chats desta instância serão removidos. Esta ação não pode ser desfeita.');
+                        if (!confirmar) {
+                            event.preventDefault();
+                        }
+                    }
+                });
+            });
+
+            cancelBtn.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                pendingForm = null;
+            });
+
+            confirmBtn.addEventListener('click', () => {
+                if (pendingForm) {
+                    modal.classList.add('hidden');
+                    pendingForm.submit();
+                }
+            });
+        });
+    </script>
 </x-app-layout>

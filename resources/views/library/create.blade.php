@@ -26,6 +26,22 @@
                                 <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
                             @enderror
                         </div>
+                        <div class="pt-4 mt-4 border-t border-gray-200 space-y-3">
+                            <h3 class="font-semibold text-gray-800 text-sm">Edição pública</h3>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Senha (para edição pública)</label>
+                                <input type="password" name="public_edit_password" autocomplete="new-password" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Defina uma senha para compartilhar">
+                                @error('public_edit_password')
+                                    <p class="text-red-600 text-xs mt-1">{{ $message }}</p>
+                                @enderror
+                                <p class="text-xs text-gray-500 mt-1">Use esta senha junto com o link público para permitir edições.</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="hidden" name="public_edit_enabled" value="0">
+                                <input type="checkbox" id="public_edit_enabled" name="public_edit_enabled" value="1" {{ old('public_edit_enabled', true) ? 'checked' : '' }} class="rounded border-gray-300 text-blue-600">
+                                <label for="public_edit_enabled" class="text-sm text-gray-700">Habilitar edição pública por link + senha</label>
+                            </div>
+                        </div>
                         <div class="flex items-center gap-3">
                             <button type="submit" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg">Salvar</button>
                             <a href="{{ route('library.index') }}" class="text-sm text-gray-700">Cancelar</a>
