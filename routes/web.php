@@ -25,6 +25,7 @@ use App\Http\Controllers\SequenceController;
 use App\Http\Controllers\LessonPublicController;
 use App\Http\Controllers\ProxyBanController;
 use App\Http\Controllers\Admin\WebhookRequestController;
+use App\Http\Controllers\Admin\InstanceReportController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
@@ -98,6 +99,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::resource('leads', LeadEmpresaController::class);
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/exportUsers', [DashboardController::class, 'exportUsers'])->name('exportUsers');
+    Route::get('/instances', [InstanceReportController::class, 'index'])->name('instances.index');
     Route::resource('lessons', AdminLessonController::class)->except(['show']);
     Route::get('/webhook-requests', [WebhookRequestController::class, 'index'])->name('webhook-requests.index');
 
