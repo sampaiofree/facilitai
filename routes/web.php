@@ -86,7 +86,8 @@ Route::match(['get', 'post'], '/dash/{id}', [InstanceController::class, 'dashboa
 Route::get('/instances/{instance}/qrcode-data', [InstanceController::class, 'getQrCodeData'])->name('instances.qrcode_data');
 // Rota para buscar apenas o status da conexão em formato JSON
 Route::get('/instances/{instance}/status-data', [InstanceController::class, 'getConnectionStatusData'])->name('instances.status_data');
-Route::post('/chats/{chat}/marcar-atendido', [ChatController::class, 'marcarAtendido'])->name('chat.marcarAtendido');
+    Route::post('/chats/{chat}/marcar-atendido', [ChatController::class, 'marcarAtendido'])->name('chat.marcarAtendido');
+    Route::get('/chats/conv/{conv}', [ChatController::class, 'showByConv'])->name('chats.conv');
 
 
 

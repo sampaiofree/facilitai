@@ -1313,16 +1313,25 @@ class ConversationsService
         return true;
     }
 
-    public function getConversationItems(string $conversationId, int $limit = 50)
+    public function getConversationItems(string $conversationId, int $limit = 50, array $options = []): array
     {
+        $payload = array_merge([
+            'limit' => $limit,
+        ], $options);
 
         $response = Http::withToken($this->apiKey)
-            ->get("{$this->baseUrl}/conversations/{$conversationId}/items", [
-                'limit' => $limit
+            ->get("{$this->baseUrl}/conversations/{$conversationId}/items", $payload);
+
+        if ($response->failed()) {
+            Log::warning('Erro ao buscar itens da conversa', [
+                'conversationId' => $conversationId,
+                'status' => $response->status(),
+                'body' => $response->body(),
             ]);
+            return [];
+        }
 
-        dd($response->json());    
-
+        return $response->json() ?? [];
     }
 
     public function registrarTokens(int $tokens, $resp_id)

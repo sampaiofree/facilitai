@@ -11,6 +11,7 @@ use App\Models\Sequence;
 use App\Models\SequenceChat;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use App\Services\ConversationsService;
 
 class ChatController extends Controller
 {
@@ -465,6 +466,44 @@ class ChatController extends Controller
         $chat->delete();
 
         return redirect()->route('chats.index')->with('success', 'Conversa excluída com sucesso.');
+    }
+
+    public function showByConv(Request $request, string $conv)
+    {
+        $chat = Auth::user()->chats()
+            ->with(['instance', 'assistant'])
+            ->where('conv_id', $conv)
+            ->firstOrFail();
+
+        $limit = (int) $request->query('limit', 100);
+        $limit = min(max($limit, 1), 200);
+
+        $service = new ConversationsService(null, $chat->contact, $chat->instance_id);
+        $raw = $service->getConversationItems($chat->conv_id, $limit);
+
+        $messages = collect($raw['data'] ?? [])->map(function ($item) {
+            $text = collect($item['content'] ?? [])
+                ->map(fn ($c) => trim((string) ($c['text'] ?? '')))
+                ->filter()
+                ->implode("\n\n");
+
+            return [
+                'id' => $item['id'] ?? (string) Str::uuid(),
+                'role' => $item['role'] ?? 'system',
+                'status' => $item['status'] ?? null,
+                'type' => $item['type'] ?? null,
+                'text' => $text !== '' ? $text : '[sem texto]',
+            ];
+        });
+
+        $hasMore = (bool)($raw['has_more'] ?? false);
+
+        return view('chats.show', [
+            'chat' => $chat,
+            'messages' => $messages,
+            'hasMore' => $hasMore,
+            'limit' => $limit,
+        ]);
     }
 
     private function buildChatQuery(Request $request)
