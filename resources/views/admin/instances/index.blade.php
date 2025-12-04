@@ -32,6 +32,7 @@
                                         <td class="py-4 px-6">
                                             <div class="text-sm font-semibold text-gray-900">#{{ $instance->id }}</div>
                                             <div class="text-xs text-gray-500 mt-1">{{ $instance->name ?? '—' }}</div>
+                                            <div class="text-xs text-gray-500 mt-1">{{ $instance->credential_id ?? '—' }}</div>
                                         </td>
                                         <td class="py-4 px-6">
                                             <div class="text-sm font-semibold text-gray-900">{{ optional($instance->user)->name ?? '—' }}</div>
