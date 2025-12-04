@@ -41,9 +41,31 @@
 
             {{-- Seção de Introdução --}}
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-8">
-                <div class="p-8 border-b border-gray-200">
-                    <h3 class="text-xl font-semibold text-gray-900 mb-2">Comece a automatizar em 3 passos simples</h3>
-                    <p class="text-gray-600">Siga os passos abaixo para conectar seu WhatsApp, criar sua inteligência artificial e começar a atender seus clientes automaticamente.</p>
+                <div class="p-6 md:p-8 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-6">
+                    
+                    <div class="flex-1 text-center md:text-left">
+                        <h3 class="text-2xl font-bold text-gray-900 mb-2">
+                            Comece a automatizar agora
+                        </h3>
+                        <p class="text-gray-600 text-lg leading-relaxed">
+                            Não sabe por onde começar? <span class="text-indigo-600 font-medium">Assista ao guia rápido</span> antes de configurar seus passos abaixo.
+                        </p>
+                    </div>
+
+                    <button class="lessons-help-trigger group flex-shrink-0 inline-flex items-center gap-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 text-white shadow-lg shadow-indigo-500/40 transition-all duration-300 hover:scale-105 hover:shadow-indigo-500/60 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                        
+                        <div class="bg-white/20 rounded-full p-2 group-hover:bg-white/30 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8">
+                                <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm14.024-.983a1.125 1.125 0 010 1.966l-5.603 3.113A1.125 1.125 0 019 15.113V8.887c0-.857.921-1.4 1.671-.983l5.603 3.113z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+
+                        <div class="text-left">
+                            <span class="block text-xs font-medium text-indigo-100 uppercase tracking-wider">Tutorial em Vídeo</span>
+                            <span class="block font-bold text-xl leading-none">Assistir Aulas</span>
+                        </div>
+                    </button>
+
                 </div>
             </div>
 
