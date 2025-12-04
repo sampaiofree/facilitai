@@ -38,7 +38,7 @@ class ImageController extends Controller
             $showFolders = true;
         }
 
-        $images = $imagesQuery->paginate(12);
+        $images = $imagesQuery->paginate(100);
         $folders = $user->folders()->orderBy('name')->get();
         $selectedFolderId = $folderId;
 

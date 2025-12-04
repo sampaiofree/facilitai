@@ -362,10 +362,43 @@ class ConversationsService
         $dataPadrao = $hoje->format('Y-m-d');
         $horaPadrao = $hoje->format('H:i');
         // antes de montar $payload:
+        $tagsInfo = 'Tags aplicadas: nenhuma';
+        $sequencesInfo = 'Sequências ativas: nenhuma';
+
+        if ($this->chat) {
+            try {
+                $tags = $this->chat->tags()->pluck('name')->filter()->values();
+                if ($tags->isNotEmpty()) {
+                    $tagsInfo = 'Tags aplicadas: ' . $tags->implode(', ');
+                }
+
+                $seqs = $this->chat->sequenceChats()
+                    ->where('status', 'em_andamento')
+                    ->with('sequence:id,name')
+                    ->get()
+                    ->map(function ($seqChat) {
+                        $name = $seqChat->sequence->name ?? 'Sem nome';
+                        $id = $seqChat->sequence->id ?? null;
+                        return $id ? "{$name} (#{$id})" : $name;
+                    })
+                    ->filter()
+                    ->values();
+
+                if ($seqs->isNotEmpty()) {
+                    $sequencesInfo = 'Sequências ativas: ' . $seqs->implode(', ');
+                }
+            } catch (\Throwable $e) {
+                Log::warning('ConversationsService: falha ao carregar tags/sequências do chat', [
+                    'chat_id' => $this->chat->id ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         $input = array_merge([
         [
             'role' => 'system',
-            'content' => "Agora: {$hoje->toIso8601String()} ({$diaSemana}, {$dataPadrao} às {$horaPadrao}, tz: {$timezone})."
+            'content' => "Agora: {$hoje->toIso8601String()} ({$diaSemana}, {$dataPadrao} às {$horaPadrao}, tz: {$timezone}).\n{$tagsInfo}\n{$sequencesInfo}"
         ]
         ], $input);
 

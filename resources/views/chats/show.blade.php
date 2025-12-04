@@ -76,7 +76,7 @@
                                         {{ $role }}
                                     </div>
                                     <div class="whitespace-pre-wrap text-sm leading-relaxed">
-                                        {{ $message['text'] ?? $message['output'] ?? '' }}
+                                        {{ $message['text'] }}
                                     </div>
                                 </div>
                             </div>
