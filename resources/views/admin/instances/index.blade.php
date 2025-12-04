@@ -44,6 +44,7 @@
                                                 <div class="text-sm font-semibold text-gray-900">{{ $webhook->event }}</div>
                                                 <div class="text-xs text-gray-500">Status: {{ $webhook->status }}</div>
                                                 <div class="text-xs text-gray-500">Oferta: {{ $webhook->offer_code }}</div>
+                                                <div class="text-xs text-gray-500">{{ $webhook->transaction }}</div>
                                             @else
                                                 <span class="text-sm text-gray-400">Sem registro válido</span>
                                             @endif
