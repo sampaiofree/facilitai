@@ -33,8 +33,24 @@
                 @endif
             </div>
 
-            <div class="bg-white shadow-sm sm:rounded-lg p-6">
-                <div class="text-sm text-gray-500 mb-2">Últimas {{ $messages->count() }} mensagens (limite {{ $limit }})</div>
+            <div class="bg-white shadow-sm sm:rounded-lg p-6 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="text-sm text-gray-500">Mensagens carregadas: {{ $messages->count() }} / limite {{ $limit }}</div>
+                    <div class="flex items-center gap-2 text-sm">
+                        @if($hasMore && $lastId)
+                            <a href="{{ route('chats.conv', ['conv' => $chat->conv_id, 'limit' => $limit, 'after' => $lastId]) }}"
+                               class="inline-flex items-center px-3 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition">
+                                Ver mais antigas
+                            </a>
+                        @endif
+                        @if($after || $before)
+                            <a href="{{ route('chats.conv', ['conv' => $chat->conv_id, 'limit' => $limit]) }}"
+                               class="inline-flex items-center px-3 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">
+                                Voltar para mais recentes
+                            </a>
+                        @endif
+                    </div>
+                </div>
 
                 @if($messages->isEmpty())
                     <div class="text-center text-gray-500 py-10">
@@ -58,12 +74,9 @@
                                 <div class="inline-block w-full sm:w-auto px-4 py-3 rounded-2xl shadow-sm {{ $bubbleClasses }}">
                                     <div class="text-xs opacity-80 mb-1 uppercase tracking-wide">
                                         {{ $role }}
-                                        @if($message['status'])
-                                            · {{ $message['status'] }}
-                                        @endif
                                     </div>
                                     <div class="whitespace-pre-wrap text-sm leading-relaxed">
-                                        {{ $message['text'] }}
+                                        {{ $message['text'] ?? $message['output'] ?? '' }}
                                     </div>
                                 </div>
                             </div>

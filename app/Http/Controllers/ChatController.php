@@ -478,8 +478,19 @@ class ChatController extends Controller
         $limit = (int) $request->query('limit', 100);
         $limit = min(max($limit, 1), 200);
 
+        $after = $request->query('after');
+        $before = $request->query('before');
+
         $service = new ConversationsService(null, $chat->contact, $chat->instance_id);
-        $raw = $service->getConversationItems($chat->conv_id, $limit);
+        $options = [];
+        if ($after) {
+            $options['after'] = $after;
+        }
+        if ($before) {
+            $options['before'] = $before;
+        }
+
+        $raw = $service->getConversationItems($chat->conv_id, $limit, $options);
 
         $messages = collect($raw['data'] ?? [])->map(function ($item) {
             $text = collect($item['content'] ?? [])
@@ -497,12 +508,18 @@ class ChatController extends Controller
         });
 
         $hasMore = (bool)($raw['has_more'] ?? false);
+        $firstId = $raw['first_id'] ?? null;
+        $lastId = $raw['last_id'] ?? null;
 
         return view('chats.show', [
             'chat' => $chat,
             'messages' => $messages,
             'hasMore' => $hasMore,
             'limit' => $limit,
+            'firstId' => $firstId,
+            'lastId' => $lastId,
+            'after' => $after,
+            'before' => $before,
         ]);
     }
 
