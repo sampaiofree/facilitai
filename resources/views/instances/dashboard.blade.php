@@ -198,11 +198,11 @@
 
                     {{-- 🔹 Tabela de Chats Aguardando Atendimento --}}
                     @if(isset($chatsAguardando) && $chatsAguardando->count())
-                    <div class="mt-10 bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-xl">
+                    <div id="aguardando-container" class="mt-10 bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-xl">
                         <div class="flex items-center justify-between mb-4">
                             <h2 class="text-2xl font-bold text-white flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                                Aguardando Atendimento ({{ $chatsAguardando->count() }})
+                                Aguardando Atendimento (<span id="aguardando-count">{{ $chatsAguardando->count() }}</span>)
                             </h2>
 
                             <a href="{{ request()->fullUrlWithQuery(['export' => 'csv']) }}"
@@ -223,7 +223,7 @@
                                         <th class="px-4 py-3 text-center">Ação</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody id="aguardando-tbody">
                                     @foreach($chatsAguardando as $chat)
                                         <tr id="chat-row-{{ $chat->id }}" class="border-b border-white/10 hover:bg-white/5 transition">
                                             <td class="px-4 py-3">{{ $chat->id }}</td>
@@ -234,6 +234,8 @@
                                             <td class="px-4 py-3 text-center">
                                                 <button 
                                                     class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-lg text-xs font-semibold transition-all"
+                                                    id="atender-btn-{{ $chat->id }}"
+                                                    data-chat-id="{{ $chat->id }}"
                                                     onclick="marcarAtendido({{ $chat->id }})">
                                                     ✅ Marcar como atendido
                                                 </button>
@@ -260,7 +262,7 @@
 
                             <a href="{{ request()->fullUrlWithQuery(['export' => 'csv_agendados']) }}"
                             class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition-all">
-                            📥 Exportar CSV
+                            📥 Baixar CSV
                             </a>
                         </div>
 
@@ -289,6 +291,9 @@
                                     @endforeach
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="mt-4">
+                            {{ $horariosAgendados->links() }}
                         </div>
                     </div>
 @endif
@@ -358,6 +363,67 @@
         statusCheckInterval = setInterval(checkConnectionStatus, 7000); // A cada 7s
     });
     @endif
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    async function marcarAtendido(chatId) {
+        const button = document.getElementById(`atender-btn-${chatId}`);
+        const row = document.getElementById(`chat-row-${chatId}`);
+        const tbody = document.getElementById('aguardando-tbody');
+        const countElement = document.getElementById('aguardando-count');
+        const container = document.getElementById('aguardando-container');
+
+        if (!csrfToken) {
+            alert('Token de segurança não encontrado. Recarregue a página e tente novamente.');
+            return;
+        }
+
+        if (button) {
+            button.disabled = true;
+            button.classList.add('opacity-70', 'cursor-not-allowed');
+            button.textContent = 'Marcando...';
+        }
+
+        try {
+            const response = await fetch(`/chats/${chatId}/marcar-atendido`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Falha na requisição');
+            }
+
+            const data = await response.json();
+
+            if (row) {
+                row.remove();
+            }
+
+            const remaining = typeof data.remaining === 'number'
+                ? data.remaining
+                : (tbody ? tbody.querySelectorAll('tr').length : 0);
+
+            if (countElement) {
+                countElement.textContent = remaining;
+            }
+
+            if (remaining === 0 && container) {
+                container.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error('Erro ao marcar atendimento:', error);
+            if (button) {
+                button.disabled = false;
+                button.classList.remove('opacity-70', 'cursor-not-allowed');
+                button.textContent = '✅ Marcar como atendido';
+            }
+            alert('Não foi possível marcar como atendido. Tente novamente.');
+        }
+    }
     </script>
     @endpush
 </x-public-dashboard-layout>

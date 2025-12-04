@@ -354,6 +354,34 @@ class ChatController extends Controller
         return redirect()->back()->with('success', "{$updated} chat(s) marcados como atendidos.");
     }
 
+    public function marcarAtendido(Request $request, Chat $chat)
+    {
+        $authorizedByUser = Auth::check() && $chat->user_id === Auth::id();
+        $sessionKey = 'dashboard_unlocked_' . $chat->instance_id;
+        $authorizedBySession = $request->session()->has($sessionKey);
+
+        if (!$authorizedByUser && !$authorizedBySession) {
+            abort(403);
+        }
+
+        if ($chat->aguardando_atendimento) {
+            $chat->update(['aguardando_atendimento' => false]);
+        }
+
+        $remaining = Chat::where('instance_id', $chat->instance_id)
+            ->where('aguardando_atendimento', true)
+            ->count();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'remaining' => $remaining,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Chat marcado como atendido.');
+    }
+
     public function inscreverSequencia(Request $request)
     {
         $sequenceId = $request->input('sequence_id');

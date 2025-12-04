@@ -124,13 +124,12 @@ class InstanceController extends Controller
             ->get(['id', 'nome', 'informacoes', 'contact', 'updated_at']);
 
         // --- horários agendados (ocupados) ---
-        $horariosAgendados = \App\Models\Disponibilidade::whereHas('agenda', function ($q) use ($instance) {
+        $horariosAgendadosQuery = \App\Models\Disponibilidade::whereHas('agenda', function ($q) use ($instance) {
                 $q->where('user_id', $instance->user_id);
             })
             ->where('ocupado', true)
-            ->orderBy('data', 'asc')
-            ->orderBy('inicio', 'asc')
-            ->get();
+            ->orderBy('data', 'desc')
+            ->orderBy('inicio', 'desc');
 
 
         // --- exportar CSV se solicitado ---
@@ -170,6 +169,7 @@ class InstanceController extends Controller
 
         // --- exportar CSV de horários agendados ---
         if ($request->get('export') === 'csv_agendados') {
+            $horariosAgendados = $horariosAgendadosQuery->get();
             $filename = 'horarios_agendados_' . now()->format('Ymd_His') . '.csv';
 
             return response()->streamDownload(function () use ($horariosAgendados) {
@@ -199,6 +199,10 @@ class InstanceController extends Controller
                 'Expires' => '0',
             ]);
         }
+
+        $horariosAgendados = $horariosAgendadosQuery
+            ->paginate(10)
+            ->withQueryString();
 
 
 
