@@ -327,7 +327,7 @@
                                         </td>
                                         <td class="px-4 py-3 font-mono text-sm text-gray-800">
                                             {{ $chat->contact }}
-                                            <div class="text-xs text-gray-500">{{ $chat->conv_id }}</div>
+                                            <a href="{{route('chats.conv', $chat->conv_id)}}"><div class="text-xs text-gray-500">{{ $chat->conv_id }}</div></a>
                                         </td>
                                         <td class="px-4 py-3 text-center">
                                             <button type="button"
