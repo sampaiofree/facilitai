@@ -497,6 +497,9 @@ class ChatController extends Controller
                 ->map(fn ($c) => trim((string) ($c['text'] ?? '')))
                 ->filter()
                 ->implode("\n\n");
+            
+            if(!$text && isset($item['output'])) { $text = $item['output'] ?? ''; }
+            if(!$text && isset($item['name'])) { $text = $item['name']." - ".$item['arguments'] ?? ''; }
 
             return [
                 'id' => $item['id'] ?? (string) Str::uuid(),
@@ -504,6 +507,7 @@ class ChatController extends Controller
                 'status' => $item['status'] ?? null,
                 'type' => $item['type'] ?? null,
                 'text' => $text !== '' ? $text : '[sem texto]',
+                'output'
             ];
         });
 
