@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Cache;
 use App\Jobs\DebounceConversationJob;
 use Illuminate\Support\Carbon;
 use App\Models\WebhookRequest;
+use App\Services\EvolutionService;
 
 class EvolutionWebhookController extends Controller
 {
@@ -188,33 +189,23 @@ class EvolutionWebhookController extends Controller
         //VERIFICAR SE MENSAGEM VEIO DE GRUPO OU NAO
         if (str_ends_with((string) $remoteJid, '@g.us')) { return true; }
 
-        Log::info("instance:".$instanceName." - Request: " . json_encode($request->input('data.key'), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-
-        //Log::info('Dados do Evolution:', $request->all());
-        // 2. Extrair dados cruciais do JSON (com base na estrutura que voce forneceu)
-         // 'data.key.remoteJid'
         
-        //$sender = $request->input('sender') ?? '';
        
-
-        $instance = Instance::where('id', $instanceName)->first(); //BUSCAR INSTANCIA
+        //BUSCAR INSTANCIA
+        $instance = Instance::where('id', $instanceName)->first(); 
         if(isset($data['messageType']) AND $data['messageType']=='reactionMessage'){
             //Log::warning("reacao");
             return true;
         }
 
+        //NUMERO INVÁLIDO
         if(!$contactNumber){
             Log::warning("Numero do contato nao pode ser determinado.");
             return response()->json(['status' => 'ignored', 'reason' => 'invalid_contact_number']);
         }
 
-        Log::info('conv.received', [
-            'instance' => $instanceName,
-            'contact' => $contactNumber,
-            'from_me' => $fromMe,
-            'message_type' => $data['messageType'] ?? 'text',
-            'has_text' => !empty($messageText),
-        ]);
+        // ===================================================================
+        // DETECÇÃO DE DUPLICIDADE VIA CACHE
 
         $dedupKeySeed = $eventId ?: hash('sha256', json_encode([
             $instanceName,
@@ -296,46 +287,14 @@ class EvolutionWebhookController extends Controller
         // ===================================================================
         if (isset($chat->bot_enabled) and !$chat->bot_enabled) {Log::info("return true"); return true;}
 
-        //
-       /*if ($contactNumber == '556295772922') {
-            $timeout = 3;
+        // ===================================================================
+        // PROCESSAMENTO DA MENSAGEM COM DEBOUNCE
 
-            if (isset($chat->id)) {
-                $key = $chat->id;
-            } else {
-                $key = $contactNumber;
-            }
+        //DISPLAY DE DIGITANDO
+        $evo  = new EvolutionService();
+        $evo->enviarPresenca($instanceName, $contactNumber, 'composing');
 
-            // Log inicial de recebimento
-            Log::info("Mensagem recebida de {$contactNumber}: {$messageText}");
-
-            // Recupera mensagens existentes no cache
-            $mensagens = Cache::get($key, []);
-            Log::info("Mensagens atuais no cache ({$key}):", $mensagens);
-
-            // Adiciona a nova mensagem
-            $mensagens[] = $messageText;
-
-            // Salva novamente com o novo timeout
-            Cache::put($key, $mensagens, now()->addSeconds($timeout));
-            Log::info("Cache atualizado ({$key}) com timeout de {$timeout}s:", $mensagens);
-
-            // Dispara o job com delay
-            ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data, $key)->delay(now()->addSeconds($timeout));
-
-            Log::info("Job agendado para {$contactNumber} com delay de {$timeout}s (chave {$key})");
-            return true;
-        }*/
-
-        $instance = Instance::find($instanceName);
-        if(!$instance){
-            Log::warning("Instancia {$instanceName} nao encontrada");
-            return true;
-        }else{
-            Log::info("Instancia {$instanceName} encontrada");
-        }
-
-        // Se nao e texto (ex.: midia), processa imediatamente
+        // Se nao é texto (ex.: midia), processa imediatamente
         if (empty($messageText)) {
             Log::info('conv.media_immediate', [
                 'instance' => $instanceName,
