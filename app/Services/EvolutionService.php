@@ -158,11 +158,15 @@ class EvolutionService
         $apiKey = config('services.evolution.key');
 
         $presence = in_array($presence, ['composing', 'recording'], true) ? $presence : 'composing';
+        $delayMs = 0; // delay padr├úo em milissegundos
 
         $payload = [
             'number' => $numero,
+            'presence' => $presence,
+            'delay' => $delayMs,
             'options' => [
                 'presence' => $presence,
+                'delay' => $delayMs,
                 'number' => $numero,
             ],
         ];
