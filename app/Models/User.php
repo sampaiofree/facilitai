@@ -93,28 +93,7 @@ class User extends Authenticatable implements MustVerifyEmail
     //AQUI VERIFICAMOS SE O USUÁRIO ESTÁ NO PLANO PAGO (TRUE) OU GRATUITO(FALSE)
     public function canManageCredentials(): bool //ACESSO A FERRAMENTAS ESPECIAIS 
     {
-     
         return true;
-        if ($this->is_admin) {
-            return true;
-        }else {
-            if($this->hotmartWebhooks()){
-                if(
-                    $this->hotmartWebhooks()->offer_code=='hkasortp'
-                    OR
-                    $this->hotmartWebhooks()->offer_code=='ghpkyyuq'
-                    OR
-                    $this->hotmartWebhooks()->offer_code=='seesl6xb'
-                    OR
-                    $this->hotmartWebhooks()->offer_code=='ca9g29lkJWT'
-                    )
-                    {return true;} //SÓ LIBERA REGISTRAR CREDENCIAIS CASO SEJA REVENDEDOR
-                return false;
-            }else{
-                return false;
-            }
-
-        }
     }
 
     /**
@@ -143,26 +122,36 @@ class User extends Authenticatable implements MustVerifyEmail
         if ($this->is_admin) {return 20;}
         if ($this->canManageCredentials()) {
             if($this->hotmartWebhooks()){
-                if($this->hotmartWebhooks()->offer_code=='c8n7uxen'){return 1;} //PLANO 1 CONEXÃO 
-                if($this->hotmartWebhooks()->offer_code=='a2ykgt3s'){return 1;} //PLANO 1 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='6507rpho'){return 1;} //PLANO 1 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='qgwj4ldg'){return 1;} //PLANO 1 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='kemggz0j'){return 1;} //PLANO 1 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='yqncr3mx'){return 1;} //PLANO 1 CONEXÃO
-
-                if($this->hotmartWebhooks()->offer_code=='hkasortp'){return 3;} //PLANO 3 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='ghpkyyuq'){return 3;} //PLANO 3 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='bxgewgqh'){return 3;} //PLANO 3 CONEXÃO
                 
-                
-                if($this->hotmartWebhooks()->offer_code=='kbejejiv'){return 5;} //PLANO 3 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='x8jw71pc'){return 5;} //PLANO 3 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='seesl6xb'){return 5;} //PLANO 5 CONEXÔES 
-                if($this->hotmartWebhooks()->offer_code=='ca9g29lkJWT'){return 5;} //PLANO 5 CONEXÔES
-                if($this->hotmartWebhooks()->offer_code=='cyvxmia3'){return 5;} //PLANO 5 CONEXÔES
+                //PLANO 1 CONEXÃO
+                if($this->hotmartWebhooks()->offer_code=='c8n7uxen'){return 1;}  
+                if($this->hotmartWebhooks()->offer_code=='a2ykgt3s'){return 1;} 
+                if($this->hotmartWebhooks()->offer_code=='6507rpho'){return 1;} 
+                if($this->hotmartWebhooks()->offer_code=='qgwj4ldg'){return 1;} 
+                if($this->hotmartWebhooks()->offer_code=='kemggz0j'){return 1;} 
+                if($this->hotmartWebhooks()->offer_code=='yqncr3mx'){return 1;} 
 
-                if($this->hotmartWebhooks()->offer_code=='2sr5xelfDRP'){return 20;} //PLANO 5 CONEXÔES
-                if($this->hotmartWebhooks()->offer_code=='2sr5xelf'){return 20;} //PLANO 5 CONEXÔES
+                //PLANO 3 CONEXÃO
+                if($this->hotmartWebhooks()->offer_code=='hkasortp'){return 3;} 
+                if($this->hotmartWebhooks()->offer_code=='ghpkyyuq'){return 3;} 
+                if($this->hotmartWebhooks()->offer_code=='bxgewgqh'){return 3;} 
+                if($this->hotmartWebhooks()->offer_code=='77v5yieb'){return 3;}
+                if($this->hotmartWebhooks()->offer_code=='bcocek3y'){return 3;}
+                
+                //PLANO 5 CONEXÔES
+                if($this->hotmartWebhooks()->offer_code=='kbejejiv'){return 5;} 
+                if($this->hotmartWebhooks()->offer_code=='x8jw71pc'){return 5;} 
+                if($this->hotmartWebhooks()->offer_code=='seesl6xb'){return 5;} 
+                if($this->hotmartWebhooks()->offer_code=='ca9g29lkJWT'){return 5;} 
+                if($this->hotmartWebhooks()->offer_code=='cyvxmia3'){return 5;} 
+
+                //PLANO 10 CONEXÔES
+                if($this->hotmartWebhooks()->offer_code=='r62eq6jh'){return 10;} 
+                if($this->hotmartWebhooks()->offer_code=='kaypzmv9'){return 10;} 
+
+                //PLANO 20 CONEXÔES
+                if($this->hotmartWebhooks()->offer_code=='2sr5xelfDRP'){return 20;} 
+                if($this->hotmartWebhooks()->offer_code=='2sr5xelf'){return 20;} 
                 
                 return 1;
             }
