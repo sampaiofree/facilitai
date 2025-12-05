@@ -15,6 +15,7 @@ use App\Jobs\DebounceConversationJob;
 use Illuminate\Support\Carbon;
 use App\Models\WebhookRequest;
 use App\Services\EvolutionService;
+use App\Jobs\SendPresenceJob;
 
 class EvolutionWebhookController extends Controller
 {
@@ -290,9 +291,8 @@ class EvolutionWebhookController extends Controller
         // ===================================================================
         // PROCESSAMENTO DA MENSAGEM COM DEBOUNCE
 
-        //DISPLAY DE DIGITANDO
-        $evo  = new EvolutionService();
-        $evo->enviarPresenca($instanceName, $contactNumber, 'composing');
+        //DISPLAY DE DIGITANDO (assíncrono)
+        SendPresenceJob::dispatch($instanceName, $contactNumber, 'composing');
 
         // Se nao é texto (ex.: midia), processa imediatamente
         if (empty($messageText)) {
