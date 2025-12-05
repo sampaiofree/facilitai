@@ -149,6 +149,53 @@ class EvolutionService
         return "Erro ao reiniciar instancia {$instancia}";
     }
 
+    /**
+     * Envia presen├ºa (digitando/gravando) para um contato.
+     */
+    public function enviarPresenca(string $instance, string $numero, ?string $presence = null)
+    {
+        $url = config('services.evolution.url') . "/chat/sendPresence/{$instance}";
+        $apiKey = config('services.evolution.key');
+
+        $presence = in_array($presence, ['composing', 'recording'], true) ? $presence : 'composing';
+
+        $payload = [
+            'number' => $numero,
+            'options' => [
+                'presence' => $presence,
+                'number' => $numero,
+            ],
+        ];
+
+        try {
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'apikey' => $apiKey,
+            ])->post($url, $payload);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::error('EvolutionService: falha ao enviar presenca', [
+                'instance' => $instance,
+                'numero' => $numero,
+                'presence' => $presence,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('EvolutionService: erro ao enviar presenca', [
+                'instance' => $instance,
+                'numero' => $numero,
+                'presence' => $presence,
+                'exception' => $e->getMessage(),
+            ]);
+        }
+
+        return "Erro ao enviar presenca para {$numero}";
+    }
+
     function conectarInstancia($id)
     {
         $response = Http::withHeaders([

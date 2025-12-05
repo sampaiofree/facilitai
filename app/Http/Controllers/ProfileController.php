@@ -33,8 +33,14 @@ class ProfileController extends Controller
 {
 
     
-    public function conv($conv_id)
+    public function conv($conv_id = null)
     {
+
+        $evo  = new EvolutionService(); 
+        $response = $evo->enviarPresenca('177', '5562995772922', 'composing');
+        dd($response); exit;
+
+
         $chat = Chat::where('conv_id', $conv_id)->first();
 
         if (!$chat) {
@@ -47,6 +53,7 @@ class ProfileController extends Controller
         die;
 
     }
+    
 
     public function teste(Request $request)
     {
