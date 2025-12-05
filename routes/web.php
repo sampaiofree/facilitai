@@ -138,6 +138,7 @@ Route::get('/facilitai-pricing', function () {
         ['q' => 'Todos os planos têm todas as ferramentas?', 'a' => 'Sim. Nada muda. Só muda a quantidade de conexões e assistentes.'],
         ['q' => 'Posso trocar de plano depois?', 'a' => 'Sim, você pode aumentar ou reduzir quando quiser.'],
         ['q' => 'Posso usar vários números ao mesmo tempo?', 'a' => 'Sim. O plano define quantas conexões você pode usar.'],
+        ['q' => 'Como funciona o custo com tokens da IA?', 'a' => 'Pagamos diretamente o preço de custo da OpenAI e repassamos esse valor sem margem oculta. O pagamento cobre apenas o consumo de tokens, e você continua sem limites de uso enquanto sua assinatura estiver ativa.'],
         ['q' => 'Preciso instalar algo?', 'a' => 'Não. Tudo funciona direto no navegador.'],
         ['q' => 'O anual precisa pagar o ano todo de uma vez?', 'a' => 'Não. O valor é cobrado mês a mês, só com preço reduzido.'],
         ['q' => 'Tem suporte?', 'a' => 'Sim. Suporte humanizado direto com nossa equipe.'],
