@@ -1,0 +1,12 @@
+<svg width="160" height="48" viewBox="0 0 160 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lg" x1="0" y1="0" x2="160" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7c3aed" />
+      <stop offset="1" stop-color="#4c1d95" />
+    </linearGradient>
+  </defs>
+  <rect width="160" height="48" rx="12" fill="#f3efff" />
+  <text x="80" y="32" text-anchor="middle" font-family="'Poppins', sans-serif" font-size="20" font-weight="600" fill="url(#lg)">
+    FacilitAI
+  </text>
+</svg>

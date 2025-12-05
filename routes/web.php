@@ -47,6 +47,105 @@ Route::get('/lp-2', function () {return view('homepage.lp4');})->name('lp2');
 Route::get('/lp-3', function () {return view('homepage.lp4');})->name('lp3');
 Route::get('/lp-4', function () {return view('homepage.lp4');})->name('lp4');
 
+// Nova página pública de planos com o layout FacilitAI
+Route::get('/facilitai-pricing', function () {
+    $features = [
+        ['icon' => 'message-square', 'text' => 'Assistente inteligente que atende automático'],
+        ['icon' => 'zap', 'text' => 'Fluxos de atendimento personalizados'],
+        ['icon' => 'calendar', 'text' => 'Agendamento automático'],
+        ['icon' => 'image', 'text' => 'Envio de mídia (vídeo, imagem, áudio, PDF)'],
+        ['icon' => 'external-link', 'text' => 'Busca de links externos'],
+        ['icon' => 'bell', 'text' => 'Notificação para administrador'],
+        ['icon' => 'users', 'text' => 'Transferência para atendimento humano'],
+        ['icon' => 'send', 'text' => 'Sequências automáticas'],
+        ['icon' => 'tag', 'text' => 'Tags automáticas'],
+        ['icon' => 'message-square', 'text' => 'Mensagens ilimitadas'],
+        ['icon' => 'bar-chart-3', 'text' => 'Dashboard completo'],
+    ];
+
+    $monthlyPlans = [
+        [
+            'connections' => 1,
+            'assistants' => 1,
+            'price_label' => '247',
+            'price_per_connection_label' => '247,00',
+            'checkout' => 'https://pay.hotmart.com/U102725550Y?off=yqncr3mx&checkoutMode=10',
+        ],
+        [
+            'connections' => 3,
+            'assistants' => 3,
+            'price_label' => '347',
+            'price_per_connection_label' => '115,67',
+            'checkout' => 'https://pay.hotmart.com/U102725550Y?off=77v5yieb&checkoutMode=10',
+            'popular' => true,
+        ],
+        [
+            'connections' => 5,
+            'assistants' => 5,
+            'price_label' => '447',
+            'price_per_connection_label' => '89,40',
+            'checkout' => 'https://pay.hotmart.com/U102725550Y?off=x8jw71pc&checkoutMode=10',
+        ],
+        [
+            'connections' => 10,
+            'assistants' => 10,
+            'price_label' => '547',
+            'price_per_connection_label' => '54,70',
+            'checkout' => 'https://pay.hotmart.com/U102725550Y?off=r62eq6jh&checkoutMode=10',
+        ],
+    ];
+
+    $yearlyPlans = [
+        [
+            'connections' => 1,
+            'assistants' => 1,
+            'price_label' => '197',
+            'price_per_connection_label' => '197,00',
+            'checkout' => 'https://pay.hotmart.com/U102725550Y?off=kemggz0j&checkoutMode=10',
+            'savings_label' => 'Economize R$600',
+        ],
+        [
+            'connections' => 3,
+            'assistants' => 3,
+            'price_label' => '297',
+            'price_per_connection_label' => '99,00',
+            'checkout' => 'https://pay.hotmart.com/U102725550Y?off=bcocek3y&checkoutMode=10',
+            'popular' => true,
+            'savings_label' => 'Economize R$600',
+        ],
+        [
+            'connections' => 5,
+            'assistants' => 5,
+            'price_label' => '397',
+            'price_per_connection_label' => '79,40',
+            'checkout' => 'https://pay.hotmart.com/U102725550Y?off=kbejejiv&checkoutMode=10',
+            'savings_label' => 'Economize R$600',
+        ],
+        [
+            'connections' => 10,
+            'assistants' => 10,
+            'price_label' => '497',
+            'price_per_connection_label' => '49,70',
+            'checkout' => 'https://pay.hotmart.com/U102725550Y?off=kaypzmv9&checkoutMode=10',
+            'savings_label' => 'Economize R$600',
+        ],
+    ];
+
+    $faqs = [
+        ['q' => 'O que é uma conexão?', 'a' => 'É um número de WhatsApp conectado à plataforma.'],
+        ['q' => 'O que é um assistente?', 'a' => 'É a IA que atende seu cliente, treina, responde, envia mídia e faz todo o atendimento.'],
+        ['q' => 'As mensagens são ilimitadas?', 'a' => 'Sim. Você pode receber e enviar mensagens sem limite.'],
+        ['q' => 'Todos os planos têm todas as ferramentas?', 'a' => 'Sim. Nada muda. Só muda a quantidade de conexões e assistentes.'],
+        ['q' => 'Posso trocar de plano depois?', 'a' => 'Sim, você pode aumentar ou reduzir quando quiser.'],
+        ['q' => 'Posso usar vários números ao mesmo tempo?', 'a' => 'Sim. O plano define quantas conexões você pode usar.'],
+        ['q' => 'Preciso instalar algo?', 'a' => 'Não. Tudo funciona direto no navegador.'],
+        ['q' => 'O anual precisa pagar o ano todo de uma vez?', 'a' => 'Não. O valor é cobrado mês a mês, só com preço reduzido.'],
+        ['q' => 'Tem suporte?', 'a' => 'Sim. Suporte humanizado direto com nossa equipe.'],
+    ];
+
+    return view('landing.facilitai-pricing', compact('features', 'monthlyPlans', 'yearlyPlans', 'faqs'));
+})->name('facilitai.pricing');
+
 // Landing page por cidade
 Route::get('/cidade/{city}', function (string $city) {
     return view('cidade', ['city' => $city]);
