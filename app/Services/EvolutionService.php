@@ -127,7 +127,8 @@ class EvolutionService
         $apiKey = config('services.evolution.key');
 
         try {
-            $response = Http::withHeaders(['apikey' => $apiKey])->put($url);
+            // A API espera um POST para este endpoint; o PUT estava retornando 404.
+            $response = Http::withHeaders(['apiKey' => $apiKey])->post($url);
 
             if ($response->successful()) {
                 return $response->json();
