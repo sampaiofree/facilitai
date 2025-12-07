@@ -124,10 +124,15 @@ class InstanceController extends Controller
             ->get(['id', 'nome', 'informacoes', 'contact', 'updated_at']);
 
         // --- horários agendados (ocupados) ---
-        $horariosAgendadosQuery = \App\Models\Disponibilidade::whereHas('agenda', function ($q) use ($instance) {
-                $q->where('user_id', $instance->user_id);
-            })
+        // Filtra apenas a agenda vinculada à instância; se não houver, não retorna registros
+        $horariosAgendadosQuery = \App\Models\Disponibilidade::query()
             ->where('ocupado', true)
+            ->when($instance->agenda_id, function ($q) use ($instance) {
+                $q->where('agenda_id', $instance->agenda_id);
+            }, function ($q) {
+                // Garante coleção vazia quando a instância não tem agenda
+                $q->whereRaw('1 = 0');
+            })
             ->orderBy('data', 'desc')
             ->orderBy('inicio', 'desc');
 
