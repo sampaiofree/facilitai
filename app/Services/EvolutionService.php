@@ -365,8 +365,8 @@ class EvolutionService
             return [''];
         }
 
-        // Divide em parágrafos usando qualquer quebra de linha simples ou múltipla
-        $paragrafos = preg_split('/\n+/', $mensagem) ?: [$mensagem];
+        // Divide em parágrafos quando houver ao menos uma linha em branco entre eles
+        $paragrafos = preg_split('/\n\s*\n/', $mensagem) ?: [$mensagem];
 
         $resultados = [];
         $buffer = '';
