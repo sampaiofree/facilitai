@@ -398,7 +398,7 @@ class ConversationsService
         $input = array_merge([
         [
             'role' => 'system',
-            'content' => "Agora: {$hoje->toIso8601String()} ({$diaSemana}, {$dataPadrao} às {$horaPadrao}, tz: {$timezone}).\n{$tagsInfo}\n{$sequencesInfo}"
+            'content' => "Agora: {$hoje->toIso8601String()} ({$diaSemana}, {$dataPadrao} às {$horaPadrao}, tz: {$timezone}).\n{$tagsInfo}\n{$sequencesInfo}\n nome do cliente/contato: {$this->chat->nome}"
         ]
         ], $input);
 
