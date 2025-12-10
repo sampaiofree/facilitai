@@ -369,7 +369,6 @@ class EvolutionService
         $paragrafos = preg_split('/\n\s*\n/', $mensagem) ?: [$mensagem];
 
         $resultados = [];
-        $buffer = '';
 
         foreach ($paragrafos as $paragrafo) {
             $paragrafo = trim($paragrafo);
@@ -379,22 +378,9 @@ class EvolutionService
 
             if (mb_strlen($paragrafo) > $limite) {
                 $resultados = array_merge($resultados, $this->quebrarParagrafoGrande($paragrafo, $limite));
-                continue;
-            }
-
-            $candidato = $buffer === '' ? $paragrafo : $buffer . "\n\n" . $paragrafo;
-            if (mb_strlen($candidato) > $limite) {
-                if ($buffer !== '') {
-                    $resultados[] = $buffer;
-                }
-                $buffer = $paragrafo;
             } else {
-                $buffer = $candidato;
+                $resultados[] = $paragrafo;
             }
-        }
-
-        if ($buffer !== '') {
-            $resultados[] = $buffer;
         }
 
         return $resultados ?: [$mensagem];
