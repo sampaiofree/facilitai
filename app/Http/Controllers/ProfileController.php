@@ -36,9 +36,9 @@ class ProfileController extends Controller
     public function conv($conv_id = null)
     {
 
-        $evo  = new EvolutionService(); 
+        /*$evo  = new EvolutionService(); 
         $response = $evo->enviarPresenca('177', '5562995772922', 'composing');
-        dd($response); exit;
+        dd($response); exit;*/
 
 
         $chat = Chat::where('conv_id', $conv_id)->first();

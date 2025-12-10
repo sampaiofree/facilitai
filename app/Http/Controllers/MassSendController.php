@@ -39,11 +39,12 @@ class MassSendController extends Controller
             'tipo_envio' => 'required|in:texto,audio',
             'mensagem' => 'required_if:tipo_envio,texto|string|nullable',
             'intervalo_segundos' => 'required|integer|min:2|max:900',
-            'tags' => 'array',
-            'tags.*' => 'string',
+            'tags_in' => 'array',
+            'tags_in.*' => 'string',
+            'tags_out' => 'array',
+            'tags_out.*' => 'string',
             'sequences' => 'array',
             'sequences.*' => 'integer',
-            'tags_mode' => 'in:any,all',
             'sequences_mode' => 'in:any,all',
         ]);
 
@@ -105,11 +106,12 @@ class MassSendController extends Controller
     {
         $request->validate([
             'instance_id' => 'required|integer|exists:instances,id',
-            'tags' => 'array',
-            'tags.*' => 'string',
+            'tags_in' => 'array',
+            'tags_in.*' => 'string',
+            'tags_out' => 'array',
+            'tags_out.*' => 'string',
             'sequences' => 'array',
             'sequences.*' => 'integer',
-            'tags_mode' => 'in:any,all',
             'sequences_mode' => 'in:any,all',
             'with_list' => 'sometimes|boolean',
             'limit' => 'sometimes|integer|min:1|max:200',
@@ -177,20 +179,22 @@ class MassSendController extends Controller
             ->where('instance_id', $instanceId)
             ->whereNotNull('contact');
 
-        $tags = collect($request->input('tags', []))
+        $tagsIn = collect($request->input('tags_in', []))
             ->map(fn ($t) => trim((string) $t))
             ->filter()
             ->unique();
 
-        $tagsMode = $request->input('tags_mode', 'any') === 'all' ? 'all' : 'any';
-        if ($tags->isNotEmpty()) {
-            if ($tagsMode === 'all') {
-                foreach ($tags as $tag) {
-                    $query->whereHas('tags', fn ($q) => $q->where('name', $tag));
-                }
-            } else {
-                $query->whereHas('tags', fn ($q) => $q->whereIn('name', $tags));
-            }
+        if ($tagsIn->isNotEmpty()) {
+            $query->whereHas('tags', fn ($q) => $q->whereIn('name', $tagsIn));
+        }
+
+        $tagsOut = collect($request->input('tags_out', []))
+            ->map(fn ($t) => trim((string) $t))
+            ->filter()
+            ->unique();
+
+        if ($tagsOut->isNotEmpty()) {
+            $query->whereDoesntHave('tags', fn ($q) => $q->whereIn('name', $tagsOut));
         }
 
         $sequences = collect($request->input('sequences', []))

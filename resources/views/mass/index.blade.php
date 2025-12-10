@@ -38,35 +38,53 @@
                        class="w-32 border-gray-300 rounded-lg p-2 text-center">
             </div>
 
-            <div class="border rounded-lg p-4 space-y-3 bg-gray-50">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="font-semibold">Filtrar chats por tags</p>
-                        <p class="text-sm text-gray-500">Os chats vêm da instância escolhida. Seleção vazia = todas as tags.</p>
-                    </div>
-                    <div class="flex items-center gap-3 text-sm text-gray-700">
-                        <label class="inline-flex items-center gap-1">
-                            <input type="radio" name="tags_mode" value="any" class="text-purple-600" {{ old('tags_mode', 'any') === 'any' ? 'checked' : '' }}>
-                            Qualquer
-                        </label>
-                        <label class="inline-flex items-center gap-1">
-                            <input type="radio" name="tags_mode" value="all" class="text-purple-600" {{ old('tags_mode') === 'all' ? 'checked' : '' }}>
-                            Todas
-                        </label>
-                    </div>
+            <div class="border rounded-lg p-4 space-y-4 bg-gray-50">
+                <div>
+                    <p class="font-semibold">Filtrar chats por tags</p>
+                    <p class="text-sm text-gray-500">Deixe vazio para não filtrar. Inclui chats com pelo menos uma das tags em “deve incluir” e exclui qualquer chat que tenha tags em “não deve incluir”. Prioridade: primeiro exclui.</p>
                 </div>
                 @if($tags->isEmpty())
                     <p class="text-sm text-gray-500">Nenhuma tag cadastrada.</p>
                 @else
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                        @foreach($tags as $tag)
-                            <label class="flex items-center gap-2 text-sm text-gray-700">
-                                <input type="checkbox" name="tags[]" value="{{ $tag->name }}"
-                                    class="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                                    {{ in_array($tag->name, old('tags', [])) ? 'checked' : '' }}>
-                                {{ $tag->name }}
-                            </label>
-                        @endforeach
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="space-y-3 rounded-lg border bg-white p-4 shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <p class="text-sm font-semibold text-gray-800">Deve incluir</p>
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span id="tags-in-count" class="inline-flex items-center rounded-full bg-purple-50 px-2 py-1 font-semibold text-purple-700">0</span>
+                                    <button type="button" id="clear-tags-in" class="text-gray-500 hover:text-gray-700">Limpar</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                @foreach($tags as $tag)
+                                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                                        <input type="checkbox" name="tags_in[]" value="{{ $tag->name }}"
+                                            class="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                            {{ in_array($tag->name, old('tags_in', [])) ? 'checked' : '' }}>
+                                        {{ $tag->name }}
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
+                        <div class="space-y-3 rounded-lg border border-amber-200 bg-white p-4 shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <p class="text-sm font-semibold text-gray-800">Não deve incluir</p>
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span id="tags-out-count" class="inline-flex items-center rounded-full bg-amber-50 px-2 py-1 font-semibold text-amber-700">0</span>
+                                    <button type="button" id="clear-tags-out" class="text-gray-500 hover:text-gray-700">Limpar</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                @foreach($tags as $tag)
+                                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                                        <input type="checkbox" name="tags_out[]" value="{{ $tag->name }}"
+                                            class="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                            {{ in_array($tag->name, old('tags_out', [])) ? 'checked' : '' }}>
+                                        {{ $tag->name }}
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
                 @endif
             </div>
@@ -180,6 +198,10 @@
             const modalEmptyEl = document.getElementById('contacts-empty');
             const prevBtn = document.getElementById('contacts-prev');
             const nextBtn = document.getElementById('contacts-next');
+            const tagsInCount = document.getElementById('tags-in-count');
+            const tagsOutCount = document.getElementById('tags-out-count');
+            const clearTagsInBtn = document.getElementById('clear-tags-in');
+            const clearTagsOutBtn = document.getElementById('clear-tags-out');
 
             const previewUrl = "{{ route('mass.preview') }}";
             let debounceTimer = null;
@@ -189,12 +211,28 @@
             let pagination = { offset: 0, limit: 100 };
 
             const inputs = form.querySelectorAll('select, input[type=radio], input[type=checkbox]');
+            const tagsInCheckboxes = form.querySelectorAll('input[name="tags_in[]"]');
+            const tagsOutCheckboxes = form.querySelectorAll('input[name="tags_out[]"]');
 
             inputs.forEach(el => {
                 el.addEventListener('change', () => schedulePreview());
             });
 
+            tagsInCheckboxes.forEach(el => el.addEventListener('change', updateTagCounts));
+            tagsOutCheckboxes.forEach(el => el.addEventListener('change', updateTagCounts));
+            clearTagsInBtn?.addEventListener('click', () => {
+                tagsInCheckboxes.forEach(cb => cb.checked = false);
+                updateTagCounts();
+                schedulePreview();
+            });
+            clearTagsOutBtn?.addEventListener('click', () => {
+                tagsOutCheckboxes.forEach(cb => cb.checked = false);
+                updateTagCounts();
+                schedulePreview();
+            });
+
             schedulePreview();
+            updateTagCounts();
 
             showContactsBtn.addEventListener('click', () => {
                 pagination.offset = 0;
@@ -226,6 +264,13 @@
                 debounceTimer = setTimeout(() => fetchPreview(false), 400);
             }
 
+            function updateTagCounts() {
+                const inCount = Array.from(tagsInCheckboxes).filter(cb => cb.checked).length;
+                const outCount = Array.from(tagsOutCheckboxes).filter(cb => cb.checked).length;
+                if (tagsInCount) tagsInCount.textContent = inCount;
+                if (tagsOutCount) tagsOutCount.textContent = outCount;
+            }
+
             function collectParams(withList = false) {
                 const params = new URLSearchParams();
                 const instance = form.querySelector('select[name="instance_id"]').value;
@@ -234,12 +279,11 @@
                 }
                 params.append('instance_id', instance);
 
-                const tagsMode = form.querySelector('input[name="tags_mode"]:checked')?.value;
-                if (tagsMode) params.append('tags_mode', tagsMode);
                 const seqMode = form.querySelector('input[name="sequences_mode"]:checked')?.value;
                 if (seqMode) params.append('sequences_mode', seqMode);
 
-                form.querySelectorAll('input[name="tags[]"]:checked').forEach(el => params.append('tags[]', el.value));
+                form.querySelectorAll('input[name="tags_in[]"]:checked').forEach(el => params.append('tags_in[]', el.value));
+                form.querySelectorAll('input[name="tags_out[]"]:checked').forEach(el => params.append('tags_out[]', el.value));
                 form.querySelectorAll('input[name="sequences[]"]:checked').forEach(el => params.append('sequences[]', el.value));
 
                 if (withList) {
