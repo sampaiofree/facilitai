@@ -509,14 +509,30 @@
         <div class="w-full max-w-3xl rounded-xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-800">Importar contatos em massa</h3>
-                    <p class="text-sm text-gray-600">CSV com cabeçalho <code>nome,telefone</code>. Aceita vírgula ou ponto e vírgula, até 10MB.</p>
+                    <h3 class="text-lg font-bold text-gray-800">Importar lista de contatos</h3>
+                    <p class="text-sm text-gray-600 mt-1">
+                        O arquivo deve ser do tipo <strong>.CSV</strong> e conter as colunas <code>nome</code> e <code>telefone</code>.
+                        <br>
+                        <span class="text-xs text-gray-500">(Tamanho máximo: 10MB).</span>
+                    </p>
                 </div>
                 <button type="button" class="text-gray-500 hover:text-gray-700 close-import-modal">✕</button>
             </div>
             <div class="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-900 space-y-1">
-                <div>O telefone é limpo para ficar só com números; se tiver menos de 11 dígitos, prefixamos 55. Linhas com telefone curto ou vazias são ignoradas.</div>
-                <div>Se já houver o contato na mesma instância, ele será atualizado e as tags serão substituídas pelas selecionadas aqui.</div>
+                <div>
+                    <p class="font-semibold mb-2">Como tratamos seus dados:</p>
+                    <ul class=" pl-5 space-y-1">
+                        <li>
+                            <strong>Formatação:</strong> Deixamos apenas os números e adicionamos o código 55 (Brasil) automaticamente.
+                        </li>
+                        <li>
+                            <strong>Validação:</strong> Linhas sem telefone ou com números muito curtos serão ignoradas.
+                        </li>
+                        <li>
+                            <strong>Atualização:</strong> Se o contato já existir no sistema, ele será atualizado e as etiquetas (tags) serão trocadas pelas que você escolher aqui.
+                        </li>
+                    </ul>
+                </div>
             </div>
             <form id="bulkImportForm" method="POST" action="{{ route('chats.import') }}" enctype="multipart/form-data" class="mt-4 space-y-4">
                 @csrf

@@ -10,6 +10,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use App\Jobs\SendPresenceJob;
 
 
 class ProcessarConversaJob implements ShouldQueue
@@ -35,6 +36,8 @@ class ProcessarConversaJob implements ShouldQueue
 
     public function handle()
     {
+
+        SendPresenceJob::dispatch($this->instanceName, $this->contactNumber, 'composing');
 
         Log::info('processar_conversa.start', [
             'instance' => $this->instanceName,
