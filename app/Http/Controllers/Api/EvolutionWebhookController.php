@@ -343,7 +343,7 @@ class EvolutionWebhookController extends Controller
         Cache::put($cacheKey, $buffer, now()->addSeconds(120));
 
         // Agenda job de debounce com delay de 5s e teto de 40s
-        DebounceConversationJob::dispatch($cacheKey, $contactNumber, $instanceName, 5, 40)
+        DebounceConversationJob::dispatch($cacheKey, $contactNumber, $instanceName, 7, 40)
             ->delay(now()->addSeconds(5));
 
         Log::info('conv.debounce_scheduled', [

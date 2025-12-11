@@ -365,6 +365,10 @@ class EvolutionService
             return [''];
         }
 
+        if (mb_strlen($mensagem) <= $limite) {
+            return [$mensagem];
+        }
+
         // Divide em parágrafos quando houver ao menos uma linha em branco entre eles
         $paragrafos = preg_split('/\n\s*\n/', $mensagem) ?: [$mensagem];
 
