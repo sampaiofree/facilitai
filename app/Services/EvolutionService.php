@@ -356,7 +356,7 @@ class EvolutionService
         throw new \Exception('Erro ao enviar Midia para Evolution: ' . $response->body());
     }
 
-    private function splitMensagem(string $mensagem, int $limite = 1800): array
+    private function splitMensagem(string $mensagem, int $limite = 1400): array
     {
         // Converte sequências literais ("\n", "\r") em quebras reais antes de normalizar
         $mensagem = str_replace(["\\r\\n", "\\r", "\\n"], "\n", $mensagem);
