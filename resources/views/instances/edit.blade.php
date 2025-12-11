@@ -33,7 +33,7 @@
                                 @foreach ($credentials as $credential)
                                     <option value="{{ $credential->id  }}" {{ $instance->credential_id == $credential->id ? 'selected' : '' }}>{{ $credential->name }}</option>
                                 @endforeach
-                                <option selected value="" {{ ($instance->credential_id!=true) ? 'selected' : '' }}>Tokens</option> {{-- Alterado o valor e adicionado 'id' --}}
+                                <option selected value="" {{ ($instance->credential_id!=true) ? '' : '' }}>Tokens</option> {{-- Alterado o valor e adicionado 'id' --}}
                             </select>
                         </div>
 
