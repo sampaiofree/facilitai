@@ -358,15 +358,17 @@ class EvolutionService
 
     private function splitMensagem(string $mensagem, int $limite = 1800): array
     {
+        // Converte sequências literais ("\n", "\r") em quebras reais antes de normalizar
+        $mensagem = str_replace(["\\r\\n", "\\r", "\\n"], "\n", $mensagem);
         $mensagem = trim(str_replace(["\r\n", "\r"], "\n", $mensagem));
         if ($mensagem === '') {
             return [''];
         }
 
+        // Divide em parágrafos quando houver ao menos uma linha em branco entre eles
         $paragrafos = preg_split('/\n\s*\n/', $mensagem) ?: [$mensagem];
 
         $resultados = [];
-        $buffer = '';
 
         foreach ($paragrafos as $paragrafo) {
             $paragrafo = trim($paragrafo);
@@ -376,22 +378,9 @@ class EvolutionService
 
             if (mb_strlen($paragrafo) > $limite) {
                 $resultados = array_merge($resultados, $this->quebrarParagrafoGrande($paragrafo, $limite));
-                continue;
-            }
-
-            $candidato = $buffer === '' ? $paragrafo : $buffer . "\n\n" . $paragrafo;
-            if (mb_strlen($candidato) > $limite) {
-                if ($buffer !== '') {
-                    $resultados[] = $buffer;
-                }
-                $buffer = $paragrafo;
             } else {
-                $buffer = $candidato;
+                $resultados[] = $paragrafo;
             }
-        }
-
-        if ($buffer !== '') {
-            $resultados[] = $buffer;
         }
 
         return $resultados ?: [$mensagem];

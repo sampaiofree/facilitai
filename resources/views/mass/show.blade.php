@@ -52,6 +52,7 @@
                 <thead class="bg-gray-100 text-xs uppercase text-gray-900">
                     <tr>
                         <th class="px-4 py-3 text-left">#</th>
+                        <th class="px-4 py-3 text-left">Chat</th>
                         <th class="px-4 py-3 text-left">Número</th>
                         <th class="px-4 py-3 text-center">Status</th>
                         <th class="px-4 py-3 text-center">Tentativas</th>
@@ -62,6 +63,17 @@
                     @forelse($campanha->contatos as $i => $contato)
                         <tr class="border-t hover:bg-gray-50">
                             <td class="px-4 py-2">{{ $i + 1 }}</td>
+                            <td class="px-4 py-2">
+                                @if($contato->chat)
+                                    <div class="font-semibold text-gray-900">{{ $contato->chat->nome ?? 'Sem nome' }}</div>
+                                    <div class="text-xs text-gray-500">{{ $contato->chat->contact }}</div>
+                                    @if($contato->chat->conv_id)
+                                        <div class="text-xs text-gray-400">Conv: {{ $contato->chat->conv_id }}</div>
+                                    @endif
+                                @else
+                                    <span class="text-gray-400 text-sm">—</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-2 font-medium">{{ $contato->numero }}</td>
                             <td class="px-4 py-2 text-center">
                                 @if($contato->status === 'enviado')

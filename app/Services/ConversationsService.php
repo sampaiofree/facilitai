@@ -364,6 +364,11 @@ class ConversationsService
         // antes de montar $payload:
         $tagsInfo = 'Tags aplicadas: nenhuma';
         $sequencesInfo = 'Sequências ativas: nenhuma';
+        $nomeContato = '';
+        if($this->chat->nome){
+            $nomeContato = "nome do cliente/contato: {$this->chat->nome}";
+        }
+        
 
         if ($this->chat) {
             try {
@@ -398,7 +403,7 @@ class ConversationsService
         $input = array_merge([
         [
             'role' => 'system',
-            'content' => "Agora: {$hoje->toIso8601String()} ({$diaSemana}, {$dataPadrao} às {$horaPadrao}, tz: {$timezone}).\n{$tagsInfo}\n{$sequencesInfo}"
+            'content' => "Agora: {$hoje->toIso8601String()} ({$diaSemana}, {$dataPadrao} às {$horaPadrao}, tz: {$timezone}).\n{$tagsInfo}\n{$sequencesInfo}\n{$nomeContato}"
         ]
         ], $input);
 

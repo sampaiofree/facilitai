@@ -14,7 +14,7 @@ class MassSendService
     /**
      * Cria uma campanha, salva os contatos e dispara os jobs
      */
-    public function criarCampanha(array $dados, string $caminhoCsv): MassCampaign
+    public function criarCampanha(array $dados, iterable $chats): MassCampaign
     {
         try {
             DB::beginTransaction();
@@ -31,20 +31,35 @@ class MassSendService
                 'status' => 'pendente',
             ]);
 
-            // 2️⃣ Importa os números do CSV
-            $numeros = $this->lerCsv($caminhoCsv);
+            // 2️⃣ Monta contatos a partir dos chats (deduplica pelo número)
+            $numerosUsados = [];
             $total = 0;
 
-            foreach ($numeros as $numero) {
-                if (!$numero) continue;
+            foreach ($chats as $chat) {
+                if (!$chat || empty($chat->contact)) {
+                    continue;
+                }
+
+                $numero = $this->formatarNumero($chat->contact);
+
+                // Ignora números vazios/curtos e duplicados
+                if (!$numero || strlen($numero) < 10 || isset($numerosUsados[$numero])) {
+                    continue;
+                }
 
                 MassContact::create([
                     'campaign_id' => $campanha->id,
+                    'chat_id' => $chat->id,
                     'numero' => $numero,
                     'status' => 'pendente',
                 ]);
 
+                $numerosUsados[$numero] = true;
                 $total++;
+            }
+
+            if ($total === 0) {
+                throw new \RuntimeException('Nenhum contato válido encontrado para disparo.');
             }
 
             $campanha->update(['total_contatos' => $total]);
@@ -60,40 +75,6 @@ class MassSendService
             throw $e;
         }
     }
-
-    /**
-     * Lê um CSV e retorna um array de números
-     */
-    protected function lerCsv(string $caminho): array
-    {
-        $linhas = [];
-        if (!file_exists($caminho)) {
-            Log::error('CSV não encontrado', ['path' => $caminho]);
-            return $linhas;
-        }
-
-        if (($handle = fopen($caminho, 'r')) !== false) {
-            while (($data = fgetcsv($handle, 1000, ';')) !== false) {
-                foreach ($data as $celula) {
-                    $celula = trim($celula);
-                    if ($celula) {
-                        $numero = $this->formatarNumero($celula); //preg_replace('/\D/', '', $celula);
-
-                        // ✅ só aceita números com pelo menos 10 dígitos
-                        if (strlen($numero) >= 10) {
-                            $linhas[] = $numero;
-                        } else {
-                            Log::warning('Número ignorado por ser curto', ['numero' => $celula]);
-                        }
-                    }
-                }
-            }
-            fclose($handle);
-        }
-
-        return $linhas;
-    }
-
 
     /**
      * Padroniza o número (remove caracteres não numéricos)

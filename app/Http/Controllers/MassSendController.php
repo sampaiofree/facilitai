@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Services\MassSendService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use App\Models\MassCampaign;
+use App\Models\Chat;
 
 class MassSendController extends Controller
 {
@@ -23,7 +23,10 @@ class MassSendController extends Controller
     public function index()
     {
         $instances = Auth::user()->instances ?? [];
-        return view('mass.index', compact('instances')); 
+        $tags = Auth::user()->tags()->orderBy('name')->get(['id', 'name']);
+        $sequences = Auth::user()->sequences()->orderBy('name')->get(['id', 'name']);
+
+        return view('mass.index', compact('instances', 'tags', 'sequences')); 
     }
 
     /**
@@ -35,15 +38,22 @@ class MassSendController extends Controller
             'instance_id' => 'required|integer|exists:instances,id',
             'tipo_envio' => 'required|in:texto,audio',
             'mensagem' => 'required_if:tipo_envio,texto|string|nullable',
-            'arquivo' => 'required|file|mimes:csv,txt|max:2048',
             'intervalo_segundos' => 'required|integer|min:2|max:900',
+            'tags_in' => 'array',
+            'tags_in.*' => 'string',
+            'tags_out' => 'array',
+            'tags_out.*' => 'string',
+            'sequences' => 'array',
+            'sequences.*' => 'integer',
+            'sequences_mode' => 'in:any,all',
         ]);
 
-        // Salva o CSV no storage temporário
-        $path = $request->file('arquivo')->store('mass_uploads');
+        $instance = Auth::user()
+            ->instances()
+            ->findOrFail($request->integer('instance_id'));
 
         $dados = [
-            'instance_id' => $request->instance_id,
+            'instance_id' => $instance->id,
             'nome' => $request->nome ?? null,
             'tipo_envio' => $request->tipo_envio,
             'usar_ia' => $request->boolean('usar_ia'),
@@ -51,7 +61,25 @@ class MassSendController extends Controller
             'intervalo_segundos' => $request->intervalo_segundos,
         ];
 
-        $campanha = $this->service->criarCampanha($dados, Storage::path($path)); 
+        $chatsQuery = $this->buildChatQuery($request, $instance->id);
+
+        if (!$chatsQuery->exists()) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('warning', 'Nenhum chat encontrado com os filtros selecionados.');
+        }
+
+        $chats = $chatsQuery->select('id', 'contact')->cursor();
+
+        try {
+            $campanha = $this->service->criarCampanha($dados, $chats); 
+        } catch (\Throwable $e) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('warning', 'Nenhum contato válido para disparo.');
+        }
 
         return redirect()->route('mass.index')->with('success', "Campanha criada e iniciada com sucesso! ({$campanha->total_contatos} contatos enfileirados)");
     }
@@ -67,11 +95,140 @@ class MassSendController extends Controller
 
     public function show($id)
     {
-        $campanha = MassCampaign::with('contatos')->findOrFail($id);
+        $campanha = MassCampaign::with(['contatos.chat'])->findOrFail($id);
 
         abort_unless($campanha->user_id === Auth::id(), 403);
 
         return view('mass.show', compact('campanha'));
+    }
+
+    public function preview(Request $request)
+    {
+        $request->validate([
+            'instance_id' => 'required|integer|exists:instances,id',
+            'tags_in' => 'array',
+            'tags_in.*' => 'string',
+            'tags_out' => 'array',
+            'tags_out.*' => 'string',
+            'sequences' => 'array',
+            'sequences.*' => 'integer',
+            'sequences_mode' => 'in:any,all',
+            'with_list' => 'sometimes|boolean',
+            'limit' => 'sometimes|integer|min:1|max:200',
+            'offset' => 'sometimes|integer|min:0',
+        ]);
+
+        $instance = Auth::user()
+            ->instances()
+            ->findOrFail($request->integer('instance_id'));
+
+        $query = $this->buildChatQuery($request, $instance->id)
+            ->select('id', 'contact', 'nome', 'conv_id')
+            ->orderBy('id');
+
+        $withList = $request->boolean('with_list');
+        $limit = min(max((int) $request->query('limit', 100), 1), 200);
+        $offset = max(0, (int) $request->query('offset', 0));
+
+        $total = 0;
+        $invalid = 0;
+        $items = [];
+        $seen = [];
+
+        $query->chunkById(500, function ($chats) use (&$total, &$invalid, &$items, &$seen, $withList, $limit, $offset) {
+            foreach ($chats as $chat) {
+                $numero = $this->normalizePhone($chat->contact);
+
+                if (!$numero || strlen($numero) < 10) {
+                    $invalid++;
+                    continue;
+                }
+
+                if (isset($seen[$numero])) {
+                    continue;
+                }
+
+                $seen[$numero] = true;
+                $total++;
+
+                if ($withList && $total > $offset && count($items) < $limit) {
+                    $items[] = [
+                        'id' => $chat->id,
+                        'nome' => $chat->nome ?? null,
+                        'contact' => $chat->contact,
+                        'conv_id' => $chat->conv_id ?? null,
+                    ];
+                }
+
+            }
+        });
+
+        return response()->json([
+            'total' => $total,
+            'invalid' => $invalid,
+            'offset' => $offset,
+            'limit' => $limit,
+            'items' => $withList ? $items : [],
+        ]);
+    }
+
+    protected function buildChatQuery(Request $request, int $instanceId)
+    {
+        $query = Chat::query()
+            ->where('user_id', Auth::id())
+            ->where('instance_id', $instanceId)
+            ->whereNotNull('contact');
+
+        $tagsIn = collect($request->input('tags_in', []))
+            ->map(fn ($t) => trim((string) $t))
+            ->filter()
+            ->unique();
+
+        if ($tagsIn->isNotEmpty()) {
+            $query->whereHas('tags', fn ($q) => $q->whereIn('name', $tagsIn));
+        }
+
+        $tagsOut = collect($request->input('tags_out', []))
+            ->map(fn ($t) => trim((string) $t))
+            ->filter()
+            ->unique();
+
+        if ($tagsOut->isNotEmpty()) {
+            $query->whereDoesntHave('tags', fn ($q) => $q->whereIn('name', $tagsOut));
+        }
+
+        $sequences = collect($request->input('sequences', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique();
+
+        $sequencesMode = $request->input('sequences_mode', 'any') === 'all' ? 'all' : 'any';
+        if ($sequences->isNotEmpty()) {
+            if ($sequencesMode === 'all') {
+                foreach ($sequences as $seqId) {
+                    $query->whereHas('sequenceChats', function ($q) use ($seqId) {
+                        $q->where('sequence_id', $seqId)->where('status', 'em_andamento');
+                    });
+                }
+            } else {
+                $query->whereHas('sequenceChats', function ($q) use ($sequences) {
+                    $q->whereIn('sequence_id', $sequences)->where('status', 'em_andamento');
+                });
+            }
+        }
+
+        return $query;
+    }
+
+    protected function normalizePhone(string $numero): string
+    {
+        $numero = preg_replace('/\D/', '', $numero);
+
+        if (strlen($numero) <= 11) {
+            $numero = '55' . $numero;
+        }
+
+        return $numero;
     }
 
 

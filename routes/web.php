@@ -264,6 +264,7 @@ Route::middleware('auth', 'verified')->group(function () {
     //DISPAROS EM MASSA
     Route::get('/disparos', [MassSendController::class, 'index'])->name('mass.index');
     Route::post('/disparos', [MassSendController::class, 'store'])->name('mass.store');
+    Route::get('/disparos/preview', [MassSendController::class, 'preview'])->name('mass.preview');
     Route::get('/disparos/historico', [MassSendController::class, 'historico'])
     ->name('mass.historico');
     Route::get('/disparos/{id}', [MassSendController::class, 'show'])
