@@ -14,8 +14,8 @@
                 <div>
                     <p><span class="font-semibold">Nome:</span> {{ $campanha->nome }}</p>
                     <p><span class="font-semibold">Instância:</span> {{ $campanha->instance->name ?? '—' }}</p>
-                    <p><span class="font-semibold">Tipo de Envio:</span> {{ ucfirst($campanha->tipo_envio) }}</p>
-                    <p><span class="font-semibold">Usa IA:</span> {{ $campanha->usar_ia ? 'Sim' : 'Não' }}</p>
+                    
+                    
                 </div>
                 <div>
                     <p><span class="font-semibold">Intervalo:</span> {{ $campanha->intervalo_segundos }}s</p>
@@ -26,7 +26,7 @@
             </div>
 
             <div class="mt-4">
-                <p><span class="font-semibold">Mensagem:</span></p>
+                <p><span class="font-semibold">Prompt:</span></p>
                 <div class="bg-gray-50 border rounded p-3 mt-1 text-gray-700 text-sm whitespace-pre-wrap">
                     {{ $campanha->mensagem }}
                 </div>
@@ -57,6 +57,7 @@
                         <th class="px-4 py-3 text-center">Status</th>
                         <th class="px-4 py-3 text-center">Tentativas</th>
                         <th class="px-4 py-3 text-center">Enviado em</th>
+                        <th class="px-4 py-3 text-center">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -88,10 +89,21 @@
                             <td class="px-4 py-2 text-center">
                                 {{ $contato->enviado_em ? \Carbon\Carbon::parse($contato->enviado_em)->format('d/m/Y H:i:s') : '—' }}
                             </td>
+                            <td class="px-4 py-2 text-center">
+                                <form method="POST" action="{{ route('mass.contacts.destroy', [$campanha->id, $contato->id]) }}"
+                                    onsubmit="return confirm('Remover este contato da campanha?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit"
+                                        class="text-red-600 hover:text-red-800 text-xs font-semibold">
+                                        Remover
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-4 py-6 text-center text-gray-500">
+                            <td colspan="7" class="px-4 py-6 text-center text-gray-500">
                                 Nenhum contato encontrado.
                             </td>
                         </tr>

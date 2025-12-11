@@ -269,6 +269,8 @@ Route::middleware('auth', 'verified')->group(function () {
     ->name('mass.historico');
     Route::get('/disparos/{id}', [MassSendController::class, 'show'])
     ->name('mass.show');
+    Route::delete('/disparos/{campanha}/contatos/{contato}', [MassSendController::class, 'removerContato'])
+        ->name('mass.contacts.destroy');
 
 
 

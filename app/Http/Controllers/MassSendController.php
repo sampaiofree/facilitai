@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\MassCampaign;
 use App\Models\Chat;
+use App\Models\MassContact;
 
 class MassSendController extends Controller
 {
@@ -100,6 +101,37 @@ class MassSendController extends Controller
         abort_unless($campanha->user_id === Auth::id(), 403);
 
         return view('mass.show', compact('campanha'));
+    }
+
+    public function removerContato($campanhaId, $contatoId)
+    {
+        $campanha = MassCampaign::findOrFail($campanhaId);
+        abort_unless($campanha->user_id === Auth::id(), 403);
+
+        $contato = MassContact::where('campaign_id', $campanha->id)->findOrFail($contatoId);
+
+        $campanha->total_contatos = max(0, (int) $campanha->total_contatos - 1);
+
+        if ($contato->status === 'enviado' && $campanha->enviados > 0) {
+            $campanha->enviados -= 1;
+        }
+
+        if ($contato->status === 'falhou' && $campanha->falhas > 0) {
+            $campanha->falhas -= 1;
+        }
+
+        $contato->delete();
+
+        // Se nÇœo restarem contatos pendentes, marca como concluÇðda
+        if ($campanha->total_contatos === 0 || $campanha->enviados >= $campanha->total_contatos) {
+            $campanha->status = 'concluido';
+        }
+
+        $campanha->save();
+
+        return redirect()
+            ->back()
+            ->with('success', 'Contato removido da campanha.');
     }
 
     public function preview(Request $request)
