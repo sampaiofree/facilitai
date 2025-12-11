@@ -135,6 +135,7 @@ class ChatController extends Controller
         }
 
         $header = fgetcsv($handle, 0, $delimiter);
+        $header = $header ? array_map([$this, 'cleanUtf8'], $header) : null;
         if (!$this->isValidImportHeader($header)) {
             fclose($handle);
             return redirect()
@@ -164,8 +165,8 @@ class ChatController extends Controller
                 continue;
             }
 
-            $nome = isset($row[0]) ? trim($row[0]) : '';
-            $telefoneRaw = isset($row[1]) ? trim($row[1]) : '';
+            $nome = $this->cleanUtf8($row[0] ?? '');
+            $telefoneRaw = $this->cleanUtf8($row[1] ?? '');
 
             if ($telefoneRaw === '') {
                 $errors[] = ['line' => $lineNumber, 'message' => 'Telefone vazio.'];
@@ -688,6 +689,29 @@ class ChatController extends Controller
         }
 
         return true;
+    }
+
+    private function cleanUtf8(?string $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        $value = preg_replace('/^\xEF\xBB\xBF/', '', (string) $value) ?? (string) $value;
+        $value = trim($value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        $encoding = mb_detect_encoding($value, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true) ?: 'UTF-8';
+        $converted = mb_convert_encoding($value, 'UTF-8', $encoding);
+
+        if (!mb_check_encoding($converted, 'UTF-8')) {
+            $converted = iconv($encoding, 'UTF-8//IGNORE', $value) ?: '';
+        }
+
+        return $converted;
     }
 
     private function resolveTagIds(array $tags, int $userId): array
