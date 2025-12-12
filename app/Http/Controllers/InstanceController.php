@@ -648,6 +648,7 @@ class InstanceController extends Controller
             'model' => 'nullable|string|',
         ]);
 
+        if(!$validated['model']){$validated['model'] = 'gpt-4.1-mini';}
         $instance->update($validated);
         
         //REINICIA TODOS OS CHATS
