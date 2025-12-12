@@ -645,7 +645,7 @@ class InstanceController extends Controller
             'default_assistant_id' => 'required|string|', // Garante que é um ID de assistente válido
             'credential_id' => 'nullable|integer|exists:credentials,id',  // Garante que é um ID de credencial válido
             'agenda_id' => 'nullable|integer|exists:agendas,id',
-            'model' => 'required|string|',
+            'model' => 'nullable|string|',
         ]);
 
         $instance->update($validated);
