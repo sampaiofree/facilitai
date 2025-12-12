@@ -309,8 +309,8 @@ class AgendaService
             return ['success' => false, 'message' => 'Informe o horário para agendar.'];
         }
 
-        if (empty($nome) || empty($telefone)) {
-            return ['success' => false, 'message' => 'Nome e telefone são obrigatórios para agendar.'];
+        if (empty($nome)) {
+            return ['success' => false, 'message' => 'Nome do cliente é obrigatórios para agendar.'];
         }
 
         // Fallback legado: usar ID direto se horário não veio
