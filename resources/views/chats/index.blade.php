@@ -334,6 +334,7 @@
                                             @else
                                                 <div class="text-xs text-gray-400">sem conv_id</div>
                                             @endif
+                                            <div class="text-xs text-gray-500">{{ $chat->instance?->name ?? 'Sem instância' }}</div>
                                         </td>
                                         <td class="px-4 py-3 text-center">
                                             <button type="button"

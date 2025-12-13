@@ -243,9 +243,8 @@
                 </form>
             </div>
         </div>
-    </div>
 
-    <div x-show="tagModal.open" x-cloak style="display: none;"
+        <div x-show="tagModal.open" x-cloak style="display: none;"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur">
         <div class="w-full max-w-md bg-white rounded-xl shadow-2xl p-6 space-y-4">
             <div class="flex items-center justify-between">
@@ -353,6 +352,8 @@
                 </button>
             </div>
         </div>
+    </div>
+
     </div>
 
     <script>
