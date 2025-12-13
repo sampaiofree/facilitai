@@ -217,6 +217,7 @@ Route::get('/dashboard', function () {
 Route::middleware('auth', 'verified')->group(function () {
     Route::middleware('admin')->group(function () {
         Route::get('/proxy-ban', [ProxyBanController::class, 'index'])->name('proxy-ban.index');
+        Route::delete('/proxy-ban/{ban}', [ProxyBanController::class, 'destroy'])->name('proxy-ban.destroy');
     });
     
     // AGENDAS E DISPONIBILIDADES

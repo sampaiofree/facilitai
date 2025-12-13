@@ -12,4 +12,13 @@ class ProxyBanController extends Controller
 
         return view('proxy-ban.index', compact('bans'));
     }
+
+    public function destroy(ProxyIpBan $ban)
+    {
+        $ban->delete();
+
+        return redirect()
+            ->route('proxy-ban.index')
+            ->with('status', 'IP removido da lista.');
+    }
 }
