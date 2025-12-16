@@ -43,9 +43,9 @@
         class="min-h-screen relative"
     >
         <header class="fixed inset-x-0 top-0 z-50 bg-white/90 backdrop-blur-md border-b border-white/40 shadow-sm">
-            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3 py-3">
-                <div class="hidden sm:flex items-center gap-3">
-                    <img src="/homepage/novalogo.svg" alt="FacilitAI" class="h-10 w-auto" />
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-center gap-4 py-3 sm:justify-between">
+                <div class="flex items-center gap-3 text-center sm:text-left">
+                    <img src="/homepage/novalogo.svg" alt="FacilitAI" class="hidden sm:block h-10 w-auto" />
                     <div>
                         <p class="text-sm text-gray-500 uppercase tracking-[0.3em]">FacilitAI</p>
                         <p class="text-lg font-semibold text-gray-900 leading-tight">Atendimento inteligente</p>
