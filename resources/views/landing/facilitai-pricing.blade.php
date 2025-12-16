@@ -62,7 +62,7 @@
                         href="#plans"
                         class="px-5 py-2 rounded-full bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white font-semibold shadow-lg shadow-purple-500/30 transition-transform hover:-translate-y-0.5"
                     >
-                        Ver Planos
+                        Planos
                     </a>
                 </div>
             </div>
