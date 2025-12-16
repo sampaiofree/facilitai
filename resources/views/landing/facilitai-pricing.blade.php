@@ -43,15 +43,15 @@
         class="min-h-screen relative"
     >
         <header class="fixed inset-x-0 top-0 z-50 bg-white/90 backdrop-blur-md border-b border-white/40 shadow-sm">
-            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div class="flex items-center gap-3">
+            <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3 py-3">
+                <div class="hidden sm:flex items-center gap-3">
                     <img src="/homepage/novalogo.svg" alt="FacilitAI" class="h-10 w-auto" />
                     <div>
                         <p class="text-sm text-gray-500 uppercase tracking-[0.3em]">FacilitAI</p>
                         <p class="text-lg font-semibold text-gray-900 leading-tight">Atendimento inteligente</p>
                     </div>
                 </div>
-                <div class="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
+                <div class="flex items-center gap-3 sm:gap-4">
                     <a
                         href="#features"
                         class="text-sm font-medium text-gray-600 hover:text-gray-900 transition"
@@ -369,7 +369,13 @@
                             </div>
                             <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                                 <template x-for="(plan, idx) in monthlyPlans" :key="'monthly-'+idx">
-                                    <div class="flex flex-col h-full border border-gray-200 rounded-3xl p-6 gap-4 hover:shadow-2xl transition">
+                                    <div class="relative flex flex-col h-full border border-gray-200 rounded-3xl p-6 gap-4 hover:shadow-2xl transition">
+                                        <div
+                                            x-show="plan.popular"
+                                            class="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-purple-600 text-white text-xs font-semibold shadow-lg shadow-purple-500/40"
+                                        >
+                                            Melhor custo-benefício
+                                        </div>
                                         <div class="space-y-1 text-center">
                                             <p class="text-sm uppercase tracking-[0.2em] text-gray-400" x-text="plan.connections === 1 ? '1 WhatsApp ativo' : plan.connections + ' WhatsApps ativos'"></p>
                                             <p class="text-3xl font-bold text-gray-900">
