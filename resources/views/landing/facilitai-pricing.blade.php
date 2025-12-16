@@ -71,28 +71,47 @@
         <main class="pt-28">
             <section class="relative overflow-hidden isolate">
                 <div class="absolute inset-0 bg-gradient-to-br from-purple-900 via-purple-700 to-indigo-600 opacity-80"></div>
-                <div class="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20 flex flex-col gap-10 text-white">
-                    <div class="max-w-3xl space-y-6">
-                        <p class="text-sm uppercase tracking-[0.5em] text-purple-200">WhatsApp + IA</p>
-                        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight">
-                            Atendimento inteligente no WhatsApp que funciona <span class="text-yellow-200">24/7</span>
-                        </h1>
-                        <p class="text-lg text-purple-100">
-                            Automatize conversas, agende compromissos e atenda seus clientes com IA de ponta. Tudo funcionando via navegador, sem instalação.
-                        </p>
-                        <div class="flex flex-wrap gap-3">
-                            <a
-                                href="#plans"
-                                class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white text-purple-700 font-semibold shadow-lg shadow-black/30 hover:bg-gray-100 transition"
-                            >
-                                Começar Agora
-                            </a>
-                            <a
-                                href="#faq"
-                                class="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-white/60 text-white font-semibold hover:border-white"
-                            >
-                                Conhecer FAQ
-                            </a>
+                <div class="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20 space-y-10 text-white">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+                        <div class="max-w-3xl space-y-6">
+                            <p class="text-sm uppercase tracking-[0.5em] text-purple-200">WhatsApp + IA</p>
+                            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight">
+                                Atenda, responda e venda no WhatsApp automaticamente
+                            </h1>
+                            <p class="text-lg text-purple-100">
+                                Assistentes de IA prontos para empresas e agências, funcionando 24 horas por dia sem você precisar ficar no celular.
+                            </p>
+                            <div class="space-y-1 text-base text-purple-100">
+                                <p>Ideal para empresas que atendem clientes pelo WhatsApp.</p>
+                                <p>E para agências que querem vender automação para seus clientes.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-3">
+                                <a
+                                    href="#plans"
+                                    class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white text-purple-700 font-semibold shadow-lg shadow-black/30 hover:bg-gray-100 transition"
+                                >
+                                    Ver planos e começar
+                                </a>
+                                <a
+                                    href="#faq"
+                                    class="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-white/60 text-white font-semibold hover:border-white"
+                                >
+                                    Conhecer FAQ
+                                </a>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="aspect-video rounded-3xl overflow-hidden border border-white/20 shadow-2xl shadow-black/30">
+                                <iframe
+                                    src="https://www.youtube.com/embed/alsj-l6fL80?rel=0"
+                                    title="Apresentação FacilitAI"
+                                    class="w-full h-full"
+                                    loading="lazy"
+                                    frameborder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowfullscreen
+                                ></iframe>
+                            </div>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -103,13 +122,62 @@
                         </div>
                         <div class="flex flex-col gap-2 bg-white/5 rounded-2xl p-5 shadow-xl backdrop-blur">
                             <p class="text-sm text-purple-200 uppercase">Segurança</p>
-                            <p class="text-2xl font-bold">SSL + Backup</p>
-                            <p class="text-sm text-purple-100">Proteção total para dados e histórico de conversas.</p>
+                            <p class="text-2xl font-bold">Segurança e privacidade</p>
+                            <p class="text-sm text-purple-100">As conversas acontecem direto no WhatsApp. O FacilitAI não armazena histórico de mensagens.</p>
                         </div>
                         <div class="flex flex-col gap-2 bg-white/5 rounded-2xl p-5 shadow-xl backdrop-blur">
                             <p class="text-sm text-purple-200 uppercase">Suporte</p>
                             <p class="text-2xl font-bold">Humanizado</p>
                             <p class="text-sm text-purple-100">Time dedicado pronto para ajudar em minutos.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+                <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+                    <div class="space-y-8">
+                        <div class="space-y-4">
+                            <p class="text-sm uppercase tracking-[0.3em] text-purple-500">O que é o FacilitAI</p>
+                            <h2 class="text-3xl font-bold text-gray-900">Assistentes de IA prontos para WhatsApp</h2>
+                            <p class="text-lg text-gray-600">
+                                O FacilitAI é uma plataforma que cria assistentes de IA para WhatsApp.
+                            </p>
+                            <p class="text-lg text-gray-600">
+                                Eles respondem clientes, tiram dúvidas, fazem agendamentos e follow-up sem você precisar ficar no celular.
+                            </p>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="flex items-center gap-3 rounded-2xl border border-gray-100 p-4 bg-slate-50">
+                                <i data-lucide="check" class="w-5 h-5 text-purple-600"></i>
+                                <p class="font-medium text-gray-800">Funciona direto no WhatsApp</p>
+                            </div>
+                            <div class="flex items-center gap-3 rounded-2xl border border-gray-100 p-4 bg-slate-50">
+                                <i data-lucide="check" class="w-5 h-5 text-purple-600"></i>
+                                <p class="font-medium text-gray-800">Sem código</p>
+                            </div>
+                            <div class="flex items-center gap-3 rounded-2xl border border-gray-100 p-4 bg-slate-50">
+                                <i data-lucide="check" class="w-5 h-5 text-purple-600"></i>
+                                <p class="font-medium text-gray-800">Você controla tudo</p>
+                            </div>
+                            <div class="flex items-center gap-3 rounded-2xl border border-gray-100 p-4 bg-slate-50">
+                                <i data-lucide="check" class="w-5 h-5 text-purple-600"></i>
+                                <p class="font-medium text-gray-800">Use para vender como serviço</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <p class="text-base font-semibold text-gray-800">Na prática, funciona assim 👇</p>
+                        <div class="rounded-3xl overflow-hidden border border-gray-100 shadow-xl bg-black w-full max-w-sm mx-auto lg:ml-auto" style="aspect-ratio: 9 / 16;">
+                            <video
+                                src="https://app.3f7.org/storage/homepage/demontracao_conversa-6.mp4"
+                                autoplay
+                                muted
+                                loop
+                                playsinline
+                                preload="auto"
+                                class="w-full h-full object-cover"
+                            ></video>
                         </div>
                     </div>
                 </div>
@@ -135,13 +203,82 @@
                 </div>
             </section>
 
+            <section class="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-white to-purple-50">
+                <div class="max-w-5xl mx-auto space-y-10">
+                    <div class="bg-white border border-purple-100 rounded-3xl shadow-xl p-8 space-y-6">
+                        <div class="space-y-2 text-center">
+                            <p class="text-sm uppercase tracking-[0.3em] text-purple-500">Uso de IA sem limite</p>
+                            <h2 class="text-3xl font-bold text-gray-900">IA sem limite de conversas</h2>
+                            <p class="text-lg text-gray-600">
+                                Aqui você não paga “pacote fechado de mensagens”.
+                                Você usa o quanto precisar e paga a IA direto para a OpenAI, a preço de custo.
+                            </p>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="flex items-center gap-3 rounded-2xl border border-purple-100 p-4 bg-purple-50/50">
+                                <i data-lucide="check-circle" class="w-5 h-5 text-purple-600"></i>
+                                <p class="font-medium text-gray-800">Sem limite de contatos</p>
+                            </div>
+                            <div class="flex items-center gap-3 rounded-2xl border border-purple-100 p-4 bg-purple-50/50">
+                                <i data-lucide="check-circle" class="w-5 h-5 text-purple-600"></i>
+                                <p class="font-medium text-gray-800">Sem limite de conversas</p>
+                            </div>
+                            <div class="flex items-center gap-3 rounded-2xl border border-purple-100 p-4 bg-purple-50/50">
+                                <i data-lucide="check-circle" class="w-5 h-5 text-purple-600"></i>
+                                <p class="font-medium text-gray-800">Nada bloqueia quando “acaba mensagem”</p>
+                            </div>
+                            <div class="flex items-center gap-3 rounded-2xl border border-purple-100 p-4 bg-purple-50/50">
+                                <i data-lucide="check-circle" class="w-5 h-5 text-purple-600"></i>
+                                <p class="font-medium text-gray-800">Você paga só pelo que usar</p>
+                            </div>
+                        </div>
+                        <div class="rounded-2xl bg-slate-900 text-white p-6 space-y-2">
+                            <p class="text-sm uppercase tracking-[0.3em] text-purple-200">Exemplo real</p>
+                            <p class="text-lg">
+                                Um uso médio consome cerca de <span class="font-semibold">3 milhões de tokens por mês</span>,
+                                o que dá em média <span class="font-semibold">R$18 pagos direto à OpenAI</span>.
+                            </p>
+                            <p class="text-sm text-purple-200">Sem taxa, sem margem, sem intermediário.</p>
+                        </div>
+                        <div class="text-center space-y-2">
+                            <p class="text-base text-gray-700">
+                                Outras plataformas limitam mensagens ou cobram pacotes caros.
+                                Aqui você tem liberdade total e custo baixo.
+                            </p>
+                            <p class="text-lg font-semibold text-gray-900">Mais controle. Mais transparência. Mais barato.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-purple-100 rounded-3xl shadow-lg p-6 space-y-4">
+                        <p class="text-sm uppercase tracking-[0.3em] text-purple-500 text-center">Micro FAQ</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-700">
+                            <div class="space-y-1">
+                                <p class="font-semibold text-gray-900">Os tokens estão inclusos no plano?</p>
+                                <p>Não. Você paga direto à OpenAI, sem intermediários.</p>
+                            </div>
+                            <div class="space-y-1">
+                                <p class="font-semibold text-gray-900">Posso gastar muito sem perceber?</p>
+                                <p>Não. Você acompanha o consumo e pode controlar.</p>
+                            </div>
+                            <div class="space-y-1">
+                                <p class="font-semibold text-gray-900">Tem limite de conversas?</p>
+                                <p>Não. Conversas e contatos são ilimitados.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <section id="plans" class="py-20 px-4 sm:px-6 lg:px-8">
                 <div class="max-w-6xl mx-auto space-y-16">
                     <div class="text-center space-y-3">
                         <p class="text-sm uppercase tracking-[0.4em] text-purple-500">Planos</p>
                         <h2 class="text-4xl font-bold text-gray-900">Escolha o seu ritmo</h2>
                         <p class="text-lg text-gray-600 max-w-2xl mx-auto">
-                            Conexões, assistentes e automações ilimitadas. Você precisa apenas decidir quantos ambientes quer ativar.
+                            Todos os planos têm todas as ferramentas.
+                        </p>
+                        <p class="text-lg text-gray-600 max-w-2xl mx-auto">
+                            O que muda é apenas a quantidade de conexões de WhatsApp.
                         </p>
                     </div>
 
@@ -158,20 +295,14 @@
                                 <template x-for="(plan, idx) in monthlyPlans" :key="'monthly-'+idx">
                                     <div class="flex flex-col h-full border border-gray-200 rounded-3xl p-6 gap-4 hover:shadow-2xl transition">
                                         <div class="space-y-1 text-center">
-                                            <p class="text-sm uppercase tracking-[0.4em] text-gray-400">
-                                                <span x-text="plan.connections"></span>
-                                                <span x-text="plan.connections === 1 ? ' conexão' : ' conexões'"></span>
-                                            </p>
+                                            <p class="text-sm uppercase tracking-[0.2em] text-gray-400" x-text="plan.connections === 1 ? '1 WhatsApp ativo' : plan.connections + ' WhatsApps ativos'"></p>
                                             <p class="text-3xl font-bold text-gray-900">
                                                 <span>R$</span><span x-text="plan.price_label"></span><span class="text-sm text-gray-500">/mês</span>
                                             </p>
-                                            <p class="text-sm text-gray-500">
-                                                <span x-text="plan.assistants"></span>
-                                                <span x-text="plan.assistants === 1 ? ' assistente' : ' assistentes'"></span>
-                                            </p>
+                                            <p class="text-sm text-gray-500" x-text="plan.assistants === 1 ? 'Com 1 atendente de IA' : 'Com ' + plan.assistants + ' atendentes de IA'"></p>
                                         </div>
                                         <div class="text-center">
-                                            <p class="text-xs text-purple-600 font-semibold" x-text="`Valor por conexão: R$${plan.price_per_connection_label}`"></p>
+                                            <p class="text-xs text-purple-600 font-semibold" x-text="`Valor por WhatsApp: R$${plan.price_per_connection_label}`"></p>
                                         </div>
                                         <a
                                             :href="plan.checkout"
@@ -198,20 +329,14 @@
                                 <template x-for="(plan, idx) in yearlyPlans" :key="'yearly-'+idx">
                                     <div class="flex flex-col h-full border border-gray-200 rounded-3xl p-6 gap-4 hover:shadow-2xl transition">
                                         <div class="space-y-1 text-center">
-                                            <p class="text-sm uppercase tracking-[0.4em] text-gray-400">
-                                                <span x-text="plan.connections"></span>
-                                                <span x-text="plan.connections === 1 ? ' conexão' : ' conexões'"></span>
-                                            </p>
+                                            <p class="text-sm uppercase tracking-[0.2em] text-gray-400" x-text="plan.connections === 1 ? '1 WhatsApp ativo' : plan.connections + ' WhatsApps ativos'"></p>
                                             <p class="text-3xl font-bold text-gray-900">
                                                 <span>R$</span><span x-text="plan.price_label"></span><span class="text-sm text-gray-500">/mês</span>
                                             </p>
-                                            <p class="text-sm text-gray-500">
-                                                <span x-text="plan.assistants"></span>
-                                                <span x-text="plan.assistants === 1 ? ' assistente' : ' assistentes'"></span>
-                                            </p>
+                                            <p class="text-sm text-gray-500" x-text="plan.assistants === 1 ? 'Com 1 atendente de IA' : 'Com ' + plan.assistants + ' atendentes de IA'"></p>
                                         </div>
                                         <div class="text-center">
-                                            <p class="text-xs text-purple-600 font-semibold" x-text="`Valor por conexão: R$${plan.price_per_connection_label}`"></p>
+                                            <p class="text-xs text-purple-600 font-semibold" x-text="`Valor por WhatsApp: R$${plan.price_per_connection_label}`"></p>
                                             <p class="text-xs text-green-600 font-bold" x-show="plan.savings_label" x-text="plan.savings_label"></p>
                                         </div>
                                         <a
@@ -226,6 +351,11 @@
                                 </template>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="text-center rounded-3xl border border-purple-100 bg-purple-50 p-8">
+                        <p class="text-lg font-semibold text-purple-800">Quanto mais conexões, mais barato fica cada WhatsApp.</p>
+                        <p class="text-sm text-purple-700 mt-2">Ideal para quem atende vários clientes ou várias unidades.</p>
                     </div>
 
                     <div class="bg-white border border-purple-100 rounded-3xl p-8 text-center">
@@ -252,14 +382,24 @@
                 </div>
             </section>
 
+            <section class="py-16 px-4 sm:px-6 lg:px-8 bg-slate-900 text-white">
+                <div class="max-w-4xl mx-auto text-center space-y-4">
+                    <p class="text-sm uppercase tracking-[0.4em] text-purple-200">Para agências</p>
+                    <h2 class="text-3xl font-bold">É agência? Isso é pra você.</h2>
+                    <p class="text-lg text-purple-100">Use o FacilitAI para criar assistentes para seus clientes.</p>
+                    <div class="space-y-2 text-lg text-purple-50">
+                        <p>Cobre setup, mensalidade ou ambos.</p>
+                        <p>A plataforma fica nos bastidores.</p>
+                    </div>
+                </div>
+            </section>
+
             <section id="faq" class="py-20 px-4 sm:px-6 lg:px-8 bg-slate-100">
                 <div class="max-w-3xl mx-auto space-y-8">
                     <div class="text-center space-y-3">
                         <p class="text-sm uppercase tracking-[0.4em] text-purple-500">FAQ</p>
                         <h2 class="text-3xl font-bold text-gray-900">Perguntas Frequentes</h2>
-                        <p class="text-gray-600">
-                            Respondemos as dúvidas que aparecem sempre, em menos de um minuto você tem clareza completa.
-                        </p>
+                        <p class="text-gray-600">Respostas rápidas e sem complicação.</p>
                     </div>
                     <div class="space-y-4">
                         <template x-for="(faq, idx) in faqs" :key="faq.q">
@@ -290,27 +430,21 @@
                     </div>
                 </div>
             </section>
+
+            <section class="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+                <div class="max-w-4xl mx-auto text-center space-y-6">
+                    <h2 class="text-3xl font-bold text-gray-900">Comece agora e tenha um atendente de IA no WhatsApp hoje mesmo.</h2>
+                    <a
+                        href="#plans"
+                        class="inline-flex items-center justify-center rounded-full bg-purple-600 px-8 py-3 text-lg font-semibold text-white shadow-lg shadow-purple-500/30 hover:brightness-110 transition"
+                    >
+                        Escolher plano
+                    </a>
+                </div>
+            </section>
         </main>
 
-        <footer class="bg-gray-900 text-white py-12 px-4 sm:px-6 lg:px-8">
-            <div class="max-w-6xl mx-auto text-center">
-                <div class="flex items-center justify-center gap-3 mb-6">
-                    <img src="/homepage/novalogoDark.svg" alt="FacilitAI" class="h-10 w-auto" />
-                    <span class="text-2xl font-semibold">FacilitAI</span>
-                </div>
-                <p class="text-gray-400 mb-6">
-                    Atendimento inteligente no WhatsApp que funciona 24/7.
-                </p>
-                <div class="flex flex-wrap items-center justify-center gap-6 text-gray-400 text-sm">
-                    <span>Pagamento seguro</span>
-                    <span>SSL certificado</span>
-                    <span>Suporte premium</span>
-                </div>
-                <p class="text-gray-500 text-xs mt-8">
-                    © 2024 FacilitAI. Todos os direitos reservados.
-                </p>
-            </div>
-        </footer>
+        @include('homepage.footer')
 
     </div>
 </body>
