@@ -183,6 +183,82 @@
                 </div>
             </section>
 
+            <section class="bg-gradient-to-b from-white to-slate-100 py-20 px-4 sm:px-6 lg:px-8">
+                <div class="max-w-6xl mx-auto text-center">
+                    <div class="space-y-4">
+                        <p class="text-sm uppercase tracking-[0.3em] text-purple-500">Como é fácil</p>
+                        <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900">
+                            Crie seu assistente em apenas <span class="text-purple-600">2 passos simples</span>
+                        </h2>
+                        <p class="text-lg text-slate-600 max-w-2xl mx-auto">
+                            Você não precisa saber programar. Em poucos minutos seu assistente já está ativo e respondendo no WhatsApp.
+                        </p>
+                    </div>
+
+                    <div class="mt-12 space-y-16">
+                        <div class="grid lg:grid-cols-2 gap-10 items-center">
+                            <div class="text-left space-y-4">
+                                <h3 class="text-2xl font-semibold text-slate-900">1️⃣ Crie seu assistente</h3>
+                                <ul class="text-slate-700 space-y-2">
+                                    <li>• Escolha o nome e a personalidade do seu assistente.</li>
+                                    <li>• Defina o tipo de atendimento (vendas, suporte, agendamento, etc.).</li>
+                                    <li>• Clique em <strong>"Criar"</strong> e pronto — seu assistente já está ativo!</li>
+                                </ul>
+                                <p class="text-emerald-600 font-medium">💡 Leva menos de 1 minuto para criar o primeiro.</p>
+                            </div>
+                            <div class="rounded-2xl overflow-hidden shadow-xl border border-slate-200 bg-black">
+                                <video
+                                    class="w-full h-auto"
+                                    autoplay
+                                    muted
+                                    loop
+                                    playsinline
+                                    preload="auto"
+                                >
+                                    <source src="{{ asset('storage/homepage/demontracao_criando_assistente.mp4') }}" type="video/mp4" />
+                                </video>
+                            </div>
+                        </div>
+
+                        <div class="grid lg:grid-cols-2 gap-10 items-center">
+                            <div class="rounded-2xl overflow-hidden shadow-xl border border-slate-200 bg-black lg:order-1 order-2">
+                                <video
+                                    class="w-full h-auto"
+                                    autoplay
+                                    muted
+                                    loop
+                                    playsinline
+                                    preload="auto"
+                                >
+                                    <source src="{{ asset('storage/homepage/demontracao_conectando.mp4') }}" type="video/mp4" />
+                                </video>
+                            </div>
+                            <div class="text-left space-y-4 lg:order-2 order-1">
+                                <h3 class="text-2xl font-semibold text-slate-900">2️⃣ Conecte ao seu WhatsApp</h3>
+                                <ul class="text-slate-700 space-y-2">
+                                    <li>• Escaneie o QR Code com seu celular.</li>
+                                    <li>• Em segundos, seu número estará conectado.</li>
+                                    <li>• Seu assistente começa a responder automaticamente.</li>
+                                </ul>
+                                <p class="text-emerald-600 font-medium">⚡ Criou, conectou, começou a vender.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="text-lg text-slate-700 mt-16 font-medium">
+                        Em menos de <span class="text-purple-600 font-bold">5 minutos</span>, seu WhatsApp se transforma em um atendente inteligente que trabalha por você 24h por dia.
+                    </p>
+                    <div class="mt-8">
+                        <a
+                            href="#plans"
+                            class="inline-flex items-center justify-center bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold py-4 px-8 rounded-full shadow-lg hover:scale-105 transition-transform"
+                        >
+                            🚀 Criar meu assistente agora
+                        </a>
+                    </div>
+                </div>
+            </section>
+
             <section id="features" class="py-16 px-4 sm:px-6 lg:px-8 bg-white">
                 <div class="max-w-6xl mx-auto space-y-10">
                     <div class="text-center space-y-3">
