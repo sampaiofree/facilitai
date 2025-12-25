@@ -248,12 +248,16 @@ class InstanceController extends Controller
     /**
      * Exclui a instância no Evolution API e no banco de dados local.
      */
-    public function destroy(Instance $instance)
+    public function destroy(Instance $instance) 
     {
         // 1. Segurança: Garante que o usuário só pode excluir suas próprias instâncias
         if ($instance->user_id !== Auth::id()) {
             abort(403, 'Acesso não autorizado.');
         }
+
+        $evolutionService = new EvolutionService();
+        $response = $evolutionService->logoutInstancia((string) $instance->id);
+         
 
         try {
             // 2. Chama a API do Evolution para excluir a instância remotamente
