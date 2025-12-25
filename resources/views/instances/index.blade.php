@@ -177,6 +177,18 @@
                                                 @endif
                                                 
                                                 {{-- Botão Excluir --}}
+                                                <form action="{{ route('instances.logout', $instance->id) }}" method="POST">
+                                                    @csrf
+                                                    <button type="submit"
+                                                        class="flex items-center space-x-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-xs font-semibold"
+                                                        title="Desconectar WhatsApp">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v10m6.364-7.364a9 9 0 11-12.728 0" />
+                                                        </svg>
+                                                        <span>Desconectar</span>
+                                                    </button>
+                                                </form>
+
                                                 <form action="{{ route('instances.destroy', $instance->id) }}" method="POST" data-delete-instance data-chat-count="{{ $instance->chats_count ?? 0 }}">
                                                     @csrf
                                                     @method('DELETE')

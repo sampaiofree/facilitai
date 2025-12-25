@@ -154,10 +154,20 @@ class EvolutionService
         $url = config('services.evolution.url') . "/instance/logout/{$instancia}";
         $apiKey = config('services.evolution.key');
 
+        Log::info('EvolutionService: iniciando logout de instancia', [
+            'instancia' => $instancia,
+            'url' => $url,
+        ]);
+
         try {
             $response = Http::withHeaders(['apiKey' => $apiKey])->delete($url);
 
             if ($response->successful() || $response->notFound()) {
+                Log::info('EvolutionService: logout de instancia concluido', [
+                    'instancia' => $instancia,
+                    'status' => $response->status(),
+                ]);
+
                 $data = $response->json();
                 if (is_array($data)) {
                     return $data;

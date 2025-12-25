@@ -254,9 +254,6 @@ class InstanceController extends Controller
         if ($instance->user_id !== Auth::id()) {
             abort(403, 'Acesso não autorizado.');
         }
-
-        $evolutionService = new EvolutionService();
-        $response = $evolutionService->logoutInstancia((string) $instance->id);
          
 
         try {
@@ -299,6 +296,37 @@ class InstanceController extends Controller
             Log::error("Falha ao excluir a instância {$instance->id}: " . $e->getMessage());
             return redirect()->route('instances.index')->with('error', 'Antes de excluir, desconecte o WhatsApp desta instância.');
         }
+    }
+
+    public function logout(Instance $instance, EvolutionService $evolutionService)
+    {
+        if ($instance->user_id !== Auth::id()) {
+            abort(403, 'Acesso nao autorizado.');
+        }
+
+        Log::info('InstanceController: iniciando logout da instancia', [
+            'instance_id' => $instance->id,
+            'user_id' => Auth::id(),
+        ]);
+
+        $resultado = $evolutionService->logoutInstancia((string) $instance->id);
+
+        if (is_string($resultado)) {
+            Log::warning('InstanceController: falha ao desconectar instancia', [
+                'instance_id' => $instance->id,
+                'user_id' => Auth::id(),
+                'error' => $resultado,
+            ]);
+
+            return redirect()->route('instances.index')->with('error', $resultado);
+        }
+
+        Log::info('InstanceController: logout da instancia concluido', [
+            'instance_id' => $instance->id,
+            'user_id' => Auth::id(),
+        ]);
+
+        return redirect()->route('instances.index')->with('success', 'Conexao desconectada com sucesso.');
     }
 
     public function restart(Instance $instance, EvolutionService $evolutionService)

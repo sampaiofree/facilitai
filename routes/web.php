@@ -183,6 +183,7 @@ Route::middleware('auth', 'verified')->group(function () {
     // Nova rota POST para a criação direta
     Route::post('/instances/create-direct', [InstanceController::class, 'storeDirect'])->name('instances.store_direct');
     Route::post('/instances/{instance}/restart', [InstanceController::class, 'restart'])->name('instances.restart');
+    Route::post('/instances/{instance}/logout', [InstanceController::class, 'logout'])->name('instances.logout');
     // Mantém as outras rotas do resource, mas remove a 'create' que não usamos mais
     Route::resource('instances', InstanceController::class)->except(['create']);
 
