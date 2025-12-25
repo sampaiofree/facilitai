@@ -288,8 +288,22 @@ class InstanceController extends Controller
 
                 return redirect()->route('instances.index')->with('success', 'Conexão e chats excluídos com sucesso.');
             } else {
+                $responseJson = $response->json();
+                Log::error('Evolution delete failed', [
+                    'instance_id' => $instance->id,
+                    'user_id' => Auth::id(),
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'json' => $responseJson,
+                ]);
+
+                $errorPayload = $response->body();
+                if (is_array($responseJson)) {
+                    $errorPayload = json_encode($responseJson);
+                }
+
                 // Se a API do Evolution retornar um erro inesperado
-                throw new \Exception('A API do Evolution retornou um erro: ' . $response->body());
+                throw new \Exception('A API do Evolution retornou um erro: ' . $errorPayload);
             }
 
         } catch (\Exception $e) {

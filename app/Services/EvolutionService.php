@@ -179,19 +179,34 @@ class EvolutionService
                 ];
             }
 
+            $responseJson = $response->json();
             Log::error('EvolutionService: falha ao desconectar instancia', [
                 'instancia' => $instancia,
                 'status' => $response->status(),
                 'body' => $response->body(),
+                'json' => $responseJson,
             ]);
+
+            $errorPayload = $response->body();
+            if ($errorPayload === '' || $errorPayload === null) {
+                if (is_array($responseJson)) {
+                    $errorPayload = json_encode($responseJson);
+                }
+            }
+
+            if ($errorPayload === '' || $errorPayload === null) {
+                $errorPayload = 'status ' . $response->status();
+            }
+
+            return "Erro ao desconectar instancia {$instancia}: {$errorPayload}";
         } catch (\Throwable $e) {
             Log::error('EvolutionService: erro na requisicao de logout', [
                 'instancia' => $instancia,
                 'exception' => $e->getMessage(),
             ]);
-        }
 
-        return "Erro ao desconectar instancia {$instancia}";
+            return "Erro ao desconectar instancia {$instancia}: {$e->getMessage()}";
+        }
     }
 
     /**
