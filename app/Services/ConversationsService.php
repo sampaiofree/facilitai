@@ -473,7 +473,37 @@ class ConversationsService
                     ],
                     'strict' => true,
                 ];
-        }    
+        } 
+        if (str_contains($this->systemPrompt, 'enviar_post')) {
+            $tools[] = [
+                    'type' => 'function',
+                    'name' => 'enviar_post',
+                    'description' => <<<TXT
+                        Use esta ferramenta quando precisar enviar um evento da conversa para um serviço externo via webhook.
+                        TXT,
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'event' => [
+                                'type' => 'string',
+                                'description' => 'Tipo do evento disparado pelo agente'
+                            ],
+                            'url' => [
+                                'type' => 'string',
+                                'description' => 'Endpoint do webhook'
+                            ],
+                            'payload' => [
+                                'type' => 'object',
+                                'description' => 'Dados estruturados do evento'
+                            ],
+                        ],
+                        'required' => ['event', 'url', 'payload'],
+                        'additionalProperties' => false,
+                    ],
+
+                    'strict' => true,
+                ];
+        }   
         if (str_contains($this->systemPrompt, 'buscar_get')) {
             $tools[] = [
                     'type' => 'function',
@@ -1017,7 +1047,71 @@ class ConversationsService
             ];
         }
 
+        if ($functionName === 'enviar_post') {
+            $resultado = $this->enviar_post($arguments);
+
+            return [
+                "type" => "function_call_output",
+                'call_id' => $functionCall['call_id'],
+                'output' => $resultado
+            ];
+        }
+
+
     }
+
+    public function enviar_post(array $arguments)
+    {
+        try {
+            $event = trim($arguments['event'] ?? '');
+            $url = trim($arguments['url'] ?? '');
+            $payload = $arguments['payload'] ?? [];
+
+            if ($event === '' || $url === '' || !is_array($payload)) {
+                return '⚠️ Dados inválidos para envio do evento.';
+            }
+
+            // Segurança básica da URL
+            if (!Str::startsWith($url, ['https://'])) {
+                return '❌ URL do webhook inválida.';
+            }
+
+            // Payload final padronizado
+            $body = [
+                'event' => $event,
+                'source' => 'facilitai',
+                'triggered_at' => now()->toIso8601String(),
+                'conversation_id' => $this->conversationId,
+                'instance_id' => $this->instanceId,
+
+                'contact' => [
+                    'nome' => $this->chat->nome ?? null,
+                    'whatsapp' => $this->numero,
+                ],
+
+                'payload' => $payload,
+            ];
+
+            $response = Http::timeout(5)->post($url, $body);
+
+            Log::info('Webhook enviado', [
+                'event' => $event,
+                'url' => $url,
+                'status' => $response->status(),
+            ]);
+
+            return '✅ Evento enviado com sucesso.';
+
+        } catch (\Throwable $e) {
+            Log::error('Erro ao enviar webhook', [
+                'error' => $e->getMessage(),
+                'arguments' => $arguments,
+            ]);
+
+            return '❌ Erro ao enviar o evento.';
+        }
+    }
+
 
     public function gerenciar_agenda(array $arguments)
     {
