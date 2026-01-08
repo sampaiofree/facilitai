@@ -351,6 +351,12 @@ class InstanceController extends Controller
 
         $resultado = $evolutionService->reiniciarInstancia((string) $instance->id);
 
+        Log::info('InstanceController: restart response', [
+            'instance_id' => $instance->id,
+            'user_id' => Auth::id(),
+            'resultado' => $resultado,
+        ]);
+
         if (is_array($resultado)) {
             return redirect()->route('instances.index')
                 ->with('success', 'Instância reiniciada. Aguarde alguns instantes.');
