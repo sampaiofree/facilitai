@@ -113,6 +113,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::resource('lessons', AdminLessonController::class)->except(['show']);
     Route::get('/webhook-requests', [WebhookRequestController::class, 'index'])->name('webhook-requests.index');
     Route::delete('/webhook-requests', [WebhookRequestController::class, 'destroyAll'])->name('webhook-requests.destroyAll');
+    Route::delete('/webhook-requests/{webhookRequest}', [WebhookRequestController::class, 'destroy'])->name('webhook-requests.destroy');
     Route::get('/system-error-logs', [SystemErrorLogController::class, 'index'])->name('system-error-logs.index');
 
 });

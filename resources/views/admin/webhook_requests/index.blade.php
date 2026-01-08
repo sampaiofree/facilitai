@@ -46,15 +46,17 @@
                             Filtrar
                         </button>
                         <a href="{{ route('admin.webhook-requests.index') }}" class="text-sm text-gray-600 hover:text-gray-800">Limpar</a>
-                        <form method="POST" action="{{ route('admin.webhook-requests.destroyAll') }}" onsubmit="return confirm('Tem certeza que deseja excluir todos os logs?');">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-500 active:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition ease-in-out duration-150">
-                                Excluir todos
-                            </button>
-                        </form>
                     </div>
                 </form>
+                <div class="mt-4 flex justify-end">
+                    <form method="POST" action="{{ route('admin.webhook-requests.destroyAll') }}" onsubmit="return confirm('Tem certeza que deseja excluir todos os logs?');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-500 active:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition ease-in-out duration-150">
+                            Excluir todos
+                        </button>
+                    </form>
+                </div>
             </div>
 
             <div class="bg-white shadow-sm sm:rounded-lg p-6">
@@ -70,6 +72,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event ID</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Texto</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payload</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200 text-sm text-gray-700">
@@ -93,10 +96,19 @@
                                             <pre class="mt-2 bg-gray-50 p-2 rounded border overflow-x-auto">{{ json_encode($log->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) }}</pre>
                                         </details>
                                     </td>
+                                    <td class="px-4 py-3 whitespace-nowrap">
+                                        <form method="POST" action="{{ route('admin.webhook-requests.destroy', $log) }}" onsubmit="return confirm('Excluir este registro?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="inline-flex items-center px-3 py-1 bg-red-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-500 active:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition ease-in-out duration-150">
+                                                Excluir
+                                            </button>
+                                        </form>
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-4 py-6 text-center text-gray-500">Nenhum registro encontrado.</td>
+                                    <td colspan="9" class="px-4 py-6 text-center text-gray-500">Nenhum registro encontrado.</td>
                                 </tr>
                             @endforelse
                         </tbody>

@@ -48,4 +48,13 @@ class WebhookRequestController extends Controller
             ->route('admin.webhook-requests.index')
             ->with('success', 'Logs de webhook removidos com sucesso.');
     }
+
+    public function destroy(WebhookRequest $webhookRequest)
+    {
+        $webhookRequest->delete();
+
+        return redirect()
+            ->route('admin.webhook-requests.index')
+            ->with('success', 'Registro de webhook removido com sucesso.');
+    }
 }
