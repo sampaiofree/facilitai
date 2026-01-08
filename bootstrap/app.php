@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
             require __DIR__ . '/../app/Schedules/contatar_empresas.php',
             require __DIR__ . '/../app/Schedules/process_sequences.php',
             require __DIR__ . '/../app/Schedules/process_agenda_reminders.php',
+            require __DIR__ . '/../app/Schedules/restart_instances.php',
         ];
     })
     ->withMiddleware(function (Middleware $middleware): void {
