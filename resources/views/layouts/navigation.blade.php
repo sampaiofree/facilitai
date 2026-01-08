@@ -27,6 +27,7 @@
         $ferramentas[] = ['label' => 'Aulas (Admin)', 'route' => 'admin.lessons.index', 'highlight' => true];
         $ferramentas[] = ['label' => 'Proxy Ban', 'route' => 'proxy-ban.index', 'highlight' => true];
         $ferramentas[] = ['label' => 'Logs Webhook', 'route' => 'admin.webhook-requests.index', 'highlight' => true];
+        $ferramentas[] = ['label' => 'Logs Erros', 'route' => 'admin.system-error-logs.index', 'highlight' => true];
         $ferramentas[] = ['label' => 'Instâncias (Admin)', 'route' => 'admin.instances.index'];
     }
     

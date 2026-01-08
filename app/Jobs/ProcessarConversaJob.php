@@ -39,12 +39,7 @@ class ProcessarConversaJob implements ShouldQueue
 
         SendPresenceJob::dispatch($this->instanceName, $this->contactNumber, 'composing');
 
-        Log::info('processar_conversa.start', [
-            'instance' => $this->instanceName,
-            'contact' => $this->contactNumber,
-            'chars' => strlen((string)$this->messageText),
-            'preview' => mb_substr((string)$this->messageText, 0, 200),
-        ]);
+        
 
         $open = new ConversationsService(
             $this->messageText,
@@ -53,7 +48,7 @@ class ProcessarConversaJob implements ShouldQueue
         );
 
         if(!$open->ready) {
-            Log::info('Job finalizado sem erro (soft-abort).');
+            
             return; // ✅ processado com sucesso, sem falha
         }
         

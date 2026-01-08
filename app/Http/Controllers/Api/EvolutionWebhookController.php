@@ -67,13 +67,13 @@ class EvolutionWebhookController extends Controller
 
         //VERIFICAR SE MENSAGEM VEIO DE GRUPO OU NÃO
         if (str_ends_with($remoteJid, '@g.us')) {
-            Log::info("Webhook ignorado mensagem_de_grupo.");
+            
             return response()->json(['status' => 'ignored', 'reason' => 'mensagem_de_grupo']);
         }
 
         // Validação inicial: se não tiver os dados mínimos, ignora.
         if (!$instanceName || !$remoteJid || is_null($fromMe)) {
-            Log::info("Webhook ignorado (dados essenciais ausentes).", $request->all());
+            
             // Retornamos 200 OK para o Evolution não tentar reenviar.
             return response()->json(['status' => 'ignored', 'reason' => 'missing_data']);
         }
@@ -82,10 +82,10 @@ class EvolutionWebhookController extends Controller
         // REGRA DE NEGÓCIO 1: IGNORAR MENSAGENS ENVIADAS PELA PRÓPRIA INSTÂNCIA
         // ===================================================================
         str($fromMe);
-        Log::info("fromMe é ".str($fromMe));
+        
         if ($fromMe === true) { //MENSAGEM DO PRÓPRIO ADM
 
-            Log::info("Webhook ignorado (fromMe é true) para a instância {$instanceName}.");
+            
             
             //FALTA REGISTRAR BOT COMO FALSO CASO EXISTA UM REGISTRO
             if(isset($chat->bot_enabled) AND $chat->bot_enabled){$chat->bot_enabled = 0;$chat->save();}
@@ -103,7 +103,7 @@ class EvolutionWebhookController extends Controller
 
         // Se um chat existe E o bot_enabled é false, ignora.
         if (isset($chat->bot_enabled) and !$chat->bot_enabled) {
-            Log::info("Webhook ignorado (bot desativado) para o contato {$contactNumber} na instância {$instanceName}.");
+            
             return response()->json(['status' => 'ignored', 'reason' => 'bot_disabled']);
         }
 
@@ -114,7 +114,7 @@ class EvolutionWebhookController extends Controller
        
 
         if (!$instance) {
-            Log::warning("Webhook recebido para uma instância desconhecida: {$instanceName}");
+            
             return response()->json(['error' => 'Instance not found'], 404);
         }
 
@@ -122,7 +122,7 @@ class EvolutionWebhookController extends Controller
         $assistantId = $instance->default_assistant_id;
 
         if (!$assistantId) {
-            Log::warning("Instância {$instanceName} não possui um assistente vinculado. Mensagem ignorada.");
+            
             return response()->json(['status' => 'ignored', 'reason' => 'no_assistant_linked']);
         }
         
@@ -134,11 +134,7 @@ class EvolutionWebhookController extends Controller
         
         $threadId = $chat->thread_id ?? null;
 
-        Log::info("VALIDAÇÃO CONCLUÍDA: A mensagem do contato {$contactNumber} para a instância {$instanceName} será enviada para o Job.", [
-            'assistant_id' => $assistantId,
-            'thread_id' => $threadId,
-            'message' => $messageText
-        ]);
+        
 
         // Despacha o Job para a fila, passando apenas os dados essenciais
         ProcessWebhookJob::dispatch(
@@ -171,7 +167,7 @@ class EvolutionWebhookController extends Controller
         $messageTimestamp = $request->input('data.messageTimestamp');
         $messageType = $data['messageType'] ?? null;
 
-        try {
+        /*try {
             WebhookRequest::create([
                 'instance_id' => $instanceName,
                 'remote_jid' => $remoteJid,
@@ -184,8 +180,8 @@ class EvolutionWebhookController extends Controller
                 'payload' => $request->all(),
             ]);
         } catch (\Throwable $e) {
-            Log::warning('webhook_request_log_failed', ['error' => $e->getMessage()]);
-        }
+            
+        }*/
 
         //VERIFICAR SE MENSAGEM VEIO DE GRUPO OU NAO
         if (str_ends_with((string) $remoteJid, '@g.us')) { return true; }
@@ -195,13 +191,13 @@ class EvolutionWebhookController extends Controller
         //BUSCAR INSTANCIA
         $instance = Instance::where('id', $instanceName)->first(); 
         if(isset($data['messageType']) AND $data['messageType']=='reactionMessage'){
-            //Log::warning("reacao");
+            
             return true;
         }
 
         //NUMERO INVÁLIDO
         if(!$contactNumber){
-            Log::warning("Numero do contato nao pode ser determinado.");
+            
             return response()->json(['status' => 'ignored', 'reason' => 'invalid_contact_number']);
         }
 
@@ -217,17 +213,12 @@ class EvolutionWebhookController extends Controller
         ]));
         $dedupKey = "webhook:conv:{$instanceName}:{$dedupKeySeed}";
         if (!Cache::add($dedupKey, true, now()->addMinutes(10))) {
-            Log::info('conv.duplicate_skip', [
-                'instance' => $instanceName,
-                'contact' => $contactNumber,
-                'event_id' => $eventId,
-                'message_timestamp' => $messageTimestamp,
-            ]);
+            
             return true;
         }
 
         if (!$instance or $instance->default_assistant_id===null) {
-            Log::warning("Instancia {$instanceName} nao encontrada ou sem assistente vinculado.");
+            
             return response()->json(['status' => 'ignored', 'reason' => 'instance_not_found']);
         }
         
@@ -286,7 +277,7 @@ class EvolutionWebhookController extends Controller
         // ===================================================================
         // REGRA DE NEGOCIO 2: IGNORAR MENSAGENS com bot_enabled FALSE
         // ===================================================================
-        if (isset($chat->bot_enabled) and !$chat->bot_enabled) {Log::info("return true"); return true;}
+        if (isset($chat->bot_enabled) and !$chat->bot_enabled) { return true;}
 
         // ===================================================================
         // PROCESSAMENTO DA MENSAGEM COM DEBOUNCE
@@ -296,21 +287,14 @@ class EvolutionWebhookController extends Controller
 
         // Se nao é texto (ex.: midia), processa imediatamente
         if (empty($messageText)) {
-            Log::info('conv.media_immediate', [
-                'instance' => $instanceName,
-                'contact' => $contactNumber,
-                'message_type' => $data['messageType'] ?? 'media',
-            ]);
+            
             ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data);
             return true;
         }
 
         // Tenta usar cache para debounce; se indisponivel, processa direto
         if (!$this->cacheDisponivel()) {
-            Log::warning('conv.debounce_fallback_no_cache', [
-                'instance' => $instanceName,
-                'contact' => $contactNumber,
-            ]);
+            
             ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data);
             return true;
         }
@@ -331,13 +315,7 @@ class EvolutionWebhookController extends Controller
             $buffer['data'] = $data; // mantem dados da ultima mensagem
         }
 
-        Log::info('conv.buffer_update', [
-            'instance' => $instanceName,
-            'contact' => $contactNumber,
-            'messages' => count($buffer['messages']),
-            'started_at' => $buffer['started_at'],
-            'last_at' => $buffer['last_at'],
-        ]);
+        
 
 // TTL curto para evitar vazar cache (120s)
         Cache::put($cacheKey, $buffer, now()->addSeconds(120));
@@ -346,11 +324,7 @@ class EvolutionWebhookController extends Controller
         DebounceConversationJob::dispatch($cacheKey, $contactNumber, $instanceName, 7, 40)
             ->delay(now()->addSeconds(5));
 
-        Log::info('conv.debounce_scheduled', [
-            'instance' => $instanceName,
-            'contact' => $contactNumber,
-            'messages' => count($buffer['messages']),
-        ]);
+        
 
         
         /*
@@ -389,7 +363,7 @@ class EvolutionWebhookController extends Controller
             Cache::forget($key);
             return true;
         } catch (\Throwable $e) {
-            Log::warning('Cache indisponivel para debounce, processando direto.', ['erro' => $e->getMessage()]);
+            
             return false;
         }
     }

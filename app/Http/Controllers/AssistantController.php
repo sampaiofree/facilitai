@@ -41,22 +41,7 @@ class AssistantController extends Controller
     }
 
     // Busca a lista de assistentes de uma credencial específica
-    /*public function fetchAssistants(Request $request)
-    {
-        $validated = $request->validate(['credential_id' => 'required|integer']);
-        $credential = Credential::where('id', $validated['credential_id'])
-                                ->where('user_id', Auth::id())
-                                ->firstOrFail();
-
-        try {
-            $openaiService = new OpenAIService($credential->token);
-            $assistants = $openaiService->listAssistants();
-            return response()->json($assistants);
-        } catch (\Exception $e) {
-            Log::error("Falha ao buscar assistentes para a credencial ID {$credential->id}: " . $e->getMessage());
-            return response()->json(['error' => 'Não foi possível buscar os assistentes.'], 500);
-        }
-    }*/
+    
 
 
     public function store(Request $request)
@@ -359,13 +344,13 @@ class AssistantController extends Controller
 
 
         // 2. Usar o PromptBuilderService para construir as instruções
-        Log::info('Iniciando construção do prompt a partir do quiz.');
+        
         $promptBuilder = new PromptBuilderService();
         
         $instructions = $promptBuilder->build($validated);
         
         // Log para depuração - veja o prompt gerado!
-        Log::debug('Prompt gerado pelo Builder: ' . $instructions);
+        
 
         //dd($credential->user_id); exit;
         // Segurança: Garante que a credencial pertence ao usuário logado
@@ -446,7 +431,7 @@ class AssistantController extends Controller
             //Chat::where('assistant_id', (string)$assistant->id)->delete();
             //Chat::where('assistant_id', (string)$assistant->id)->update(['conv_id' => null]);
 
-            //Log::info("Assistente ID {$assistant->id} atualizado localmente e na OpenAI pelo usuário " . Auth::id());
+            
             
             return redirect()->route('assistants.index')->with('success', 'Assistente atualizado com sucesso!');
 

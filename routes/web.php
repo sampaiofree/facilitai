@@ -27,6 +27,7 @@ use App\Http\Controllers\LessonPublicController;
 use App\Http\Controllers\ProxyBanController;
 use App\Http\Controllers\Admin\WebhookRequestController;
 use App\Http\Controllers\Admin\InstanceReportController;
+use App\Http\Controllers\Admin\SystemErrorLogController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
@@ -111,6 +112,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/instances', [InstanceReportController::class, 'index'])->name('instances.index');
     Route::resource('lessons', AdminLessonController::class)->except(['show']);
     Route::get('/webhook-requests', [WebhookRequestController::class, 'index'])->name('webhook-requests.index');
+    Route::delete('/webhook-requests', [WebhookRequestController::class, 'destroyAll'])->name('webhook-requests.destroyAll');
+    Route::get('/system-error-logs', [SystemErrorLogController::class, 'index'])->name('system-error-logs.index');
 
 });
 

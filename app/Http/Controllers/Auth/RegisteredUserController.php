@@ -93,10 +93,7 @@ class RegisteredUserController extends Controller
 
             if ($asaasCustomer && isset($asaasCustomer['id'])) {
                 $asaasCustomerId = $asaasCustomer['id'];
-                Log::info('Cliente Asaas criado com sucesso:', [
-                    'customer_id' => $asaasCustomerId,
-                    'email' => $validated['email']
-                ]);
+                
             }
 
         } catch (\Exception $e) {

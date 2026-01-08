@@ -42,7 +42,7 @@ class ProcessBufferedMessagesJob implements ShouldQueue
         Cache::forget($jobKey);
 
         if (empty($mensagens)) {
-            //Log::info("Nenhuma mensagem no buffer para o chat {$this->chat->thread_id}");
+            
             return;
         }
 
@@ -57,7 +57,7 @@ class ProcessBufferedMessagesJob implements ShouldQueue
         }
 
         $conteudoFinal = implode("\n", $conteudosInterpretados);
-        //Log::info("Mensagens consolidadas para thread {$this->chat->thread_id}");
+        
 
         $result = $openai->processMessage($this->assistantId, $this->chat->thread_id, $conteudoFinal, $this->instance->id, $this->chat->contact);
 
@@ -77,16 +77,16 @@ class ProcessBufferedMessagesJob implements ShouldQueue
                 'text' => $resposta,
             ];
 
-            //Log::info("InstanceController:73 | URL usada para envio:", ['url' => $url]);
-            //Log::info("InstanceController:74 | Payload enviado:", $payload);
-            //Log::info("InstanceController:75 | Enviando resposta consolidada para {$this->chat->contact}: {$resposta}");
+            
+            
+            
 
             $response = Http::withHeaders([
                 'apiKey' => config('services.evolution.key')
             ])->post($url, $payload);
 
             // Loga o status e o corpo completo da resposta
-            //Log::info('InstanceController:88 '. $response);
+            
             
         }
     }
@@ -105,7 +105,7 @@ class ProcessBufferedMessagesJob implements ShouldQueue
             $caption = $data['imageMessage']['caption'] ?? '';
             $base64 = $data['base64'] ?? null;
 
-            //Log::info('InstanceController:99 ', $data);
+            
 
             if ($base64) {
                 try {

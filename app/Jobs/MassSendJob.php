@@ -36,20 +36,20 @@ class MassSendJob implements ShouldQueue
         $contato = MassContact::find($this->contactId);
 
         if (!$contato) {
-            Log::warning("MassSendJob: contato não encontrado ID {$this->contactId}");
+            
             return;
         }
 
         $campanha = $contato->campaign;
 
         if (!$campanha) {
-            Log::warning("MassSendJob: campanha não encontrada para contato {$contato->id}");
+            
             return;
         }
 
         // Se a campanha foi pausada ou encerrada, cancela o envio
         if (in_array($campanha->status, ['pausado', 'concluido'])) {
-            Log::info("MassSendJob: campanha pausada ou concluída ({$campanha->id}), cancelando envio");
+            
             return;
         }
 

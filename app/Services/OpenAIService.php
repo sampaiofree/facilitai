@@ -32,7 +32,7 @@ class OpenAIService
             throw new \Exception("A chave de API da OpenAI não foi fornecida ou configurada.");
         }
 
-       //Log::info("🔐 OpenAIService instanciado com uma chave de API.");
+       
         
         // 3. USA A PROPRIEDADE ARMAZENADA PARA CRIAR O CLIENTE
         $this->client = \OpenAI::client($this->apiKey);
@@ -45,10 +45,10 @@ class OpenAIService
 
         if (!empty($threadId)) {
             $tokens = (int) $this->contarTokensEstimadoDoThread($threadId);
-           //Log::info("OpenAIService:45", ['thread_id' => $threadId, 'tokens' => $tokens]);
+           
 
             if ($tokens > 100000) {
-               //Log::info("Thread muito longa ({$tokens} tokens). Criando nova.");
+               
                 $threadId = null;
             }
         }
@@ -59,13 +59,13 @@ class OpenAIService
         if (is_null($threadId)) {
             $thread = $this->client->threads()->create([]);
             $threadId = $thread->id;
-           //Log::info("Novo thread criado: {$threadId}");
+           
         }
 
         // BLOQUEIA processamento concorrente por thread_id
         return Cache::lock("thread_lock_{$threadId}", 60)->block(10, function () use ($assistantId, $threadId, $userMessage) {
 
-           //Log::info("Thread {$threadId} bloqueado com sucesso via lock. Iniciando processamento...");
+           
 
             // Aguarda Run anterior (se existir) finalizar
             $this->aguardarRunFinalizar($threadId);
@@ -87,7 +87,7 @@ class OpenAIService
 
     public function createThread(): string
     {
-       //Log::info("Criando um novo thread na OpenAI.");
+       
         $thread = $this->client->threads()->create([]);
         return $thread->id;
     }
@@ -155,11 +155,11 @@ class OpenAIService
                     'content' => $mensagem,
                 ]);
 
-               //Log::info("Mensagem '{$mensagem}' adicionada ao thread {$threadId}.");
+               
                 return; // deu certo, sai da função
             } catch (\Exception $e) {
                 $tentativas++;
-                Log::warning("Tentativa {$tentativas} falhou ao adicionar mensagem no thread {$threadId}: " . $e->getMessage());
+                
 
                 if ($tentativas >= $maxTentativas) {
                     Log::error("OpenAIService:150 - Erro definitivo ao adicionar mensagem no thread {$threadId} após {$tentativas} tentativas.");
@@ -179,7 +179,7 @@ class OpenAIService
 
         while ($tentativas < $maxTentativas) {
             $tentativas++;
-           //Log::info("Criando Run (tentativa {$tentativas}) para thread {$threadId}");
+           
 
             $run = $this->client->threads()->runs()->create($threadId, [
                 'assistant_id' => $assistantId,
@@ -189,7 +189,7 @@ class OpenAIService
                 
                 if ($run->status === 'requires_action') {
                     //if($this->contact=='5562995772922' OR $this->contact=='556295772922'){dd($run);}
-                    //Log::info('run:', $run);
+                    
                     $tool_outputs = $this->executar_functions($run->toArray());
                     $this->submit_outputs($run->id, $run->threadId, $tool_outputs);
                 }
@@ -200,15 +200,15 @@ class OpenAIService
             }
 
             if ($run->status === 'completed') {
-               //Log::info("Run {$run->id} concluído com sucesso.");
+               
                 return $run;
             }
 
-            Log::warning("Run {$run->id} falhou com status: {$run->status}. Nova tentativa em 5s...");
+            
             sleep(2);
         }
 
-        Log::warning("Não foi possível concluir um Run após {$maxTentativas} tentativas.");
+        
         throw new \Exception("Não foi possível concluir um Run após {$maxTentativas} tentativas.");
     }
 
@@ -218,7 +218,7 @@ class OpenAIService
 
         foreach($run['required_action']['submit_tool_outputs']['tool_calls'] as $function){
 
-            Log::info('Tool call:', (array)$function);
+            
             
             $name = $function['function']['name'];
             $arguments = $function['function']['arguments'] ?? null;
@@ -300,7 +300,7 @@ class OpenAIService
             $limiteCaracteres = 200000;
             $textoLimitado = mb_substr($textoLimpo, 0, $limiteCaracteres);
 
-            //Log::info('openaiservice:216:', $textoLimitado);
+            
 
             //dd($textoLimitado);
             return $textoLimitado;
@@ -358,7 +358,7 @@ class OpenAIService
             'order' => 'desc'
         ]);
 
-       //Log::info('Estrutura completa da resposta de mensagens da OpenAI:', $messages->toArray());
+       
 
         $resposta = collect($messages->data)
             ->firstWhere('role', 'assistant')
@@ -378,7 +378,7 @@ class OpenAIService
             'order' => 'desc'
         ]);
 
-       //Log::info('Estrutura completa da resposta de mensagens da OpenAI:', $messages->toArray());
+       
 
         $resposta = collect($messages->data)
             ->firstWhere('role', 'user')
@@ -442,10 +442,10 @@ public function transcreverAudioBase64(string $base64, string $filename = 'audio
 
         // 1. Salva o áudio original recebido do Evolution
         file_put_contents($originalAudioPath, base64_decode($base64));
-       //Log::info("Áudio original salvo em: {$originalAudioPath}");
+       
 
         // 2. Converte o áudio para MP3 usando FFmpeg
-       //Log::info("Iniciando conversão de {$originalAudioPath} para {$convertedAudioPath}...");
+       
         
         // Usa o Facade 'Process' do Laravel para executar o comando de forma segura
         $result = Process::run("ffmpeg -i {$originalAudioPath} -acodec libmp3lame -q:a 2 {$convertedAudioPath} -y");
@@ -460,7 +460,7 @@ public function transcreverAudioBase64(string $base64, string $filename = 'audio
             throw new \Exception('Falha ao converter o arquivo de áudio com FFmpeg.');
         }
 
-       //Log::info("Conversão para MP3 concluída com sucesso.");
+       
 
         // 3. Faz a transcrição usando o arquivo MP3 convertido
         $response = $this->client->audio()->transcribe([
@@ -483,13 +483,13 @@ public function transcreverAudioBase64(string $base64, string $filename = 'audio
         if (file_exists($convertedAudioPath)) {
             unlink($convertedAudioPath);
         }
-       //Log::info("Arquivos de áudio temporários limpos.");
+       
     }
 }
 
     public function listAssistants(): array
     {
-       //Log::info("Buscando lista de assistentes na OpenAI.");
+       
         try {
             // O pacote lida com a paginação básica por padrão.
             // O 'data' contém o array de assistentes.
@@ -503,7 +503,7 @@ public function transcreverAudioBase64(string $base64, string $filename = 'audio
     
     public function createAssistant(string $name, string $instructions): \OpenAI\Responses\Assistants\AssistantResponse
     {
-       //Log::info("Iniciando criação de assistente na OpenAI com o nome: {$name}");
+       
 
         try {
             // Usamos o cliente do pacote para criar o assistente
@@ -571,7 +571,7 @@ public function transcreverAudioBase64(string $base64, string $filename = 'audio
             ],
             ]);
 
-           //Log::info("Assistente criado com sucesso na OpenAI. ID: {$assistant->id}");
+           
 
             return $assistant;
 
@@ -590,21 +590,7 @@ public function transcreverAudioBase64(string $base64, string $filename = 'audio
      * @param array $data Os dados a serem atualizados (ex: ['name' => 'Novo Nome', 'instructions' => '...']).
      * @return \OpenAI\Responses\Assistants\AssistantResponse O objeto do assistente atualizado.
      */
-    /*public function updateAssistant(string $assistantId, array $data): \OpenAI\Responses\Assistants\AssistantResponse
-    {
-       //Log::info("Iniciando atualização do assistente ID {$assistantId} na OpenAI.");
-        try {
-            // O pacote usa o método 'modify' para atualizações.
-            $assistant = $this->client->assistants()->modify($assistantId, $data);
-            
-           //Log::info("Assistente {$assistantId} atualizado com sucesso na OpenAI.");
-            return $assistant;
-
-        } catch (\Exception $e) {
-            Log::error("OpenAIService:472 - Falha na API da OpenAI ao atualizar assistente {$assistantId}: " . $e->getMessage());
-            throw $e;
-        }
-    }*/
+    
 
    public function contarTokensEstimadoDoThread(string $threadId): int
     {

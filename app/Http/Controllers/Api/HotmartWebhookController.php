@@ -25,7 +25,7 @@ class HotmartWebhookController extends Controller
 
         //return response()->json(['message' => 'Teste OK'], 200);
         // Logar payload recebido
-        //Log::info('🚨 Webhook Hotmart recebido:', $request->all());
+        
 
         echo "-1-";
         // Validação manual (sem redirect)
@@ -42,7 +42,7 @@ class HotmartWebhookController extends Controller
         echo "-2-";
 
         if ($validator->fails()) {
-            Log::warning('❌ Webhook Hotmart inválido', $validator->errors()->toArray());
+            
             return response()->json([
                 'message' => 'Invalid payload',
                 'errors' => $validator->errors(),
@@ -80,7 +80,7 @@ class HotmartWebhookController extends Controller
                 $dataToStore
             );
 
-            Log::info("✅ Webhook Hotmart processado com sucesso para transação: {$transaction}");
+            
 
             //ADICIONAR OS BONUS
             $tokensBonus = new TokenBonusService; 

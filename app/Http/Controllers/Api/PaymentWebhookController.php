@@ -49,7 +49,7 @@ class PaymentWebhookController extends Controller
         $webhookData = $request->all();
 
         // Para depuração, é bom logar o payload completo
-        Log::info('Webhook Asaas recebido:', $webhookData);
+        
 
         try {
             // Extrai os dados do payload

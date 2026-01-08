@@ -39,4 +39,13 @@ class WebhookRequestController extends Controller
             'filters' => $request->only(['instance_id', 'contact', 'message_type', 'from_me', 'event_id']),
         ]);
     }
+
+    public function destroyAll()
+    {
+        WebhookRequest::query()->delete();
+
+        return redirect()
+            ->route('admin.webhook-requests.index')
+            ->with('success', 'Logs de webhook removidos com sucesso.');
+    }
 }

@@ -51,21 +51,21 @@ class TokenBonusService
 
         // Verifica se o usuário já está registrado no sistema
         if (!$user) {
-            Log::info("⏳ Usuário ainda não registrado na plataforma para a transação {$hotmart->transaction}");
+            
             return;
         }
 
         // Se o evento NÃO for de aprovação, apaga bônus dessa transação
         if (!in_array($hotmart->event, ['PURCHASE_APPROVED', 'PURCHASE_COMPLETE'])) {
             $apagados = TokenBonus::where('hotmart', $hotmart->transaction)->delete();
-            Log::info("🧹 Evento {$hotmart->event} → apagados {$apagados} bônus da transação {$hotmart->transaction}");
+            
             return;
         }
 
         // Verifica se já existem 12 registros de bônus para esta transação
         $bonusCount = TokenBonus::where('hotmart', $hotmart->transaction)->count();
         if ($bonusCount >= 12) {
-            Log::info("🔁 Bônus já existentes para transação {$hotmart->transaction}, ignorado.");
+            
             return;
         }
 
@@ -110,7 +110,7 @@ class TokenBonusService
         $tokensPorMes = $mapaDeTokens[$hotmart->offer_code] ?? null;
 
         if (!$tokensPorMes) {
-            Log::warning("⚠️ Offer code desconhecido: {$hotmart->offer_code} na transação {$hotmart->transaction}");
+            
             return;
         }
 
@@ -132,45 +132,7 @@ class TokenBonusService
         
 
         // Se for o plano mensal qgwj4ldg → apenas 1 bônus
-        /*if ($hotmart->offer_code === 'qgwj4ldg' OR $hotmart->offer_code === '4x3odbtt') {
-            $inicio = Carbon::now()->startOfDay();
-            $fim = (clone $inicio)->addDays(30);
-
-            TokenBonus::create([
-                'user_id'     => $user->id,
-                'tokens'      => $tokensPorMes,
-                'informacoes' => "Bônus mensal - Plano {$hotmart->offer_code}",
-                'inicio'      => $inicio,
-                'fim'         => $fim,
-                'hotmart'     => $hotmart->transaction,
-            ]);
-
-            Log::info("🎁 1 bônus mensal gerado para {$user->email} - Plano {$hotmart->offer_code} - Transação {$hotmart->transaction}");
-            return;
-        }
-
-        //PLANO SEMESTRAL
-        if ($hotmart->offer_code === 'cyvxmia3') {
-
-            for ($i = 0; $i < 6; $i++) {
-                $inicio = Carbon::now()->addMonths($i)->startOfDay();
-                $fim    = (clone $inicio)->addDays(30);
-                $mes = $i + 1;
-
-                TokenBonus::create([
-                    'user_id'     => $user->id,
-                    'tokens'      => $tokensPorMes,
-                    'informacoes' => "Bônus {$mes}/6 - Plano {$hotmart->offer_code}",
-                    'inicio'      => $inicio,
-                    'fim'         => $fim,
-                    'hotmart'     => $hotmart->transaction,
-                ]);
-            }
-
-            Log::info("🎁 12 bônus mensais gerados para {$user->email} - Plano {$hotmart->offer_code} - Transação {$hotmart->transaction}");
-            return;
-
-        }*/
+        
 
         // Cria 12 registros de bônus mensais
         for ($i = 0; $i < 12; $i++) {
@@ -188,7 +150,7 @@ class TokenBonusService
             ]);
         }
 
-        Log::info("🎁 12 bônus mensais gerados para {$user->email} - Plano {$hotmart->offer_code} - Transação {$hotmart->transaction}");
+        
         return;
     }
 

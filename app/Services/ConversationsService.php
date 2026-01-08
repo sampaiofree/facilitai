@@ -25,6 +25,7 @@ use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\Agenda;
 use App\Models\AgendaReminder;
+use App\Models\SystemErrorLog;
 use Carbon\Carbon;
 
 class ConversationsService
@@ -67,7 +68,7 @@ class ConversationsService
                 } else {
                     //CHAMAR MÉTODO PARA VERIFICAR TOKENS DO USER
                     if (!$this->verificarTokens()) {
-                        Log::warning("Usuário: {$this->instance->user_id} não possui tokens");
+                        
                         $this->ready = false;
                         $this->enviar_mensagemEVO("Seus tokens acabaram! Para não interromper seus atendimentos, acesse o Dashboard e compre mais agora mesmo.", $this->instance->user->mobile_phone);
                     }else{
@@ -108,7 +109,7 @@ class ConversationsService
                 }
 
             }else {
-                Log::warning("Instância não encontrada com ID: {$instanceId}");
+                
                 $this->notificarDEV("ConversationsService49: Instância não encontrada com ID: {$instanceId}");
                 $this->ready = false;
             }
@@ -139,7 +140,7 @@ class ConversationsService
     {
         // 1. Validação: Garante que um assistente foi encontrado no construtor
         if (!$this->assistant OR !$this->apiKey) {
-            Log::warning("Conversarion105: Nenhum assistente válido encontrado para a instância ID: {$this->instanceId}");
+            
             return;
         }
 
@@ -178,13 +179,13 @@ class ConversationsService
         //falha    
         if ($response->failed()) {
             $this->notificarDEV("ConversationsService 95: ".json_encode($response->body()));
-            Log::warning("Erro ao criar conversa na API: " . $response->body());
+            
             return;
         }else{
             $convId = $response->json()['id'] ?? null;
             if (!$convId) {
                 $this->notificarDEV("ConversationsService 100: createConversation não retornou ID");
-                Log::warning("API não retornou ID da conversa."); return;
+                 return;
             }
 
             $this->conversationId = (string)$convId;
@@ -247,7 +248,7 @@ class ConversationsService
     public function enviarMSG(){
 
         if (!$this->apiKey) {
-            Log::warning("apiKey inválida, usuário sem Tokens"); return;
+             return;
         }
 
         if($this->msg){
@@ -270,7 +271,7 @@ class ConversationsService
     public function evolution($data){
 
         if (!$this->apiKey) {
-            Log::warning("apiKey inválida, usuário sem Tokens"); return;
+             return;
         }
 
         $messageType = $data['messageType']; //"messageType": "conversation" / "messageType": "audioMessage" / "messageType": "imageMessage", /"messageType": "documentMessage",
@@ -293,7 +294,7 @@ class ConversationsService
                 'content' => $this->transcreverAudio($messageData['base64']),
             ];
 
-            //Log::info("Request: " , $input); 
+            
         }elseif($messageType == 'imageMessage'){
             $base64 = $messageData['base64'] ?? null;
             $input[] = [
@@ -328,9 +329,9 @@ class ConversationsService
 
         }
 
-        //Log::info("Request: " . json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); 
+        
         $modelo = $this->instance?->model ?? 'gpt-4.1-mini';
-        Log::info("modelo: " . $modelo);
+        
         $this->createResponse($input, $modelo);
     }
     
@@ -348,7 +349,7 @@ class ConversationsService
         $tools = [];
         if (!$this->apiKey) {
             
-            Log::warning("apiKey inválida, usuário sem Tokens"); return;
+             return;
         }
 
         // Determina o ID da conversa
@@ -393,10 +394,7 @@ class ConversationsService
                     $sequencesInfo = 'Sequências ativas: ' . $seqs->implode(', ');
                 }
             } catch (\Throwable $e) {
-                Log::warning('ConversationsService: falha ao carregar tags/sequências do chat', [
-                    'chat_id' => $this->chat->id ?? null,
-                    'error' => $e->getMessage(),
-                ]);
+                
             }
         }
 
@@ -722,62 +720,7 @@ class ConversationsService
 
 
         // 4. Faz a chamada para a API
-        /*$response = Http::withToken($this->apiKey)->post("{$this->baseUrl}/responses", $payload);
         
-
-        if ($response->failed()) {
-            Log::info('Erro API Responser 299', [$response->json()]); 
-            sleep(40); // Espera 40 segundos antes de tentar novamente
-            $response = Http::withToken($this->apiKey)->post("{$this->baseUrl}/responses", $payload);
-
-            // Se ainda falhar, registra o erro e notifica o desenvolvedor
-            if ($response->failed()) {
-                Log::error('Erro ao criar response na API', [
-                    'status' => $response->status(),
-                    'body'   => $response->body(),
-                    'url'    => $response->effectiveUri() ?? null, // se quiser registrar a URL chamada
-                ]);
-
-                $this->notificarDEV("ConsersationService 255: ".json_encode($response->body()));
-                Log::warning("Erro ao criar response na API: " . $response->body()); return;
-            }
-        }
-
-        //4
-        $maxTentativas = 3;
-        $tentativa = 0;
-
-        do {
-            $tentativa++;
-            $response = Http::withToken($this->apiKey)->post("{$this->baseUrl}/responses", $payload);
-
-            if ($response->successful()) {
-                break; // Sai do loop se deu certo
-            }
-
-            $erro = $response->json()['error']['code'] ?? null;
-
-            // Se for erro de conversa bloqueada, aguarda e tenta novamente
-            if ($erro === 'conversation_locked' OR $erro ==='rate_limit_exceeded') {
-                Log::warning("🔄 Tentativa {$tentativa}/{$maxTentativas} - Conversa bloqueada. Aguardando 20s...");
-                sleep(20);
-            } else {
-                // Outros erros devem sair imediatamente
-                break;
-            }
-        } while ($tentativa < $maxTentativas);
-
-        // Após tentar todas as vezes
-        if ($response->failed()) {
-            Log::error('❌ Erro ao criar response na API após múltiplas tentativas', [
-                'status' => $response->status(),
-                'body'   => $response->body(),
-                'tentativas' => $tentativa,
-            ]);
-
-            $this->notificarDEV("ConversationsService: Erro após {$tentativa} tentativas. Erro: {$response->body()}");
-            return;
-        }*/
 
         $response = $this->postResponse($payload);
 
@@ -861,7 +804,7 @@ class ConversationsService
         } 
         
         $this->notificarDEV("ConversationsService 2645: Nenhuma mensagem do assistente encontrada no output da API para enviar. Conversation ID: {$this->conversationId}");
-        Log::warning("Nenhuma mensagem do assistente encontrada no output da API para enviar.");
+        
         return true;
         
     }
@@ -870,14 +813,21 @@ class ConversationsService
     public function submitFunctionCall(array $apiResponse)
     {
         if (!$this->apiKey) {
-            Log::warning("apiKey inválida, usuário sem Tokens"); return;
+             return;
         }
 
         $tool_outputs = [];
         foreach($apiResponse['output'] as $output) {
             if ($output['type'] === 'function_call') {
-                $tool_outputs[] = $this->handleFunctionCall($output);
+                $tool_output = $this->handleFunctionCall($output);
+                if ($tool_output === null) {
+                    return false;
+                }
+                $tool_outputs[] = $tool_output;
             }
+        }
+        if (empty($tool_outputs)) {
+            return false;
         }
 
         $modelo = $this->instance?->model ?? 'gpt-4.1-mini';
@@ -891,13 +841,7 @@ class ConversationsService
 
         //dd($payload);
 
-        /*$response = Http::withToken($this->apiKey)->post("{$this->baseUrl}/responses", $payload);
-
-        if ($response->failed()) {
-            $this->notificarDEV("ConsersationService 346: ".json_encode($response->body()));
-            
-            Log::warning("Erro ao processar chamada de função na API: " . $response->body()); return;
-        }*/
+        
 
         $response = $this->postResponse($payload);
 
@@ -954,7 +898,7 @@ class ConversationsService
             // Se for erro de conversa bloqueada, aguarda e tenta novamente
             if ($erro === 'conversation_locked' OR $erro ==='rate_limit_exceeded') {
                 //return false;
-                Log::warning("🔄 Tentativa {$tentativa}/{$maxTentativas} - Conversa bloqueada. Aguardando 35s...");
+                
                 sleep(35);
             } else {
                 return false;
@@ -974,12 +918,60 @@ class ConversationsService
         }
     }
 
+    private function logSystemError(string $message, array $payload = [], ?string $context = null, ?string $functionName = null): void
+    {
+        try {
+            SystemErrorLog::create([
+                'context' => $context ?? 'ConversationsService',
+                'function_name' => $functionName,
+                'message' => $message,
+                'instance_id' => $this->instanceId,
+                'user_id' => $this->instance?->user_id,
+                'chat_id' => $this->chat?->id,
+                'conversation_id' => $this->conversationId,
+                'payload' => $payload,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to store system error log: ' . $e->getMessage(), [
+                'message' => $message,
+            ]);
+        }
+    }
 
     public function handleFunctionCall(array $functionCall){
-        $functionName = $functionCall['name'];
-        $arguments = json_decode($functionCall['arguments'], true);
-        //Log::info('arguments: ', [$arguments]);
+        $functionName = $functionCall['name'] ?? null;
+        $rawArguments = $functionCall['arguments'] ?? null;
+        $context = 'ConversationsService.handleFunctionCall';
+
+        if (!$functionName || !is_string($functionName)) {
+            $this->logSystemError('Invalid function call: missing function name.', [
+                'function_call' => $functionCall,
+            ], $context);
+            return null;
+        }
+
+        if (is_array($rawArguments)) {
+            $arguments = $rawArguments;
+        } elseif (is_string($rawArguments) && $rawArguments !== '') {
+            $arguments = json_decode($rawArguments, true);
+        } else {
+            $arguments = null;
+        }
+
+        if (!is_array($arguments)) {
+            $this->logSystemError('Invalid function call: arguments are not valid JSON.', [
+                'function_call' => $functionCall,
+            ], $context, $functionName);
+            return null;
+        }
+        
         if ($functionName === 'enviar_media') {
+            if (empty($arguments['url']) || !is_string($arguments['url'])) {
+                $this->logSystemError('Invalid function call: missing url for enviar_media.', [
+                    'arguments' => $arguments,
+                ], $context, $functionName);
+                return null;
+            }
             $this->enviar_media($arguments['url']);
             return [
                     "type" => "function_call_output",     
@@ -989,6 +981,14 @@ class ConversationsService
         }
 
         if ($functionName === 'notificar_adm') {
+            $numeros = $arguments['numeros_telefone'] ?? null;
+            $mensagem = $arguments['mensagem'] ?? null;
+            if (!is_array($numeros) || empty($numeros) || !is_string($mensagem)) {
+                $this->logSystemError('Invalid function call: missing fields for notificar_adm.', [
+                    'arguments' => $arguments,
+                ], $context, $functionName);
+                return null;
+            }
             $this->notificar_adm($functionCall['arguments']);
             return [
                     "type" => "function_call_output",      
@@ -998,7 +998,13 @@ class ConversationsService
         }
 
         if ($functionName === 'buscar_get') {
-            //Log::info('arguments: ', [$arguments]);
+            if (empty($arguments['url']) || !is_string($arguments['url'])) {
+                $this->logSystemError('Invalid function call: missing url for buscar_get.', [
+                    'arguments' => $arguments,
+                ], $context, $functionName);
+                return null;
+            }
+            
             $res = $this->buscar_get($arguments['url']);
             
             return [
@@ -1008,6 +1014,12 @@ class ConversationsService
             ];
         }
         if ($functionName === 'registrar_info_chat') {
+            if (!isset($arguments['nome']) || !isset($arguments['informacoes'])) {
+                $this->logSystemError('Invalid function call: missing fields for registrar_info_chat.', [
+                    'arguments' => $arguments,
+                ], $context, $functionName);
+                return null;
+            }
             $this->registrar_info_chat(
                 $arguments['nome'] ?? null,
                 $arguments['informacoes'] ?? null,
@@ -1021,6 +1033,12 @@ class ConversationsService
         }
 
         if ($functionName === 'gerenciar_agenda') {
+            if (empty($arguments['acao']) || !is_string($arguments['acao'])) {
+                $this->logSystemError('Invalid function call: missing acao for gerenciar_agenda.', [
+                    'arguments' => $arguments,
+                ], $context, $functionName);
+                return null;
+            }
             $resultado = $this->gerenciar_agenda($arguments);
             return [
                 "type" => "function_call_output",
@@ -1030,6 +1048,13 @@ class ConversationsService
         }
 
         if ($functionName === 'aplicar_tags') {
+            $tags = $arguments['tags'] ?? null;
+            if (!is_array($tags) || empty($tags)) {
+                $this->logSystemError('Invalid function call: missing tags for aplicar_tags.', [
+                    'arguments' => $arguments,
+                ], $context, $functionName);
+                return null;
+            }
             $resultado = $this->aplicar_tags($arguments);
             return [
                 "type" => "function_call_output",
@@ -1039,6 +1064,12 @@ class ConversationsService
         }
 
         if ($functionName === 'inscrever_sequencia') {
+            if (empty($arguments['sequence_id'])) {
+                $this->logSystemError('Invalid function call: missing sequence_id for inscrever_sequencia.', [
+                    'arguments' => $arguments,
+                ], $context, $functionName);
+                return null;
+            }
             $resultado = $this->inscrever_sequencia($arguments);
             return [
                 "type" => "function_call_output",
@@ -1048,6 +1079,12 @@ class ConversationsService
         }
 
         if ($functionName === 'enviar_post') {
+            if (empty($arguments['event']) || empty($arguments['url']) || !isset($arguments['payload'])) {
+                $this->logSystemError('Invalid function call: missing fields for enviar_post.', [
+                    'arguments' => $arguments,
+                ], $context, $functionName);
+                return null;
+            }
             $resultado = $this->enviar_post($arguments);
 
             return [
@@ -1057,6 +1094,10 @@ class ConversationsService
             ];
         }
 
+        $this->logSystemError('Invalid function call: unknown function name.', [
+            'function_call' => $functionCall,
+        ], $context, $functionName);
+        return null;
 
     }
 
@@ -1094,11 +1135,7 @@ class ConversationsService
 
             $response = Http::timeout(5)->post($url, $body);
 
-            Log::info('Webhook enviado', [
-                'event' => $event,
-                'url' => $url,
-                'status' => $response->status(),
-            ]);
+            
 
             return '✅ Evento enviado com sucesso.';
 
@@ -1125,7 +1162,7 @@ class ConversationsService
 
         $agenda = Agenda::find($agendaId);
         if (!$agenda || $agenda->user_id !== $userId) {
-            Log::warning("Agenda {$agendaId} não pertence ao usuário {$userId} ou não existe.");
+            
             return ['output' => "⚠️ Agenda não encontrada para este usuário."];
         }
 
@@ -1133,7 +1170,7 @@ class ConversationsService
             $agendaService = new AgendaService();
 
             // Log opcional para depuração
-            //Log::info('📅 [ConversationsService] Chamando gerenciar_agenda', $arguments);
+            
 
             // Chama o método central do AgendaService
             $resultado = $agendaService->executarAcao(
@@ -1369,7 +1406,7 @@ class ConversationsService
     {
         try {
             if (!$this->chat) {
-                Log::warning("registrar_info_chat: Chat n?o encontrado para o n?mero {$this->numero}");
+                
                 return false;
             }
 
@@ -1455,11 +1492,7 @@ class ConversationsService
             ->get("{$this->baseUrl}/conversations/{$conversationId}/items", $payload);
 
         if ($response->failed()) {
-            Log::warning('Erro ao buscar itens da conversa', [
-                'conversationId' => $conversationId,
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
+            
             return [];
         }
 
@@ -1469,7 +1502,7 @@ class ConversationsService
     public function registrarTokens(int $tokens, $resp_id)
     {
         if (!$this->instanceId) {
-            Log::warning("Não foi possível registrar tokens: Instância ou chat não definidos.");
+            
             return false;
         }
 
@@ -1523,14 +1556,11 @@ class ConversationsService
                 ]);
 
             // Log para debug
-            /*Log::info("Resposta Transcription", [
-                'status' => $response->status(),
-                'body' => $response->json(),
-            ]);*/
+            
 
             // Se deu certo, retorna apenas o texto
             if ($response->successful()) {
-                //Log::info("613", [$response->json()]);
+                
                 return $response->json('text');
             }
 

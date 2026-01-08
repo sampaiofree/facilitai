@@ -152,10 +152,7 @@ class ProfileController extends Controller
                     $user->customer_asaas_id = $asaasCustomer['id'];
                     $user->save();
 
-                    \Illuminate\Support\Facades\Log::info('Novo cliente Asaas criado após alteração de CPF/CNPJ.', [
-                        'customer_id' => $asaasCustomer['id'],
-                        'user_id' => $user->id
-                    ]);
+                    
                 } else {
                     return Redirect::route('profile.edit')->withErrors([
                         'cpf_cnpj' => 'O CPF/CNPJ informado é inválido. Digite somente números e tente novamente.'

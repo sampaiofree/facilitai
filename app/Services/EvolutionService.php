@@ -60,7 +60,7 @@ class EvolutionService
                     $retry = Http::withHeaders(['apiKey' => $apiKey])->post($url, $payload);
 
                     if ($retry->successful()) {
-                        Log::info("Envio bem-sucedido apos remover o 9: {$telefoneAjustado}");
+                        
                         return $retry->json();
                     }
 
@@ -154,19 +154,13 @@ class EvolutionService
         $url = config('services.evolution.url') . "/instance/logout/{$instancia}";
         $apiKey = config('services.evolution.key');
 
-        Log::info('EvolutionService: iniciando logout de instancia', [
-            'instancia' => $instancia,
-            'url' => $url,
-        ]);
+        
 
         try {
             $response = Http::withHeaders(['apiKey' => $apiKey])->delete($url);
 
             if ($response->successful() || $response->notFound()) {
-                Log::info('EvolutionService: logout de instancia concluido', [
-                    'instancia' => $instancia,
-                    'status' => $response->status(),
-                ]);
+                
 
                 $data = $response->json();
                 if (is_array($data)) {
@@ -278,19 +272,19 @@ class EvolutionService
 
     function enviarMedia(string $numero, string $mediaUrl, string $instance)
     {
-        Log::info('Iniciando envio de midia para Evolution', compact('numero', 'mediaUrl', 'instance'));
+        
 
         $url = config('services.evolution.url') . "/message/sendMedia/{$instance}";
         $apiKey = config('services.evolution.key');
 
-        Log::info('URL final da API Evolution', ['url' => $url]);
-        Log::info('API Key usada', ['apikey' => $apiKey]);
+        
+        
 
         $fileName = basename(parse_url($mediaUrl, PHP_URL_PATH));
-        Log::info('Nome do arquivo extraido da URL', ['fileName' => $fileName]);
+        
 
         $extensao = pathinfo($fileName, PATHINFO_EXTENSION);
-        Log::info('Extensao detectada', ['extensao' => $extensao]);
+        
 
         $mimeTypes = [
             'jpg' => 'image/jpeg',
@@ -307,7 +301,7 @@ class EvolutionService
         ];
 
         $mimetype = $mimeTypes[strtolower($extensao)] ?? 'video';
-        Log::info('EvolutionService:116 MIME type definido', ['mimetype' => $mimetype]);
+        
 
         $imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
         $videoExtensions = ['mp4', 'mov', 'avi', 'mkv'];
@@ -321,7 +315,7 @@ class EvolutionService
         } else {
             $mediaType = 'document';
         }
-        Log::info('EvolutionService: mediatype definido', ['mediatype' => $mediaType]);
+        
 
         $dados = [
             'mediatype' => $mediaType,
@@ -343,7 +337,7 @@ class EvolutionService
 
         if ($response->successful()) {
             $json = $response->json();
-            Log::info('EvolutionService:134 Midia enviada');
+            
             return "Midia enviada";
         }
 
@@ -359,19 +353,19 @@ class EvolutionService
 
     function enviarMedia2(string $numero, string $mediaUrl, string $instance)
     {
-        Log::info('Iniciando envio de midia para Evolution', compact('numero', 'mediaUrl', 'instance'));
+        
 
         $url = config('services.evolution.url') . "/message/sendMedia/{$instance}";
         $apiKey = config('services.evolution.key');
 
-        Log::info('URL final da API Evolution', ['url' => $url]);
-        Log::info('API Key usada', ['apikey' => $apiKey]);
+        
+        
 
         $fileName = basename(parse_url($mediaUrl, PHP_URL_PATH));
-        Log::info('Nome do arquivo extraido da URL', ['fileName' => $fileName]);
+        
 
         $extensao = pathinfo($fileName, PATHINFO_EXTENSION);
-        Log::info('Extensao detectada', ['extensao' => $extensao]);
+        
 
         $imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
         $videoExtensions = ['mp4', 'mov', 'avi', 'mkv'];
@@ -385,7 +379,7 @@ class EvolutionService
         } else {
             $mediaType = 'document';
         }
-        Log::info('EvolutionService: mediatype definido', ['mediatype' => $mediaType]);
+        
 
         $dados = [
             'mediatype' => $mediaType,
@@ -402,7 +396,7 @@ class EvolutionService
 
         if ($response->successful()) {
             $json = $response->json();
-            Log::info('EvolutionService:134 Midia enviada');
+            
             return "Midia enviada";
         }
 

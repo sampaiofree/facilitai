@@ -35,12 +35,7 @@ class SendPresenceJob implements ShouldQueue
         try {
             $evolution->enviarPresenca($this->instance, $this->numero, $this->presence);
         } catch (\Throwable $e) {
-            Log::warning('SendPresenceJob failed', [
-                'instance' => $this->instance,
-                'numero' => $this->numero,
-                'presence' => $this->presence,
-                'error' => $e->getMessage(),
-            ]);
+            
         }
     }
 }

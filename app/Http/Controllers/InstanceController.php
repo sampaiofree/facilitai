@@ -260,7 +260,7 @@ class InstanceController extends Controller
             // 2. Chama a API do Evolution para excluir a instância remotamente
             $evolutionUrl = config('services.evolution.url') . "/instance/delete/{$instance->id}";
             
-            Log::info("Iniciando exclusão da instância {$instance->id} no Evolution para o usuário " . Auth::id());
+            
 
             $response = Http::withHeaders([
                 'apiKey' => config('services.evolution.key') // Usa a chave de API GLOBAL
@@ -270,7 +270,7 @@ class InstanceController extends Controller
             // Consideramos sucesso se a resposta for bem-sucedida (2xx) ou "Não Encontrado" (404),
             // pois em ambos os casos a instância não existe mais no Evolution.
             if ($response->successful() || $response->notFound()) {
-                Log::info("Instância {$instance->id} excluída com sucesso (ou já não existia) no Evolution.");
+                
                 
                 // 4. Registra o proxy como banido para não reutilizar
                 if (!empty($instance->proxy_ip)) {
@@ -318,27 +318,17 @@ class InstanceController extends Controller
             abort(403, 'Acesso nao autorizado.');
         }
 
-        Log::info('InstanceController: iniciando logout da instancia', [
-            'instance_id' => $instance->id,
-            'user_id' => Auth::id(),
-        ]);
+        
 
         $resultado = $evolutionService->logoutInstancia((string) $instance->id);
 
         if (is_string($resultado)) {
-            Log::warning('InstanceController: falha ao desconectar instancia', [
-                'instance_id' => $instance->id,
-                'user_id' => Auth::id(),
-                'error' => $resultado,
-            ]);
+            
 
             return redirect()->route('instances.index')->with('error', $resultado);
         }
 
-        Log::info('InstanceController: logout da instancia concluido', [
-            'instance_id' => $instance->id,
-            'user_id' => Auth::id(),
-        ]);
+        
 
         return redirect()->route('instances.index')->with('success', 'Conexao desconectada com sucesso.');
     }
@@ -351,11 +341,7 @@ class InstanceController extends Controller
 
         $resultado = $evolutionService->reiniciarInstancia((string) $instance->id);
 
-        Log::info('InstanceController: restart response', [
-            'instance_id' => $instance->id,
-            'user_id' => Auth::id(),
-            'resultado' => $resultado,
-        ]);
+        
 
         if (is_array($resultado)) {
             return redirect()->route('instances.index')
@@ -518,58 +504,7 @@ class InstanceController extends Controller
         }
     }
 
-    /*public function storeDirect(WebshareService $webshare)
-    {
-        $user = Auth::user();
-
-        // 1. VERIFICAÇÃO DE SEGURANÇA: Garante que o usuário tem um crédito antes de prosseguir
-        $credit = Payment::where('user_id', $user->id)
-                        ->where('status', 'paid')
-                        ->whereNull('instance_id')
-                        ->oldest() // Pega o pagamento mais antigo disponível
-                        ->first();
-
-        if (!$credit) {
-            // Se não houver crédito, retorna com um erro. Isso não deveria acontecer
-            // se a interface estiver funcionando corretamente, mas é uma boa segurança.
-            return redirect()->route('instances.index')
-                ->with('error', 'Você não possui um pagamento disponível para criar uma nova conexão.');
-        }
-
-        try {
-            // ... (toda a sua lógica existente para obter proxy e criar a instância no Evolution)
-            // A lógica de criar a instância continua a mesma...
-            
-            $proxyData = $webshare->getNewProxy();
-            $instance = $user->instances()->create([
-                'name' => 'Nova Conexão #' . uniqid(),
-                'status' => 'pending',
-            ]);
-            
-            // ... (chamada Http para o Evolution)
-
-            // Depois de criar a instância no Evolution e atualizar nosso registro...
-            
-            // 2. VINCULAÇÃO DO CRÉDITO: Atualiza o pagamento para vinculá-lo à nova instância
-            $credit->instance_id = $instance->id;
-            $credit->save();
-
-            Log::info("Pagamento ID {$credit->id} vinculado com sucesso à nova instância ID {$instance->id}.");
-            
-            // O resto do seu código (redirecionamento, etc.) continua o mesmo
-            return redirect()->route('instances.show', $instance->id)
-                ->with('success', 'Conexão criada e vinculada ao seu pagamento com sucesso!');
-
-        } catch (\Throwable $e) {
-            Log::error('Erro na criação direta de instância: ' . $e->getMessage());
-            // Se a instância foi criada no nosso banco mas algo falhou depois, removemos para evitar lixo.
-            if (isset($instance)) {
-                $instance->delete();
-            }
-            return redirect()->route('instances.index')
-                ->with('error', 'Ocorreu um erro ao criar sua conexão. Por favor, tente novamente.');
-        }
-    }    */
+    
 
     public function show(Instance $instance)
     {
@@ -591,7 +526,7 @@ class InstanceController extends Controller
         //dd($response->json()); exit;
         //$response = Http::withHeaders(['apiKey' => config('services.evolution.key')])->get($connectUrl);
 
-        //Log::info("InstanceController 193", $response);
+        
 
         return $response;
     }
@@ -643,12 +578,12 @@ class InstanceController extends Controller
             
 
 
-                 //Log::error("atualizarNomeInstanciaLocal ownerJid".$response[0] );
+                 
 
             if ($response->successful()) {
                 $data = $response->json();
 
-                 //Log::error("atualizarNomeInstanciaLocal ownerJid".$data[0]['ownerJid']);
+                 
 
                 if (!empty($data[0]['ownerJid'])) {
                     return  preg_replace('/\D/', '', $data[0]['ownerJid']);
@@ -674,7 +609,7 @@ class InstanceController extends Controller
             $instance->save();
         }
 
-        //Log::error("Novo nome ".$this->atualizarNomeInstanciaLocal($instance->id). "/n Instancia Completa". $instance);
+        
 
         // Pega as credenciais OpenAI do usuário para a primeira lista suspensa
         $assistants = Auth::user()->assistants;

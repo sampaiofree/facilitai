@@ -19,10 +19,7 @@ class RestartActiveInstances extends Command
         $total = 0;
         $failed = 0;
 
-        Log::info('instances:restart-active started', [
-            'chunk' => $chunk,
-            'sleep_ms' => $sleepMs,
-        ]);
+        
 
         Instance::query()
             ->where('status', 'active')
@@ -36,10 +33,7 @@ class RestartActiveInstances extends Command
 
                         if (!is_array($result)) {
                             $failed++;
-                            Log::warning('instances:restart-active failed', [
-                                'instance_id' => $instance->id,
-                                'result' => $result,
-                            ]);
+                            
                         }
                     } catch (\Throwable $e) {
                         $failed++;
@@ -55,10 +49,7 @@ class RestartActiveInstances extends Command
                 }
             });
 
-        Log::info('instances:restart-active finished', [
-            'total' => $total,
-            'failed' => $failed,
-        ]);
+        
 
         $this->info("Restart finished. total={$total} failed={$failed}");
 

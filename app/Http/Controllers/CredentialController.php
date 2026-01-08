@@ -54,18 +54,10 @@ class CredentialController extends Controller
     // Atualizar a credencial
     public function update(Request $request, Credential $credential)
     {
-        Log::info('Iniciando update de credential', [
-            'credential_id' => $credential->id ?? null,
-            'user_id_credential' => $credential->user_id ?? null,
-            'auth_id' => Auth::id(),
-        ]);
+        
 
         if ($credential->user_id !== Auth::id()) {
-            Log::warning('Usuário não autorizado a atualizar credential', [
-                'credential_id' => $credential->id,
-                'user_id_credential' => $credential->user_id,
-                'auth_id' => Auth::id(),
-            ]);
+            
             abort(403);
         }
 
@@ -75,7 +67,7 @@ class CredentialController extends Controller
                 'label' => 'required|string|max:255',
                 'token' => 'required|string',
             ]);
-            Log::info('Validação concluída com sucesso', ['validated' => $validated]);
+            
         } catch (\Exception $e) {
             Log::error('Erro na validação do request', [
                 'message' => $e->getMessage(),
@@ -86,10 +78,7 @@ class CredentialController extends Controller
 
         try {
             $credential->update($validated);
-            Log::info('Credential atualizada com sucesso', [
-                'credential_id' => $credential->id,
-                'dados' => $validated,
-            ]);
+            
         } catch (\Exception $e) {
             Log::error('Erro ao atualizar credential', [
                 'credential_id' => $credential->id,

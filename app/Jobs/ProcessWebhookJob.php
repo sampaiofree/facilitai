@@ -44,7 +44,7 @@ class ProcessWebhookJob implements ShouldQueue
 
 
             if (!$messageData || $messageType === 'unknown' || $messageType === 'reactionMessage') {
-                //Log::warning("ProcessWebhookJob:43");
+                
                 return;
             }
 
@@ -65,7 +65,7 @@ class ProcessWebhookJob implements ShouldQueue
                     $threadId = $openai->createThread(); // <--- PRECISAMOS DESTE NOVO MÉTODO
                     $chat->thread_id = $threadId;
                     $chat->save();
-                    //Log::info("Novo thread_id {$threadId} criado e salvo para o chat.");
+                    
                 } catch (\Exception $e) {
                     Log::error("Não foi possível criar um novo thread para o chat: " . $e->getMessage());
                     return; // Falha crítica, não podemos continuar.
@@ -101,12 +101,12 @@ class ProcessWebhookJob implements ShouldQueue
     private function initialValidation(): bool
     {
         if (!$this->instance->default_assistant_id) {
-            Log::warning("Instância {$this->instance->id} não possui um assistente vinculado. Job encerrado.");
+            
             return false;
         }
 
         if (!$this->instance->credential) {
-            Log::warning("Instância {$this->instance->id} não possui uma credencial vinculada. Job encerrado.");
+            
             return false;
         }
 
@@ -115,7 +115,7 @@ class ProcessWebhookJob implements ShouldQueue
             ->first();
 
         if ($chat && $chat->bot_enabled === false) {
-            Log::info("Bot desativado para o contato {$this->contactNumber}. Job encerrado.");
+            
             return false;
         }
 
