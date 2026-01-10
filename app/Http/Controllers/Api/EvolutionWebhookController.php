@@ -46,16 +46,25 @@ class EvolutionWebhookController extends Controller
                     ->first();
 
         if(!$chat){
-            //CRIA UM NOVO REGISTRO NA TABELA CHAT CASO NÃO EXISTA
-            $chat = new Chat();
-            $chat->instance_id = $instance->id;
-            
-            $chat->user_id = $instance->user_id;
-            $chat->assistant_id = $instance->default_assistant_id;
+            // CRIA/ATUALIZA DE FORMA ATOMICA PARA EVITAR DUPLICIDADE
+            $now = now();
+            Chat::upsert(
+                [[
+                    'instance_id' => $instance->id,
+                    'contact' => $contactNumber,
+                    'user_id' => $instance->user_id,
+                    'assistant_id' => $instance->default_assistant_id,
+                    'bot_enabled' => 1,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]],
+                ['instance_id', 'contact'],
+                ['user_id', 'assistant_id', 'bot_enabled', 'updated_at']
+            );
 
-            $chat->contact = $contactNumber;
-            $chat->bot_enabled = 1; //ATIVA O BOT POR PADRÃO
-            $chat->save();
+            $chat = Chat::where('instance_id', $instance->id)
+                ->where('contact', $contactNumber)
+                ->first();
         }
 
         // ===================================================================
@@ -234,15 +243,24 @@ class EvolutionWebhookController extends Controller
 
         //CRIA UM NOVO REGISTRO NA TABELA CHAT CASO NAO EXISTA
         if(!$chat){
-            $chat = new Chat();
-            $chat->instance_id = $instance->id;
-            
-            $chat->user_id = $instance->user_id;
-            $chat->assistant_id = $instance->default_assistant_id;
+            $now = now();
+            Chat::upsert(
+                [[
+                    'instance_id' => $instance->id,
+                    'contact' => $contactNumber,
+                    'user_id' => $instance->user_id,
+                    'assistant_id' => $instance->default_assistant_id,
+                    'bot_enabled' => 1,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]],
+                ['instance_id', 'contact'],
+                ['user_id', 'assistant_id', 'bot_enabled', 'updated_at']
+            );
 
-            $chat->contact = $contactNumber;
-            $chat->bot_enabled = 1; //ATIVA O BOT POR PADRAO
-            $chat->save();
+            $chat = Chat::where('instance_id', $instance->id)
+                ->where('contact', $contactNumber)
+                ->first();
         }
         
         // Se o registro de chat ainda nao existe, o bot esta ativo por padrao.
