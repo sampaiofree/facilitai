@@ -121,7 +121,7 @@ class EvolutionService
         return $return ?? [];
     }
 
-    public function reiniciarInstancia(string $instancia)
+    public function reiniciarInstancia(string $instancia): array
     {
         $url = config('services.evolution.url') . "/instance/restart/{$instancia}";
         $apiKey = config('services.evolution.key');
@@ -131,7 +131,28 @@ class EvolutionService
             $response = Http::withHeaders(['apiKey' => $apiKey])->post($url);
 
             if ($response->successful()) {
-                return $response->json();
+                return [
+                    'ok' => true,
+                    'status' => $response->status(),
+                    'data' => $response->json(),
+                ];
+            }
+
+            if ($response->notFound()) {
+                $responseJson = $response->json();
+                Log::warning('EvolutionService: instancia nao encontrada para restart', [
+                    'instancia' => $instancia,
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                    'json' => $responseJson,
+                ]);
+
+                return [
+                    'ok' => false,
+                    'status' => $response->status(),
+                    'error' => 'not_found',
+                    'data' => $responseJson,
+                ];
             }
 
             Log::error('EvolutionService: falha ao reiniciar instancia', [
@@ -139,14 +160,26 @@ class EvolutionService
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
+
+            return [
+                'ok' => false,
+                'status' => $response->status(),
+                'error' => 'request_failed',
+                'body' => $response->body(),
+            ];
         } catch (\Throwable $e) {
             Log::error('EvolutionService: erro na requisicao de restart', [
                 'instancia' => $instancia,
                 'exception' => $e->getMessage(),
             ]);
-        }
 
-        return "Erro ao reiniciar instancia {$instancia}";
+            return [
+                'ok' => false,
+                'status' => null,
+                'error' => 'exception',
+                'message' => $e->getMessage(),
+            ];
+        }
     }
 
     public function logoutInstancia(string $instancia)

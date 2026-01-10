@@ -18,22 +18,30 @@ class RestartActiveInstances extends Command
         $sleepMs = max(0, (int) $this->option('sleep-ms'));
         $total = 0;
         $failed = 0;
+        $missing = 0;
 
         
 
         Instance::query()
             ->where('status', 'active')
             ->select('id')
-            ->chunkById($chunk, function ($instances) use ($service, $sleepMs, &$total, &$failed) {
+            ->chunkById($chunk, function ($instances) use ($service, $sleepMs, &$total, &$failed, &$missing) {
                 foreach ($instances as $instance) {
                     $total++;
 
                     try {
                         $result = $service->reiniciarInstancia((string) $instance->id);
 
-                        if (!is_array($result)) {
-                            $failed++;
-                            
+                        if (!is_array($result) || !($result['ok'] ?? false)) {
+                            if (is_array($result) && ($result['error'] ?? null) === 'not_found') {
+                                $missing++;
+                                $instance->update(['status' => 'error']);
+                                Log::warning('instances:restart-active instance not found', [
+                                    'instance_id' => $instance->id,
+                                ]);
+                            } else {
+                                $failed++;
+                            }
                         }
                     } catch (\Throwable $e) {
                         $failed++;
@@ -51,7 +59,7 @@ class RestartActiveInstances extends Command
 
         
 
-        $this->info("Restart finished. total={$total} failed={$failed}");
+        $this->info("Restart finished. total={$total} failed={$failed} missing={$missing}");
 
         return $failed > 0 ? Command::FAILURE : Command::SUCCESS;
     }

@@ -1441,7 +1441,7 @@ class ConversationsService
 
     public function notificarDEV($mensagemErro){ 
         $msg = (string)$mensagemErro.".\n Número".(string)$this->numero.".\n Instância: ".(string)$this->instanceId;
-        $this->evolutionService->enviar_msg_evolution('5562995772922', (string)$msg, '177',);
+        $this->evolutionService->enviar_msg_evolution('5562995772922', (string)$msg, '283',);
         $this->enviar_mensagemEVO("😔 Opa, parece que tivemos um problema técnico e sua pergunta não chegou certinho. Por favor, envie sua pergunta novamente para que eu possa te ajudar. Agradeço pela compreensão! 🙏");
         return true;
     }

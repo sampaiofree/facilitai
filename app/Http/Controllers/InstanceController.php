@@ -343,12 +343,19 @@ class InstanceController extends Controller
 
         
 
-        if (is_array($resultado)) {
+        if (($resultado['ok'] ?? false) === true) {
             return redirect()->route('instances.index')
                 ->with('success', 'Instância reiniciada. Aguarde alguns instantes.');
         }
 
-        $mensagemErro = is_string($resultado) ? $resultado : 'Não foi possível reiniciar a instância.';
+        if (($resultado['error'] ?? null) === 'not_found') {
+            $instance->update(['status' => 'error']);
+            $mensagemErro = 'Instancia nao encontrada no Evolution.';
+        } else {
+            $mensagemErro = $resultado['message']
+                ?? $resultado['body']
+                ?? 'Nao foi possivel reiniciar a instancia.';
+        }
 
         return redirect()->route('instances.index')->with('error', $mensagemErro);
     }
