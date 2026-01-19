@@ -174,6 +174,8 @@ class ConversationsService
 
         // 3. Faz a chamada para a API
         $response = Http::withToken($this->apiKey)
+            ->timeout(90)
+            ->retry(2, 1000)
             ->post("{$this->baseUrl}/conversations", $payload);
 
         //falha    
@@ -214,6 +216,8 @@ class ConversationsService
         ];
 
         $response = Http::withToken($this->apiKey)
+            ->timeout(90)
+            ->retry(2, 1000)
             ->post("{$this->baseUrl}/conversations/{$conversationId}/items", $payload);
 
         if ($response->failed()) {
@@ -887,7 +891,10 @@ class ConversationsService
 
         do {
             $tentativa++;
-            $response = Http::withToken($this->apiKey)->post("{$this->baseUrl}/responses", $payload);
+            $response = Http::withToken($this->apiKey)
+                        ->timeout(90)
+                        ->retry(2, 1000)
+                        ->post("{$this->baseUrl}/responses", $payload);
 
             if ($response->successful()) {
                 return $response;
@@ -1489,6 +1496,8 @@ class ConversationsService
         ], $options);
 
         $response = Http::withToken($this->apiKey)
+            ->timeout(90)
+            ->retry(2, 1000)
             ->get("{$this->baseUrl}/conversations/{$conversationId}/items", $payload);
 
         if ($response->failed()) {
@@ -1548,6 +1557,8 @@ class ConversationsService
 
             // Faz a requisição para a OpenAI Transcription API
             $response = Http::withToken($apiKey)
+                ->timeout(90)
+                ->retry(2, 1000)
                 ->asMultipart()
                 ->post('https://api.openai.com/v1/audio/transcriptions', [
                     'file' => fopen($convertedAudioPath, 'r'),
