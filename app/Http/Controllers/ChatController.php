@@ -43,6 +43,8 @@ class ChatController extends Controller
             'tags_out' => (array) $request->query('tags_out', []),
             'sequences_in' => (array) $request->query('sequences_in', []),
             'sequences_out' => (array) $request->query('sequences_out', []),
+            'created_from' => $request->query('created_from'),
+            'created_to' => $request->query('created_to'),
         ];
 
         return view('chats.index', compact('chats', 'filters', 'instances', 'assistants', 'sequences', 'tags'));
@@ -629,6 +631,18 @@ class ChatController extends Controller
             $query->whereDoesntHave('sequenceChats', function ($q) use ($sequencesOut) {
                 $q->whereIn('sequence_id', $sequencesOut)->where('status', 'em_andamento');
             });
+        }
+
+        $createdFrom = $request->query('created_from');
+        $createdTo = $request->query('created_to');
+        if (
+            $createdFrom
+            && $createdTo
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $createdFrom)
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $createdTo)
+        ) {
+            $query->whereDate('created_at', '>=', $createdFrom)
+                ->whereDate('created_at', '<=', $createdTo);
         }
 
         $sortOption = $request->query('order', 'updated_at_desc');

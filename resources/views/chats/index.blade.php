@@ -169,6 +169,26 @@
 
                                     <div class="rounded-lg border border-gray-100 bg-white p-3">
                                         <div class="flex items-center justify-between">
+                                            <h4 class="text-sm font-semibold text-gray-800">Data de criação</h4>
+                                        </div>
+                                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                            <div>
+                                                <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">Início</label>
+                                                <input type="date" name="created_from" id="filterCreatedFrom"
+                                                    value="{{ $filters['created_from'] ?? '' }}"
+                                                    class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-semibold text-gray-500 uppercase mb-2">Fim</label>
+                                                <input type="date" name="created_to" id="filterCreatedTo"
+                                                    value="{{ $filters['created_to'] ?? '' }}"
+                                                    class="w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="rounded-lg border border-gray-100 bg-white p-3">
+                                        <div class="flex items-center justify-between">
                                             <h4 class="text-sm font-semibold text-gray-800">Tags</h4>
                                         </div>
                                         <div class="mt-3 grid grid-cols-2 gap-3">
@@ -741,6 +761,25 @@
             toggleFilters?.addEventListener('click', () => {
                 filtersPanel?.classList.toggle('hidden');
             });
+            const filtersForm = document.getElementById('filtersForm');
+            const createdFromInput = document.getElementById('filterCreatedFrom');
+            const createdToInput = document.getElementById('filterCreatedTo');
+            const syncCreatedDateRequired = () => {
+                if (!createdFromInput && !createdToInput) {
+                    return;
+                }
+                const hasAny = Boolean(createdFromInput?.value || createdToInput?.value);
+                if (createdFromInput) {
+                    createdFromInput.required = hasAny;
+                }
+                if (createdToInput) {
+                    createdToInput.required = hasAny;
+                }
+            };
+            syncCreatedDateRequired();
+            createdFromInput?.addEventListener('change', syncCreatedDateRequired);
+            createdToInput?.addEventListener('change', syncCreatedDateRequired);
+            filtersForm?.addEventListener('submit', syncCreatedDateRequired);
             const importForm = document.getElementById('bulkImportForm');
             const importFileInput = document.getElementById('importFile');
             const importSubmit = document.getElementById('importSubmit');
