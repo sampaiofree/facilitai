@@ -57,5 +57,9 @@ return [
     'google' => [
         'api_key' => env('GOOGLE_API_KEY'),
     ],
+    'uazapi' =>[
+        'token' =>env('UAZAPI_TOKEN'),
+        'url' =>env('UAZAPI_BASE_URL'),
+    ],
 
 ];

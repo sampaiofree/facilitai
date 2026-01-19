@@ -46,7 +46,7 @@ class EvolutionService
         ];
 
         try {
-            $response = Http::withHeaders(['apiKey' => $apiKey])->post($url, $payload);
+            $response = Http::withHeaders(['apiKey' => $apiKey])->timeout(10)->retry(2, 500)->post($url, $payload);
 
             if ($response->successful()) {
                 return $response->json();
@@ -57,7 +57,7 @@ class EvolutionService
 
                 if ($telefoneAjustado !== $telefone) {
                     $payload['number'] = $telefoneAjustado;
-                    $retry = Http::withHeaders(['apiKey' => $apiKey])->post($url, $payload);
+                    $retry = Http::withHeaders(['apiKey' => $apiKey])->timeout(10)->retry(2, 500)->post($url, $payload);
 
                     if ($retry->successful()) {
                         
@@ -128,7 +128,7 @@ class EvolutionService
 
         try {
             // A API espera um POST para este endpoint; o PUT estava retornando 404.
-            $response = Http::withHeaders(['apiKey' => $apiKey])->post($url);
+            $response = Http::withHeaders(['apiKey' => $apiKey])->timeout(10)->retry(2, 500)->post($url);
 
             if ($response->successful()) {
                 return [
@@ -190,7 +190,7 @@ class EvolutionService
         
 
         try {
-            $response = Http::withHeaders(['apiKey' => $apiKey])->delete($url);
+            $response = Http::withHeaders(['apiKey' => $apiKey])->timeout(10)->retry(2, 500)->delete($url);
 
             if ($response->successful() || $response->notFound()) {
                 
@@ -262,7 +262,7 @@ class EvolutionService
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
                 'apikey' => $apiKey,
-            ])->post($url, $payload);
+            ])->timeout(10)->retry(2, 500)->post($url, $payload);
 
             if ($response->successful()) {
                 return $response->json();
@@ -291,7 +291,7 @@ class EvolutionService
     {
         $response = Http::withHeaders([
             'apikey' => config('services.evolution.key')
-        ])->get(config('services.evolution.url') . "/instance/connect/{$id}");
+        ])->timeout(10)->retry(2, 500)->get(config('services.evolution.url') . "/instance/connect/{$id}");
 
         $res = $response->json();
 
@@ -366,7 +366,7 @@ class EvolutionService
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'apikey' => $apiKey
-        ])->post($url, $dados);
+        ])->timeout(10)->retry(2, 500)->post($url, $dados);
 
         if ($response->successful()) {
             $json = $response->json();
@@ -425,7 +425,7 @@ class EvolutionService
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'apikey' => $apiKey
-        ])->post($url, $dados);
+        ])->timeout(10)->retry(2, 500)->post($url, $dados);
 
         if ($response->successful()) {
             $json = $response->json();
