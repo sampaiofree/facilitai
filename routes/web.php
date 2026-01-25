@@ -28,6 +28,11 @@ use App\Http\Controllers\ProxyBanController;
 use App\Http\Controllers\Admin\WebhookRequestController;
 use App\Http\Controllers\Admin\InstanceReportController;
 use App\Http\Controllers\Admin\SystemErrorLogController;
+use App\Http\Controllers\UazapiController;
+use App\Http\Controllers\Agencia\AgenciaAssistantController;
+use App\Http\Controllers\Agencia\AgenciaClienteController;
+use App\Http\Controllers\Agencia\AgenciaConexaoController;
+use App\Http\Controllers\Agencia\AgenciaCredentialController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
@@ -118,11 +123,40 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
 });
 
+Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(function () {
+    Route::get('conexoes', [App\Http\Controllers\Admin\ConexaoController::class, 'index'])->name('conexoes.index');
+    Route::post('conexoes', [App\Http\Controllers\Admin\ConexaoController::class, 'store'])->name('conexoes.store');
+    Route::patch('conexoes/{conexao}', [App\Http\Controllers\Admin\ConexaoController::class, 'update'])->name('conexoes.update');
+    Route::delete('conexoes/{conexao}', [App\Http\Controllers\Admin\ConexaoController::class, 'destroy'])->name('conexoes.destroy');
+    Route::get('ia-plataformas', [App\Http\Controllers\Admin\IaplataformaController::class, 'index'])->name('iaplataformas.index');
+    Route::post('ia-plataformas', [App\Http\Controllers\Admin\IaplataformaController::class, 'store'])->name('iaplataformas.store');
+    Route::patch('ia-plataformas/{iaplataforma}', [App\Http\Controllers\Admin\IaplataformaController::class, 'update'])->name('iaplataformas.update');
+    Route::delete('ia-plataformas/{iaplataforma}', [App\Http\Controllers\Admin\IaplataformaController::class, 'destroy'])->name('iaplataformas.destroy');
+    Route::get('ia-modelos', [App\Http\Controllers\Admin\IamodeloController::class, 'index'])->name('iamodelos.index');
+    Route::post('ia-modelos', [App\Http\Controllers\Admin\IamodeloController::class, 'store'])->name('iamodelos.store');
+    Route::patch('ia-modelos/{iamodelo}', [App\Http\Controllers\Admin\IamodeloController::class, 'update'])->name('iamodelos.update');
+    Route::delete('ia-modelos/{iamodelo}', [App\Http\Controllers\Admin\IamodeloController::class, 'destroy'])->name('iamodelos.destroy');
+    Route::get('whatsapp-api', [App\Http\Controllers\Admin\WhatsappApiController::class, 'index'])->name('whatsapp-api.index');
+    Route::post('whatsapp-api', [App\Http\Controllers\Admin\WhatsappApiController::class, 'store'])->name('whatsapp-api.store');
+    Route::patch('whatsapp-api/{whatsappApi}', [App\Http\Controllers\Admin\WhatsappApiController::class, 'update'])->name('whatsapp-api.update');
+    Route::delete('whatsapp-api/{whatsappApi}', [App\Http\Controllers\Admin\WhatsappApiController::class, 'destroy'])->name('whatsapp-api.destroy');
+});
+
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth', 'verified')->group(function () {
+    Route::prefix('uazapi')->name('uazapi.')->group(function () {
+        Route::get('/instancias', [UazapiController::class, 'index'])->name('instances');
+        Route::post('/instancias/create', [UazapiController::class, 'store'])->name('instances.create');
+        Route::patch('/instancias/{instance}', [UazapiController::class, 'update'])->name('instances.update');
+        Route::post('/instancias/{instance}/connect', [UazapiController::class, 'connect'])->name('instances.connect');
+        Route::get('/instancias/{instance}/status', [UazapiController::class, 'status'])->name('instances.status');
+        Route::post('/instancias/{instance}/destroy', [UazapiController::class, 'destroy'])->name('instances.destroy');
+        Route::post('/instancias/{instance}/assistant', [UazapiController::class, 'assignAssistant'])->name('instances.assignAssistant');
+    });
+
     Route::middleware('admin')->group(function () {
         Route::get('/proxy-ban', [ProxyBanController::class, 'index'])->name('proxy-ban.index');
         Route::delete('/proxy-ban/{ban}', [ProxyBanController::class, 'destroy'])->name('proxy-ban.destroy');
@@ -236,3 +270,24 @@ Route::get('/test-credential/{id}', function ($id) {
 });
 
 require __DIR__.'/auth.php';
+
+Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function () {
+    Route::get('clientes', [AgenciaClienteController::class, 'index'])->name('clientes.index');
+    Route::post('clientes', [AgenciaClienteController::class, 'store'])->name('clientes.store');
+    Route::patch('clientes/{cliente}', [AgenciaClienteController::class, 'update'])->name('clientes.update');
+    Route::delete('clientes/{cliente}', [AgenciaClienteController::class, 'destroy'])->name('clientes.destroy');
+    Route::get('credenciais', [AgenciaCredentialController::class, 'index'])->name('credentials.index');
+    Route::post('credenciais', [AgenciaCredentialController::class, 'store'])->name('credentials.store');
+    Route::patch('credenciais/{credential}', [AgenciaCredentialController::class, 'update'])->name('credentials.update');
+    Route::delete('credenciais/{credential}', [AgenciaCredentialController::class, 'destroy'])->name('credentials.destroy');
+    Route::get('conexoes', [AgenciaConexaoController::class, 'index'])->name('conexoes.index');
+    Route::post('conexoes', [AgenciaConexaoController::class, 'store'])->name('conexoes.store');
+    Route::get('conexoes/{conexao}/status', [AgenciaConexaoController::class, 'status'])->name('conexoes.status');
+    Route::post('conexoes/{conexao}/connect', [AgenciaConexaoController::class, 'connect'])->name('conexoes.connect');
+    Route::patch('conexoes/{conexao}', [AgenciaConexaoController::class, 'update'])->name('conexoes.update');
+    Route::delete('conexoes/{conexao}', [AgenciaConexaoController::class, 'destroy'])->name('conexoes.destroy');
+    Route::get('assistant', [AgenciaAssistantController::class, 'index'])->name('assistant.index');
+    Route::post('assistant', [AgenciaAssistantController::class, 'store'])->name('assistant.store');
+    Route::patch('assistant/{assistant}', [AgenciaAssistantController::class, 'update'])->name('assistant.update');
+});
+

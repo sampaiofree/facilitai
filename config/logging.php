@@ -118,6 +118,31 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'uazapi' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/uazapi.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+        'openai' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/openai.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+        'uazapijob' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/uazapijob.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+        'media_decrypt' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/MediaDecryptService.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+
         'null' => [
             'driver' => 'monolog',
             'handler' => NullHandler::class,

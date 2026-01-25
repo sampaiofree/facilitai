@@ -17,6 +17,7 @@ class Credential extends Model
         'name',
         'label',
         'token',
+        'iaplataforma_id',
     ];
 
     /**
@@ -37,5 +38,10 @@ class Credential extends Model
         } catch (\Exception $e) {
             return '******'; // Retorna um placeholder em caso de erro de descriptografia
         }
+    }
+
+    public function iaplataforma()
+    {
+        return $this->belongsTo(Iaplataforma::class);
     }
 }

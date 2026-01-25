@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Instance; // <-- IMPORTANTE: Precisamos do modelo Instance aqui
 use App\Models\ProxyIpBan;
+use App\Models\UazapiInstance; 
+use App\Models\Conexao;
 use Illuminate\Support\Facades\Http;
 
 class WebshareService
@@ -27,8 +29,10 @@ class WebshareService
         // 1. Pega todos os IPs de proxy que já estão em uso no nosso banco de dados.
         // O método pluck é extremamente eficiente para isso.
         $usedIps = Instance::pluck('proxy_ip')->toArray();
+        $usedIpsUazapi = UazapiInstance::pluck('proxy_ip')->toArray();
+        $usedIpsConexao = Conexao::pluck('proxy_ip')->toArray();
         $bannedIps = ProxyIpBan::pluck('ip')->toArray();
-        $blockedIps = array_filter(array_merge($usedIps, $bannedIps));
+        $blockedIps = array_filter(array_merge($usedIps, $bannedIps, $usedIpsUazapi, $usedIpsConexao));
 
         $page = 1;
         $pageSize = 25; // Podemos ajustar se necessário
