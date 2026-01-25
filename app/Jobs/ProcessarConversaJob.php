@@ -25,33 +25,39 @@ class ProcessarConversaJob implements ShouldQueue
     protected $contactNumber;
     protected $instanceName;
     protected $data;
+    protected $uazapi;
 
-    public function __construct($messageText, $contactNumber, $instanceName, $data)
+    public function __construct($messageText, $contactNumber, $instanceName, $data, $uazapi = null)
     {
         $this->messageText = $messageText;
         $this->contactNumber = $contactNumber;
         $this->instanceName = $instanceName;
         $this->data = $data;
+        $this->uazapi = $uazapi;
     }
 
     public function handle()
     {
 
-        SendPresenceJob::dispatch($this->instanceName, $this->contactNumber, 'composing');
+        //API EVOLUTION   
+        if(!$this->uazapi){
+            SendPresenceJob::dispatch($this->instanceName, $this->contactNumber, 'composing');
 
-        
+            $open = new ConversationsService( 
+                $this->messageText,
+                $this->contactNumber,
+                $this->instanceName
+            );
 
-        $open = new ConversationsService(
-            $this->messageText,
-            $this->contactNumber,
-            $this->instanceName
-        );
-
-        if(!$open->ready) {
+            if(!$open->ready) {
+                
+                return; // ✅ processado com sucesso, sem falha
+            }
             
-            return; // ✅ processado com sucesso, sem falha
+            $open->evolution($this->data);
+        }else{
+            //API UAZAPI
         }
         
-        $open->evolution($this->data);
     }
 }

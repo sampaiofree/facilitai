@@ -2,628 +2,519 @@
 
 namespace App\Services;
 
-use OpenAI\Factory; 
-use OpenAI\Contracts\ClientContract;
-use App\Services\EvolutionService;
-
+use App\Models\Assistant;
+use App\Models\AssistantLead;
+use App\Models\ClienteLead;
+use App\Models\Conexao;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use App\Models\LeadEmpresa;
-use App\Models\Chat;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
+use App\Services\UazapiService;
+use OpenAI\Contracts\ClientContract;
+use OpenAI\Factory;
 
 class OpenAIService
 {
     protected ClientContract $client;
     protected string $apiKey;
-    protected $evolution;
-    public $instancia;
-    public $contact;
-    public $threadId;
+    protected Conexao $conexao;
+    protected string $baseUrl = 'https://api.openai.com/v1';
 
-    public function __construct(?string $apiKey = null)
+    public function __construct(Conexao $conexao)
     {
-        $this->evolution = new EvolutionService();
-        // 2. ARMAZENA A API KEY NA PROPRIEDADE DA CLASSE
-        $this->apiKey = $apiKey ?? config('services.openai.key');
-        
-        if (empty($this->apiKey)) {
-            throw new \Exception("A chave de API da OpenAI não foi fornecida ou configurada.");
+        $this->conexao = $conexao;
+        $credential = $conexao->credential;
+        $token = $credential?->token;
+
+        if (empty($token) || $token === '******') {
+            Log::channel('openai')->error('OpenAIService credential missing token', [
+                'conexao_id' => $conexao->id,
+                'credential_id' => $credential?->id,
+            ]);
+            throw new \RuntimeException('Token da OpenAI não configurado na credencial vinculada.');
         }
 
-       
-        
-        // 3. USA A PROPRIEDADE ARMAZENADA PARA CRIAR O CLIENTE
-        $this->client = \OpenAI::client($this->apiKey);
+        $this->apiKey = $token;
+        $this->client = (new Factory())->create([
+            'api_key' => $this->apiKey,
+            'base_uri' => $this->baseUrl,
+        ]);
     }
 
-    public function processMessage(string $assistantId, ?string $threadId, string $userMessage, $instancia = null, $contact = null): array
+    public function client(): ClientContract
     {
-        $this->instancia = $instancia;
-        $this->contact = $contact;
+        return $this->client;
+    }
 
-        if (!empty($threadId)) {
-            $tokens = (int) $this->contarTokensEstimadoDoThread($threadId);
-           
+    public function apiKey(): string
+    {
+        return $this->apiKey;
+    }
 
-            if ($tokens > 100000) {
-               
-                $threadId = null;
-            }
+    public function conexao(): Conexao
+    {
+        return $this->conexao;
+    }
+
+    public function createConversation(): ?string
+    {
+        // Cria uma conversa nova usando o contexto do assistente vinculado à conexão.
+        $assistant = $this->conexao->assistant;
+        if (!$assistant) {
+            Log::channel('openai')->error('OpenAIService createConversation missing assistant', [
+                'conexao_id' => $this->conexao->id,
+                'assistant_id' => $this->conexao->assistant_id,
+            ]);
+            return null;
         }
 
-        $this->threadId = $threadId;
-
-        // Garantimos que existe um thread 
-        if (is_null($threadId)) {
-            $thread = $this->client->threads()->create([]);
-            $threadId = $thread->id;
-           
-        }
-
-        // BLOQUEIA processamento concorrente por thread_id
-        return Cache::lock("thread_lock_{$threadId}", 60)->block(10, function () use ($assistantId, $threadId, $userMessage) {
-
-           
-
-            // Aguarda Run anterior (se existir) finalizar
-            $this->aguardarRunFinalizar($threadId);
-
-            //if(!$aguardarRunFinalizar){$resposta = "Peço desculpas, mas estou com uma dificuldade técnica no momento e não consegui processar sua última mensagem. Por favor, você poderia tentar enviá-la novamente em alguns instantes?";}
-
-            // Adiciona a nova mensagem
-            $this->adicionarMensagemAoThread($threadId, $userMessage);
-
-            // Cria e aguarda novo Run
-            $this->criarRunEEsperarFinalizar($threadId, $assistantId);
-
-            $resposta = $this->extractAssistantResponse($threadId);
-            
-            return ['response' => $resposta, 'thread_id' => $threadId,];
-            
-        });
-    }
-
-    public function createThread(): string
-    {
-       
-        $thread = $this->client->threads()->create([]);
-        return $thread->id;
-    }
-
-    public function submit_outputs(string $run_id, string $thread_id, array $tool_outputs): bool
-    {
-        try {
-
-            $this->client->threads()->runs()->submitToolOutputs($thread_id,$run_id,['tool_outputs' => $tool_outputs]);
-
-            return true; // ✅ retorno correto
-        } catch (\Exception $e) {
-            Log::error('OpenAIService:92 - Erro ao submeter outputs para OpenAI', [
-                'run_id'    => $run_id,
-                'thread_id' => $thread_id,
-                'error'     => $e->getMessage(),
+        $systemPrompt = $this->buildSystemPrompt($assistant);
+        if ($systemPrompt === '') {
+            Log::channel('openai')->warning('OpenAIService createConversation empty system prompt', [
+                'conexao_id' => $this->conexao->id,
+                'assistant_id' => $assistant->id,
             ]);
         }
 
-        return false;
-    }
-
-
-
-    private function aguardarRunFinalizar(string $threadId, int $timeoutSegundos = 30): bool
-    {
-        $inicio = time();
-        do {
-            $runs = $this->client->threads()->runs()->list($threadId);
-
-            $ativo = collect($runs->data)->first(fn($run) =>
-                in_array($run->status, ['queued', 'in_progress', 'cancelling', 'requires_action'])
-            );
-
-            if (!$ativo) {
-                // Nenhum run ativo → terminou com sucesso
-                return true;
-            }
-
-            sleep(1);
-        } while ((time() - $inicio) < $timeoutSegundos);
-
-        // Se ainda tem run ativo depois do timeout → falhou
-        return false;
-    }
-
-
-    public function run($threadId){
-      return $this->client->threads()->runs()->list($threadId);  
-    }
-
-    public function extractRun($threadId, $runId){
-       return $this->client->threads()->runs()->retrieve($threadId, $runId);
-    }
-
-    private function adicionarMensagemAoThread(string $threadId, string $mensagem): void
-    {
-        $tentativas = 0;
-        $maxTentativas = 3;
-
-        while ($tentativas < $maxTentativas) {
-            try {
-                $this->client->threads()->messages()->create($threadId, [
-                    'role' => 'user',
-                    'content' => $mensagem,
-                ]);
-
-               
-                return; // deu certo, sai da função
-            } catch (\Exception $e) {
-                $tentativas++;
-                
-
-                if ($tentativas >= $maxTentativas) {
-                    Log::error("OpenAIService:150 - Erro definitivo ao adicionar mensagem no thread {$threadId} após {$tentativas} tentativas.");
-                    throw $e;
-                }
-
-                sleep(5); // espera 5 segundos antes da próxima tentativa
-            }
-        }
-    }
-
-
-    private function criarRunEEsperarFinalizar(string $threadId, string $assistantId, int $maxTentativas = 3)
-    {
-        $tentativas = 0;
-        $run = null;
-
-        while ($tentativas < $maxTentativas) {
-            $tentativas++;
-           
-
-            $run = $this->client->threads()->runs()->create($threadId, [
-                'assistant_id' => $assistantId,
-            ]);
-
-            while (in_array($run->status, ['queued', 'in_progress', 'cancelling', 'requires_action'])) {
-                
-                if ($run->status === 'requires_action') {
-                    //if($this->contact=='5562995772922' OR $this->contact=='556295772922'){dd($run);}
-                    
-                    $tool_outputs = $this->executar_functions($run->toArray());
-                    $this->submit_outputs($run->id, $run->threadId, $tool_outputs);
-                }
-                
-                sleep(1);
-                
-                $run = $this->client->threads()->runs()->retrieve($threadId, $run->id);
-            }
-
-            if ($run->status === 'completed') {
-               
-                return $run;
-            }
-
-            
-            sleep(2);
-        }
-
-        
-        throw new \Exception("Não foi possível concluir um Run após {$maxTentativas} tentativas.");
-    }
-
-    public function executar_functions($run){
-        
-       
-
-        foreach($run['required_action']['submit_tool_outputs']['tool_calls'] as $function){
-
-            
-            
-            $name = $function['function']['name'];
-            $arguments = $function['function']['arguments'] ?? null;
-            
-            
-            if($name=='notificar_adm'){
-                $tool_outputs[]=[
-                "tool_call_id"=> $function['id'],
-                "output" => json_encode($this->evolution->notificar_adm($arguments, $this->instancia, $this->contact))
-                ];
-            }
-
-            if($name=='buscar_get'){
-                $dados = json_decode($arguments, true);
-                $tool_outputs[]=[
-                "tool_call_id"=> $function['id'],
-                "output" => json_encode($this->buscar_get($dados['url']))
-                ];
-            }
-
-            if($name=='enviar_imagem'){
-                $dados = json_decode($arguments, true);
-                $tool_outputs[]=[
-                "tool_call_id"=> $function['id'],
-                "output" => json_encode($this->evolution->enviarMedia( $this->contact, $dados['url'], $this->instancia))
-                ];
-            }
-
-            if($name=='enviar_media'){
-                $dados = json_decode($arguments, true);
-                $tool_outputs[]=[
-                "tool_call_id"=> $function['id'],
-                "output" => json_encode($this->evolution->enviarMedia2( $this->contact, $dados['url'], $this->instancia))
-                ];
-            }
-
-            if($name=='cadastrar_empresas'){
-                $tool_outputs[]=[
-                "tool_call_id"=> $function['id'],
-                "output" => json_encode($this->cadastrar_empresas($arguments))
-                ];
-            }
-
-            if($name=='encerrarAtendimento'){
-                $tool_outputs[]=[
-                "tool_call_id"=> $function['id'],
-                "output" => json_encode($this->encerrarAtendimento($arguments))
-                ];
-            }
-            
-
-        }
-        //if($this->contact=='5562995772922' OR $this->contact=='556295772922'){dd($tool_outputs);}
-        return $tool_outputs ?? null;
-    }
-
-    public function encerrarAtendimento(){
-        Chat::where('contact', $this->contact)
-            ->where('thread_id', $this->threadId)
-            ->delete();
-
-        return "encerrado";    
-
-    }
-
-    public function buscar_get($url)
-    {
-        try {
-            $html = file_get_contents($url);
-
-            if (!$html) return null;
-
-            // Remove as tags HTML e limpa espaços extras
-            $textoLimpo = strip_tags($html);
-            $textoLimpo = preg_replace('/\s+/', ' ', $textoLimpo); // Remove múltiplos espaços
-            $textoLimpo = trim($textoLimpo);
-
-            // Limita o tamanho (ex: 200 mil caracteres ≈ 50k tokens)
-            $limiteCaracteres = 200000;
-            $textoLimitado = mb_substr($textoLimpo, 0, $limiteCaracteres);
-
-            
-
-            //dd($textoLimitado);
-            return $textoLimitado;
-        } catch (\Exception $e) {
-            \Log::error('OpenAIService:247 Erro em buscar_get: ' . $e->getMessage());
-            return 'Erro em buscar_get';
-        }
-    }
-
-    public function cadastrar_empresas(string|array $arguments): array
-    {
-        // 1. Garantir que está em formato de array
-        if (is_string($arguments)) {
-            $arguments = json_decode($arguments, true);
-        }
-
-        // 2. Validação básica
-        if (!isset($arguments['empresas']) || !is_array($arguments['empresas'])) {
-            return ['status' => 'erro', 'mensagem' => 'Formato inválido.'];
-        }
-
-        $cadastradas = [];
-        $ignoradas = [];
-
-        foreach ($arguments['empresas'] as $empresa) {
-            $telefone = $empresa['telefone'] ?? null;
-
-            if (!$telefone || LeadEmpresa::where('telefone', $telefone)->exists()) {
-                $ignoradas[] = $telefone;
-                continue;
-            }
-
-            LeadEmpresa::create([
-                'nome' => $empresa['nome'] ?? null,
-                'segmento' => $empresa['segmento'] ?? null,
-                'telefone' => $telefone,
-                'cidade' => $empresa['cidade'] ?? null,
-                'estado' => $empresa['estado'] ?? null,
-            ]);
-
-            $cadastradas[] = $telefone;
-        }
-
-        return [
-            'status' => 'ok',
-            'cadastradas' => $cadastradas,
-            'ignoradas' => $ignoradas
+        $payload = [
+            'items' => [
+                [
+                    'type' => 'message',
+                    'role' => 'system',
+                    'content' => $systemPrompt,
+                ],
+            ],
         ];
+
+        $response = Http::withToken($this->apiKey)
+            ->timeout(90)
+            ->retry(2, 1000)
+            ->post("{$this->baseUrl}/conversations", $payload);
+
+        if ($response->failed()) {
+            Log::channel('openai')->error('OpenAIService createConversation failed', [
+                'conexao_id' => $this->conexao->id,
+                'assistant_id' => $assistant->id,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            return null;
+        }
+
+        $conversationId = $response->json('id');
+        if (!$conversationId) {
+            Log::channel('openai')->error('OpenAIService createConversation missing id', [
+                'conexao_id' => $this->conexao->id,
+                'assistant_id' => $assistant->id,
+            ]);
+            return null;
+        }
+
+        return (string) $conversationId;
     }
 
-    public function extractAssistantResponse(string $threadId): string
+    public function handle(array $payload): void
     {
-        $messages = $this->client->threads()->messages()->list($threadId, [
-            'limit' => 1,
-            'order' => 'desc'
-        ]);
+        // Encaminha o payload para geração de resposta via OpenAI e envia ao WhatsApp.
+        $response = $this->createResponse($payload);
+        if (!$response) {
+            Log::channel('openai')->warning('OpenAIService handle returned empty response', [
+                'conexao_id' => $this->conexao->id,
+            ]);
+            return;
+        }
 
-       
+        $assistantText = $this->extractAssistantMessage($response);
+        if (!$assistantText) {
+            Log::channel('openai')->warning('OpenAIService handle missing assistant text', [
+                'conexao_id' => $this->conexao->id,
+            ]);
+            return;
+        }
 
-        $resposta = collect($messages->data)
-            ->firstWhere('role', 'assistant')
-            ->content ?? [];
+        $phone = Arr::get($payload, 'phone');
+        $token = $this->conexao->whatsapp_api_key;
+        if (!$phone || !$token) {
+            Log::channel('openai')->warning('OpenAIService handle missing phone or token', [
+                'conexao_id' => $this->conexao->id,
+            ]);
+            return;
+        }
 
-        $textos = collect($resposta)->filter(fn($c) =>
-            $c->type === 'text' && !empty($c->text->value)
-        )->pluck('text.value')->toArray();
-
-        return $textos ? implode("\n", $textos) : "Não consegui gerar uma resposta de texto, tente novamente.";
+        $uazapi = new UazapiService();
+        $sendResult = $uazapi->sendText($token, $phone, $assistantText);
+        if (!empty($sendResult['error'])) {
+            Log::channel('openai')->error('OpenAIService sendText failed', [
+                'conexao_id' => $this->conexao->id,
+                'response' => $sendResult,
+            ]);
+        }
     }
 
-     public function extractAssistantResponse2(string $threadId): string
+    protected function buildSystemPrompt(Assistant $assistant): string
     {
-        $messages = $this->client->threads()->messages()->list($threadId, [
-            
-            'order' => 'desc'
-        ]);
+        // Concatena os prompts configurados no assistente para servir de contexto inicial.
+        $parts = [
+            $assistant->systemPrompt ?? null,
+            $assistant->instructions ?? null,
+            $assistant->prompt_notificar_adm ?? null,
+            $assistant->prompt_buscar_get ?? null,
+            $assistant->prompt_enviar_media ?? null,
+            $assistant->prompt_registrar_info_chat ?? null,
+            $assistant->prompt_gerenciar_agenda ?? null,
+            $assistant->prompt_aplicar_tags ?? null,
+            $assistant->prompt_sequencia ?? null,
+        ];
 
-       
+        $parts = array_filter($parts, function ($value) {
+            return is_string($value) && trim($value) !== '';
+        });
 
-        $resposta = collect($messages->data)
-            ->firstWhere('role', 'user')
-            ->content ?? [];
-
-        $textos = collect($resposta)->filter(fn($c) =>
-            $c->type === 'text' && !empty($c->text->value)
-        )->pluck('text.value')->toArray();
-
-        return $textos ? implode("\n", $textos) : "Não consegui gerar uma resposta de texto, tente novamente.";
+        return trim(implode("\n", $parts));
     }
 
-    public function extractThread(string $threadId)
+    public function createResponse(array $payload): ?array
     {
-        return $this->client->threads()->messages()->list($threadId, ['order' => 'desc']);
+        // Monta o input e envia a requisição para o endpoint /responses da OpenAI.
+        $assistant = $this->conexao->assistant;
+        if (!$assistant) {
+            Log::channel('openai')->error('OpenAIService createResponse missing assistant', [
+                'conexao_id' => $this->conexao->id,
+                'assistant_id' => $this->conexao->assistant_id,
+            ]);
+            return null;
+        }
 
+        $phone = Arr::get($payload, 'phone');
+        $lead = $this->resolveClienteLead($phone);
+        $assistantLead = $lead ? $this->resolveAssistantLead($lead) : null;
+
+        if (!$assistantLead || empty($assistantLead->conv_id)) {
+            Log::channel('openai')->error('OpenAIService createResponse missing assistant_lead conv_id', [
+                'conexao_id' => $this->conexao->id,
+                'assistant_id' => $this->conexao->assistant_id,
+                'lead_id' => $lead?->id,
+            ]);
+            return null;
+        }
+
+        $input = $this->buildInput($payload);
+        if (empty($input)) {
+            Log::channel('openai')->warning('OpenAIService createResponse empty input', [
+                'conexao_id' => $this->conexao->id,
+            ]);
+            return null;
+        }
+
+        $input = $this->prependSystemContext($lead, $input);
+        $model = $assistant->modelo ?: 'gpt-4.1-mini';
+
+        $requestPayload = [
+            'model' => $model,
+            'input' => $input,
+            'conversation' => $assistantLead->conv_id,
+        ];
+
+        $response = Http::withToken($this->apiKey)
+            ->timeout(90)
+            ->retry(2, 1000)
+            ->post("{$this->baseUrl}/responses", $requestPayload);
+
+        if ($response->failed()) {
+            Log::channel('openai')->error('OpenAIService createResponse failed', [
+                'conexao_id' => $this->conexao->id,
+                'assistant_id' => $assistant->id,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            return null;
+        }
+
+        return $response->json();
     }
 
-
-    public function descreverImagemBase64(string $base64): string
+    protected function buildInput(array $payload): array
     {
-            $payload = [
-                'model' => 'gpt-4.1-mini',
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => [
-                            ['type' => 'text', 'text' => 'Descreva esta imagem em português.'],
-                            ['type' => 'image_url', 'image_url' => ['url' => "data:image/jpeg;base64,{$base64}"]],
+        // Constrói o array de input com texto e mídia, já tratando áudio via transcrição.
+        $tipo = Str::lower((string) ($payload['tipo'] ?? 'text'));
+        $message = is_array($payload['message'] ?? null) ? $payload['message'] : [];
+        $media = is_array($payload['media'] ?? null) ? $payload['media'] : null;
+
+        $text = $payload['combined_text']
+            ?? ($message['text'] ?? null)
+            ?? ($message['content'] ?? null);
+        $text = is_string($text) ? trim($text) : '';
+
+        if (str_contains($tipo, 'audio')) {
+            if (!$media || empty($media['base64'])) {
+                Log::channel('openai')->warning('OpenAIService audio without media payload');
+                return [];
+            }
+
+            $transcription = $this->transcreverAudio($media['base64']);
+            $transcription = is_string($transcription) ? trim($transcription) : '';
+            if ($transcription === '') {
+                return [];
+            }
+
+            return [
+                [
+                    'role' => 'user',
+                    'content' => $transcription,
+                ],
+            ];
+        }
+
+        if (str_contains($tipo, 'image')) {
+            if (!$media || empty($media['base64'])) {
+                Log::channel('openai')->warning('OpenAIService image without media payload');
+                return [];
+            }
+
+            $caption = $text !== '' ? $text : 'Imagem enviada.';
+            $mimetype = $media['mimetype'] ?? 'image/jpeg';
+
+            return [
+                [
+                    'role' => 'user',
+                    'content' => [
+                        [
+                            'type' => 'input_text',
+                            'text' => $caption,
+                        ],
+                        [
+                            'type' => 'input_image',
+                            'image_url' => "data:{$mimetype};base64,{$media['base64']}",
                         ],
                     ],
                 ],
-                'max_tokens' => 300,
             ];
-            
-            try {
-                $response = $this->client->chat()->create($payload);
-                return $response->choices[0]->message->content ?? 'Não foi possível descrever a imagem.';
-            } catch (\Exception $e) {
-                Log::error("OpenAIService:334 Exceção na chamada de visão da OpenAI: " . $e->getMessage());
-                // Retorna a mensagem de erro da API se for um erro específico
-                if (method_exists($e, 'getMessage')) {
-                    return "Erro da API: " . $e->getMessage();
-                }
-                return 'Ocorreu um erro ao processar a imagem.';
+        }
+
+        if (str_contains($tipo, 'video')) {
+            if ($text !== '') {
+                return [
+                    [
+                        'role' => 'user',
+                        'content' => $text,
+                    ],
+                ];
             }
-    }
 
-public function transcreverAudioBase64(string $base64, string $filename = 'audio'): string
-{
-    // Define os caminhos dos arquivos temporários
-    $tmpPath = storage_path('app/tmp/');
-    $originalAudioPath = $tmpPath . $filename . '.ogg'; // Salva como .ogg
-    $convertedAudioPath = $tmpPath . $filename . '.mp3'; // O alvo da conversão
-
-    try {
-        // Garante que o diretório temporário existe
-        if (!file_exists($tmpPath)) {
-            mkdir($tmpPath, 0777, true);
+            Log::channel('openai')->warning('OpenAIService video not supported without caption');
+            return [];
         }
 
-        // 1. Salva o áudio original recebido do Evolution
-        file_put_contents($originalAudioPath, base64_decode($base64));
-       
+        if (str_contains($tipo, 'document')) {
+            if (!$media || empty($media['base64'])) {
+                Log::channel('openai')->warning('OpenAIService document without media payload');
+                return [];
+            }
 
-        // 2. Converte o áudio para MP3 usando FFmpeg
-       
-        
-        // Usa o Facade 'Process' do Laravel para executar o comando de forma segura
-        $result = Process::run("ffmpeg -i {$originalAudioPath} -acodec libmp3lame -q:a 2 {$convertedAudioPath} -y");
-        
-        // Verifica se a conversão falhou
-        if (!$result->successful()) {
-            Log::error("Falha na conversão com FFmpeg.", [
-                'exit_code' => $result->exitCode(),
-                'output' => $result->output(),
-                'error_output' => $result->errorOutput(),
-            ]);
-            throw new \Exception('Falha ao converter o arquivo de áudio com FFmpeg.');
-        }
+            if (!$this->isPdfMedia($media, $message)) {
+                Log::channel('openai')->warning('OpenAIService document not supported (only PDF)', [
+                    'mimetype' => $media['mimetype'] ?? null,
+                    'filename' => Arr::get($message, 'content.fileName'),
+                ]);
+                return [];
+            }
 
-       
+            $caption = $text !== '' ? $text : 'Documento enviado.';
+            $filename = $this->resolvePdfFilename($message);
+            $mimetype = $media['mimetype'] ?? 'application/pdf';
 
-        // 3. Faz a transcrição usando o arquivo MP3 convertido
-        $response = $this->client->audio()->transcribe([
-            'file' => fopen($convertedAudioPath, 'r'),
-            'model' => 'whisper-1', // Recomendo usar o 'whisper-1' para transcrição
-            'language' => 'pt'
-        ]);
-        
-        return trim($response->text ?? '') ?: 'Transcrição do áudio vazia.';
-
-    } catch (\Exception $e) {
-        Log::error("OpenAIService: Erro na transcrição de áudio: " . $e->getMessage());
-        return 'Erro ao transcrever o áudio.';
-        
-    } finally {
-        // 4. Limpa AMBOS os arquivos temporários, não importa o que aconteça
-        if (file_exists($originalAudioPath)) {
-            unlink($originalAudioPath);
-        }
-        if (file_exists($convertedAudioPath)) {
-            unlink($convertedAudioPath);
-        }
-       
-    }
-}
-
-    public function listAssistants(): array
-    {
-       
-        try {
-            // O pacote lida com a paginação básica por padrão.
-            // O 'data' contém o array de assistentes.
-            $assistants = $this->client->assistants()->list(['limit' => 100])->data; // Adicionei 'limit' para pegar mais por padrão
-            return $assistants;
-        } catch (\Exception | \Throwable $e) { // Adicionei Throwable para pegar mais exceções
-            Log::error("OpenAIService:384 - Falha na API da OpenAI ao listar assistentes: " . $e->getMessage());
-            throw $e; // Relança a exceção para que o controller possa tratá-la
-        }
-    }   
-    
-    public function createAssistant(string $name, string $instructions): \OpenAI\Responses\Assistants\AssistantResponse
-    {
-       
-
-        try {
-            // Usamos o cliente do pacote para criar o assistente
-            $assistant = $this->client->assistants()->create([
-                'model' => 'gpt-4.1-nano', // Modelo padrão, pode ser configurável no futuro
-                'name' => $name,
-                'instructions' => $instructions,
-                'tools' =>  [
+            return [
                 [
-                    'type' => 'function',
-                    'function' => [
-                        'name' => 'buscar_get',
-                        'description' => 'Busca informações em tempo real de uma URL para responder perguntas que exigem dados atuais.',
-                        'parameters' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'url' => [
-                                    'type' => 'string',
-                                    'description' => 'A URL completa da fonte da informação.'
-                                ],
-                            ],
-                            'required' => ['url'],
+                    'role' => 'user',
+                    'content' => [
+                        [
+                            'type' => 'input_text',
+                            'text' => $caption,
                         ],
-                    ]
-                ],
-                [
-                    'type' => 'function',
-                    'function' => [
-                        'name' => 'notificar_adm',
-                        'description' => 'Notifica um administrador humano quando a conversa precisa de intervenção ou escalonamento.',
-                        'parameters' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'numeros_telefone' => [
-                                    'type' => 'array',
-                                    'items' => ['type' => 'string'],
-                                    'description' => 'Lista de números de telefone dos administradores.'
-                                ],
-                                'mensagem' => [
-                                    'type' => 'string',
-                                    'description' => 'A mensagem a ser enviada para os administradores.'
-                                ],
-                            ],
-                            'required' => ['numeros_telefone', 'mensagem'],
+                        [
+                            'type' => 'input_file',
+                            'filename' => $filename,
+                            'file_data' => "data:{$mimetype};base64,{$media['base64']}",
                         ],
-                    ]
+                    ],
                 ],
-                [
-                    'type' => 'function',
-                    'function' => [
-                        'name' => 'enviar_media',
-                        'description' => 'Envia vídeo ou imagem usando uma url. Sempre que for necessário enviar uma imagem ou vídeo para um usuário use esta ferramenta.',
-                        'parameters' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'url' => [
-                                    'type' => 'string',
-                                    'description' => 'A URL da imagem ou vídeo que será enviada.'
-                                ],
-                            ],
-                            'required' => ['url'],
-                        ],
-                    ]
-                ],
+            ];
+        }
+
+        if ($text === '') {
+            return [];
+        }
+
+        return [
+            [
+                'role' => 'user',
+                'content' => $text,
             ],
+        ];
+    }
+
+    protected function prependSystemContext(?ClienteLead $lead, array $input): array
+    {
+        // Injeta contexto temporal e nome do contato no início do input.
+        $timezone = config('app.timezone', 'America/Sao_Paulo');
+        $now = now($timezone);
+        $dayName = $now->locale('pt_BR')->isoFormat('dddd');
+        $date = $now->format('Y-m-d');
+        $time = $now->format('H:i');
+        $contactName = $lead?->name ? "nome do cliente/contato: {$lead->name}" : '';
+
+        return array_merge([
+            [
+                'role' => 'system',
+                'content' => "Agora: {$now->toIso8601String()} ({$dayName}, {$date} as {$time}, tz: {$timezone}).\n{$contactName}",
+            ],
+        ], $input);
+    }
+
+    protected function resolveClienteLead(?string $phone): ?ClienteLead
+    {
+        if (!$phone) {
+            return null;
+        }
+
+        return ClienteLead::where('cliente_id', $this->conexao->cliente_id)
+            ->where('phone', $phone)
+            ->first();
+    }
+
+    protected function resolveAssistantLead(ClienteLead $lead): ?AssistantLead
+    {
+        if (!$this->conexao->assistant_id) {
+            return null;
+        }
+
+        return AssistantLead::where('lead_id', $lead->id)
+            ->where('assistant_id', $this->conexao->assistant_id)
+            ->first();
+    }
+
+    protected function resolvePdfFilename(array $message): string
+    {
+        $filename = (string) Arr::get($message, 'content.fileName', 'documento.pdf');
+        $filename = trim($filename);
+        if ($filename === '') {
+            $filename = 'documento.pdf';
+        }
+
+        if (!Str::endsWith(Str::lower($filename), '.pdf')) {
+            $filename .= '.pdf';
+        }
+
+        return $filename;
+    }
+
+    protected function isPdfMedia(array $media, array $message): bool
+    {
+        $mimetype = Str::lower((string) ($media['mimetype'] ?? ''));
+        if ($mimetype === 'application/pdf') {
+            return true;
+        }
+
+        $filename = (string) Arr::get($message, 'content.fileName');
+        return $filename !== '' && Str::endsWith(Str::lower($filename), '.pdf');
+    }
+
+    protected function extractAssistantMessage(array $apiResponse): ?string
+    {
+        // Extrai a última mensagem do assistente retornada pelo endpoint /responses.
+        $output = $apiResponse['output'] ?? [];
+        if (!is_array($output) || empty($output)) {
+            return null;
+        }
+
+        $lastOutput = end($output);
+        if (
+            is_array($lastOutput) &&
+            ($lastOutput['type'] ?? null) !== null &&
+            in_array($lastOutput['type'], ['message', 'output_text'], true) &&
+            ($lastOutput['role'] ?? null) === 'assistant' &&
+            isset($lastOutput['content'][0]['text'])
+        ) {
+            return $lastOutput['content'][0]['text'];
+        }
+
+        foreach (array_reverse($output) as $outputItem) {
+            if (
+                isset($outputItem['type']) &&
+                in_array($outputItem['type'], ['message', 'output_text'], true) &&
+                ($outputItem['role'] ?? null) === 'assistant' &&
+                isset($outputItem['content'][0]['text'])
+            ) {
+                return $outputItem['content'][0]['text'];
+            }
+        }
+
+        return null;
+    }
+
+    public function transcreverAudio(string $base64, string $filename = 'audio'): ?string
+    {
+        // Converte o áudio base64 em arquivo temporário e usa a API de transcrição da OpenAI.
+        $tmpPath = storage_path('app/tmp/');
+        $suffix = uniqid('', true);
+        $originalAudioPath = $tmpPath . $filename . '_' . $suffix . '.ogg';
+        $convertedAudioPath = $tmpPath . $filename . '_' . $suffix . '.mp3';
+
+        try {
+            // Garante que o diretório temporário existe antes de gravar os arquivos.
+            if (!file_exists($tmpPath)) {
+                mkdir($tmpPath, 0777, true);
+            }
+
+            // Salva o áudio original recebido em base64.
+            file_put_contents($originalAudioPath, base64_decode($base64));
+
+            // Converte para MP3 usando ffmpeg via Process.
+            $result = Process::run("ffmpeg -i {$originalAudioPath} -acodec libmp3lame -q:a 2 {$convertedAudioPath} -y");
+            if (!$result->successful()) {
+                Log::channel('openai')->error('OpenAIService transcreverAudio ffmpeg failed', [
+                    'exit_code' => $result->exitCode(),
+                    'error' => $result->errorOutput(),
+                ]);
+                return null;
+            }
+
+            // Chama o endpoint de transcrição da OpenAI.
+            $response = Http::withToken($this->apiKey)
+                ->timeout(90)
+                ->retry(2, 1000)
+                ->asMultipart()
+                ->post("{$this->baseUrl}/audio/transcriptions", [
+                    'file' => fopen($convertedAudioPath, 'r'),
+                    'model' => 'whisper-1',
+                    'language' => 'pt',
+                ]);
+
+            if ($response->successful()) {
+                return $response->json('text');
+            }
+
+            Log::channel('openai')->error('OpenAIService transcreverAudio failed', [
+                'status' => $response->status(),
+                'body' => $response->body(),
             ]);
 
-           
-
-            return $assistant;
-
-        } catch (\Exception $e) {
-            // Captura e registra qualquer erro da API
-            Log::error("OpenAIService:448 - Falha na API da OpenAI ao criar assistente '{$name}': " . $e->getMessage());
-            // Lança a exceção novamente para que o controller possa tratá-la
-            throw $e;
+            return null;
+        } catch (\Throwable $e) {
+            Log::channel('openai')->error('OpenAIService transcreverAudio exception', [
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        } finally {
+            // Limpa os arquivos temporários para evitar acúmulo no disco.
+            if (file_exists($originalAudioPath)) {
+                unlink($originalAudioPath);
+            }
+            if (file_exists($convertedAudioPath)) {
+                unlink($convertedAudioPath);
+            }
         }
     }
-
-    /**
-     * Atualiza um assistente existente na plataforma da OpenAI.
-     *
-     * @param string $assistantId O ID do assistente a ser modificado.
-     * @param array $data Os dados a serem atualizados (ex: ['name' => 'Novo Nome', 'instructions' => '...']).
-     * @return \OpenAI\Responses\Assistants\AssistantResponse O objeto do assistente atualizado.
-     */
-    
-
-   public function contarTokensEstimadoDoThread(string $threadId): int
-    {
-        try {
-            $total = 0;
-            $after = null;
-
-            do {
-                $params = ['order' => 'asc', 'limit' => 100];
-                if ($after) $params['after'] = $after;
-
-                $mensagens = $this->client->threads()->messages()->list($threadId, $params);
-
-                foreach ($mensagens->data as $mensagem) {
-                    foreach ($mensagem->content as $conteudo) {
-                        if ($conteudo->type === 'text' && !empty($conteudo->text->value)) {
-                            $total += ceil(strlen($conteudo->text->value) / 4);
-                        }
-                    }
-                }
-
-                $after = $mensagens->meta->next_id ?? null;
-            } while ($after);
-
-            return $total;
-        } catch (\Exception $e) {
-            Log::error("OpenAIService:502 - Erro ao contar tokens: " . $e->getMessage());
-            return 0; // retorna 0 se der erro
-        }
-    }
-
-
-
-
-
 }

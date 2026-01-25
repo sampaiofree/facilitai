@@ -15,16 +15,18 @@
                     <table class="min-w-full w-full bg-white">
                         <thead>
                             <tr>
-                                <th class="w-1/3 text-left py-3 px-6">Serviço</th>
-                                <th class="w-1/3 text-left py-3 px-6">Rótulo</th> {{-- <-- NOVA COLUNA --}}
-                                <th class="w-1/3 text-left py-3 px-6">Token (Início)</th>
-                                <th class="w-1/3 text-center py-3 px-6">Ações</th>
+                                <th class="w-1/3 text-left py-3 px-6">Servi&ccedil;o</th>
+                                <th class="w-1/3 text-left py-3 px-6">Plataforma</th>
+                                <th class="w-1/3 text-left py-3 px-6">R&oacute;tulo</th>
+                                <th class="w-1/3 text-left py-3 px-6">Token (In&iacute;cio)</th>
+                                <th class="w-1/3 text-center py-3 px-6">A&ccedil;&otilde;es</th>
                             </tr>
                         </thead>
                         <tbody>
                               @forelse ($credentials as $credential)
                                     <tr class="border-b">
                                         <td class="py-4 px-6">{{ $credential->name }}</td>
+                                        <td class="py-4 px-6">{{ optional($credential->iaplataforma)->nome ?? '-' }}</td>
                                         <td class="py-4 px-6">{{ $credential->label }}</td> {{-- <-- DADOS DA NOVA COLUNA --}}
                                         <td class="py-4 px-6 font-mono">{{ substr($credential->token, 0, 8) }}...</td>
                                         <td class="py-4 px-6 text-center">
@@ -50,7 +52,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="4" class="text-center py-6">Você ainda não possui nenhuma credencial.</td> {{-- <-- Mude o colspan para 4 --}}
+                                        <td colspan="5" class="text-center py-6">Você ainda não possui nenhuma credencial.</td> {{-- colspan ajustado para 5 --}}
                                     </tr>
         @endforelse
                         </tbody>

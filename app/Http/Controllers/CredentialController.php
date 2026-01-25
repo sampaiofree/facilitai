@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Credential;
+use App\Models\Iaplataforma;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule; 
@@ -17,14 +18,14 @@ class CredentialController extends Controller
             return redirect()->back()->with('error', 'Opção não disponível no seu plano!');
         }
 
-        $credentials = Auth::user()->credentials()->get();
+        $credentials = Auth::user()->credentials()->with('iaplataforma')->get();
         return view('credentials.index', compact('credentials'));
     }
 
     // Mostrar o formulário de criação
     public function create()
     {
-        return view('credentials.create');
+        return view('credentials.create', compact('iaplataformas'));
     }
 
     // Salvar a nova credencial
@@ -34,6 +35,7 @@ class CredentialController extends Controller
             'name' => ['required', 'string', Rule::in(['OpenAI'])],
             'label' => 'required|string|max:255',
             'token' => 'required|string',
+            'iaplataforma_id' => ['required', 'exists:iaplataformas,id'],
         ]);
 
         Auth::user()->credentials()->create($validated);
@@ -44,11 +46,15 @@ class CredentialController extends Controller
     // Mostrar o formulário de edição
     public function edit(Credential $credential)
     {
+        $iaplataformas = Iaplataforma::orderBy('nome')->get();
+
         // Segurança: Garante que o usuário só pode editar suas próprias credenciais
         if ($credential->user_id !== Auth::id()) {
             abort(403);
         }
-        return view('credentials.edit', compact('credential'));
+        $iaplataformas = Iaplataforma::orderBy('nome')->get();
+
+        return view('credentials.edit', compact('credential', 'iaplataformas'));
     }
 
     // Atualizar a credencial
@@ -66,6 +72,7 @@ class CredentialController extends Controller
                 'name' => ['required', 'string', Rule::in(['OpenAI'])],
                 'label' => 'required|string|max:255',
                 'token' => 'required|string',
+            'iaplataforma_id' => ['required', 'exists:iaplataformas,id'],
             ]);
             
         } catch (\Exception $e) {
