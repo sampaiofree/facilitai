@@ -56,7 +56,7 @@ class ImageController extends Controller
                 'required_without:images',
                 'file',
                 $mimeTypes,
-                'max:10240',
+                'max:20480',
             ],
             'title' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:500'],
@@ -70,7 +70,7 @@ class ImageController extends Controller
             'images.*' => [
                 'file',
                 $mimeTypes,
-                'max:10240',
+                'max:20480',
             ],
             'titles' => ['array'],
             'titles.*' => ['nullable', 'string', 'max:255'],
