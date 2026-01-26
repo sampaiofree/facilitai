@@ -7,7 +7,6 @@ use App\Models\Instance;
 use App\Models\Chat; // <-- Precisamos deste modelo
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Jobs\ProcessWebhookJob;
 use App\Services\ConversationsService;
 use App\Jobs\ProcessarConversaJob;
 use Illuminate\Support\Facades\Cache;
@@ -145,15 +144,8 @@ class EvolutionWebhookController extends Controller
 
         
 
-        // Despacha o Job para a fila, passando apenas os dados essenciais
-        ProcessWebhookJob::dispatch(
-            $instance,
-            $contactNumber,
-            $request->input('data'), 
-        ); 
-
-        // Resposta imediata de sucesso para o Evolution
-        return response()->json(['status' => 'queued_for_processing']);
+        // Fluxo antigo desativado (ProcessWebhookJob removido).
+        return response()->json(['status' => 'ignored', 'reason' => 'deprecated_flow']);
     }
 
     

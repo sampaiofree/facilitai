@@ -16,10 +16,10 @@ class MediaDecryptService
 
     public function decrypt(array $message, string $tipoMensagem): ?array
     {
-        // Valida se o tipo de mídia é suportado (audio, imagem, vídeo ou documento PDF).
+        // Valida se o tipo de mídia é suportado (audio, imagem, vídeo ou documento em whitelist).
         $tipoLower = Str::lower($tipoMensagem);
         $isDocument = str_contains($tipoLower, 'document');
-        if ($isDocument && !$this->isPdf($message)) {
+        if ($isDocument && !$this->isAllowedDocument($message)) {
             Log::channel('media_decrypt')->warning('Documento não suportado para descriptografia.', [
                 'tipo' => $tipoMensagem,
                 'mimetype' => data_get($message, 'content.mimetype'),
@@ -45,15 +45,29 @@ class MediaDecryptService
         ];
     }
 
-    protected function isPdf(array $message): bool
+    protected function isAllowedDocument(array $message): bool
     {
         $mimetype = Str::lower((string) data_get($message, 'content.mimetype'));
-        if ($mimetype === 'application/pdf') {
+        $allowedMimetypes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/plain',
+        ];
+
+        if ($mimetype !== '' && in_array($mimetype, $allowedMimetypes, true)) {
             return true;
         }
 
         $filename = Str::lower((string) data_get($message, 'content.fileName'));
-        return $filename !== '' && str_ends_with($filename, '.pdf');
+        if ($filename === '') {
+            return false;
+        }
+
+        $ext = pathinfo($filename, PATHINFO_EXTENSION);
+        return in_array($ext, ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'], true);
     }
 
     protected function normalizeMediaType(string $tipoLower): string

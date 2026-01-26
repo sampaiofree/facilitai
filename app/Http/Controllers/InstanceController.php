@@ -10,7 +10,6 @@ use Illuminate\Validation\Rule;
 use App\Models\Instance;
 use App\Models\ProxyIpBan;
 use App\Models\Credential;
-use App\Services\OpenAIService;
 use App\Services\WebshareService; 
 use App\Services\EvolutionService;
 use App\Models\Payment;
@@ -652,21 +651,4 @@ class InstanceController extends Controller
     }
 
     // Novo método que retorna JSON para o nosso JavaScript
-    public function getAssistantsForCredential(Credential $credential)
-    {
-        // Segurança
-        if ($credential->user_id !== Auth::id()) {
-            return response()->json(['error' => 'Acesso negado'], 403);
-        }
-
-        try {
-            $openaiService = new OpenAIService($credential->token);
-            $assistants = $openaiService->listAssistants();
-            // Retorna a lista de assistentes como JSON
-            return response()->json($assistants);
-        } catch (\Exception $e) {
-            Log::error("Falha ao buscar assistentes para a credencial {$credential->id}: " . $e->getMessage());
-            return response()->json(['error' => 'Falha ao buscar dados na API da OpenAI'], 500);
-        }
-    }
 }

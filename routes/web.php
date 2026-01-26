@@ -237,12 +237,10 @@ Route::middleware('auth', 'verified')->group(function () {
     // CREDENCIAIS
     Route::resource('credentials', CredentialController::class);
     // Nova rota para o JavaScript chamar e buscar assistentes de uma credencial
-    Route::get('/credentials/{credential}/assistants', [InstanceController::class, 'getAssistantsForCredential'])->name('credentials.assistants');
 
     // ASSISTENTES
     Route::get('/assistants', [AssistantController::class, 'index'])->name('assistants.index');
     //Route::post('/assistants/fetch', [AssistantController::class, 'fetchAssistants'])->name('assistants.fetch');
-    Route::post('/assistants', [AssistantController::class, 'store'])->name('assistants.store');
     Route::delete('/assistants/{assistant}', [AssistantController::class, 'destroy'])->name('assistants.destroy');
     // Rota GET para mostrar a página do assistente de criação (o quiz)
     Route::get('/assistant-builder', [AssistantController::class, 'showBuilder'])->name('assistants.builder');
@@ -253,7 +251,7 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::post('/assistants/wizard', [AssistantController::class, 'storeWizard'])->name('assistants.wizard.store');
     Route::get('/assistants/{assistant}/wizard', [AssistantController::class, 'editWizard'])->name('assistants.wizard.edit');
     Route::put('/assistants/{assistant}/wizard', [AssistantController::class, 'updateWizard'])->name('assistants.wizard.update');
-    Route::resource('assistants', AssistantController::class)->except(['create', 'show']);
+    Route::resource('assistants', AssistantController::class)->except(['create', 'show', 'store']);
 
 });
 
@@ -290,4 +288,3 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::post('assistant', [AgenciaAssistantController::class, 'store'])->name('assistant.store');
     Route::patch('assistant/{assistant}', [AgenciaAssistantController::class, 'update'])->name('assistant.update');
 });
-
