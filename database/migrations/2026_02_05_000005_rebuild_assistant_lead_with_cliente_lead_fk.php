@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Recria a tabela para corrigir o FK apontando para cliente_lead.
+        Schema::dropIfExists('assistant_lead');
+
         Schema::create('assistant_lead', function (Blueprint $table) {
             $table->id();
             $table->foreignId('lead_id')->constrained('cliente_lead')->cascadeOnDelete();

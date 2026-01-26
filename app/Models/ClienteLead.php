@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Cliente;
+use App\Models\AssistantLead;
 
 class ClienteLead extends Model
 {
@@ -27,5 +28,10 @@ class ClienteLead extends Model
     public function cliente()
     {
         return $this->belongsTo(Cliente::class);
+    }
+
+    public function assistantLeads()
+    {
+        return $this->hasMany(AssistantLead::class, 'lead_id');
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\CredentialController;
 use App\Http\Controllers\AssistantController;
 use Illuminate\Support\Facades\Route;
 use App\Models\Credential;
+use App\Http\Controllers\Admin\ClienteLeadController;
 use App\Http\Controllers\Admin\LeadEmpresaController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\TagController;
@@ -140,6 +141,10 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::post('whatsapp-api', [App\Http\Controllers\Admin\WhatsappApiController::class, 'store'])->name('whatsapp-api.store');
     Route::patch('whatsapp-api/{whatsappApi}', [App\Http\Controllers\Admin\WhatsappApiController::class, 'update'])->name('whatsapp-api.update');
     Route::delete('whatsapp-api/{whatsappApi}', [App\Http\Controllers\Admin\WhatsappApiController::class, 'destroy'])->name('whatsapp-api.destroy');
+    Route::get('cliente-lead', [ClienteLeadController::class, 'index'])->name('cliente-lead.index');
+    Route::delete('cliente-lead/{clienteLead}', [ClienteLeadController::class, 'destroy'])->name('cliente-lead.destroy');
+    Route::view('payload', 'admin.payload.index')->name('payload.index');
+    Route::post('payload', [App\Http\Controllers\Admin\PayloadController::class, 'send'])->name('payload.send');
 });
 
 Route::get('/dashboard', function () {

@@ -26,4 +26,4 @@ Route::post('/hotmart', [HotmartWebhookController::class, 'handleWebhook']);
 
 Route::post('/hotmart-test-simple', [HotmartWebhookController::class, 'testHotmart']);
 
-Route::post('/uazapi/{evento}/{tipodemensagem}', [UazapiWebhookController::class, 'handle']);
+Route::post('/uazapi/{evento}/{tipodemensagem}', [UazapiWebhookController::class, 'handle'])->name('api.uazapi.handle');

@@ -276,6 +276,26 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
     private function ensureAssistantLead(ClienteLead $lead, Assistant $assistant): ?AssistantLead
     {
+        // Garante que o assistente existe antes de criar o relacionamento.
+        if (!$assistant->id || !Assistant::whereKey($assistant->id)->exists()) {
+            Log::channel('process_job')->warning('Assistente inválido para AssistantLead.', $this->logContext([
+                'assistant_id' => $assistant->id ?? null,
+                'lead_id' => $lead->id,
+                'conexao_id' => $this->conexao?->id,
+            ]));
+            return null;
+        }
+
+        // Garante que o lead existe antes de criar o relacionamento.
+        if (!$lead->id || !ClienteLead::whereKey($lead->id)->exists()) {
+            Log::channel('process_job')->warning('Lead inválido para AssistantLead.', $this->logContext([
+                'assistant_id' => $assistant->id ?? null,
+                'lead_id' => $lead->id ?? null,
+                'conexao_id' => $this->conexao?->id,
+            ]));
+            return null;
+        }
+
         $assistantLead = AssistantLead::where('lead_id', $lead->id)
             ->where('assistant_id', $assistant->id)
             ->first();

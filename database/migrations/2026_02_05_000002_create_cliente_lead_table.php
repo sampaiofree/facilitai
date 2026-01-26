@@ -17,7 +17,7 @@ return new class extends Migration
             $table->boolean('bot_enabled')->default(true);
             $table->string('phone');
             $table->string('name');
-            $table->text('info');
+            $table->text('info')->nullable();
             $table->timestamps();
 
             $table->unique(['cliente_id', 'phone']);

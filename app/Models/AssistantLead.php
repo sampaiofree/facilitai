@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Assistant;
-use App\Models\Lead;
+use App\Models\ClienteLead;
 
 class AssistantLead extends Model
 {
@@ -22,7 +22,7 @@ class AssistantLead extends Model
 
     public function lead()
     {
-        return $this->belongsTo(Lead::class);
+        return $this->belongsTo(ClienteLead::class);
     }
 
     public function assistant()

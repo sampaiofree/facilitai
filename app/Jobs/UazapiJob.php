@@ -39,87 +39,113 @@ class UazapiJob implements ShouldQueue
 
     public function handle(): void
     {
-        $evento = (string) ($this->payload['evento'] ?? '');
-        if ($evento !== 'messages') {
-            return;
-        }
+        $status = 'success';
+        $reason = null;
 
-        $tipoMensagem = (string) ($this->payload['tipo'] ?? '');
-        $payload = is_array($this->payload['payload'] ?? null) ? $this->payload['payload'] : [];
+        try {
+            $evento = (string) ($this->payload['evento'] ?? '');
+            if ($evento !== 'messages') {
+                $status = 'ignored';
+                $reason = 'evento_nao_messages';
+                return;
+            }
 
-        $chat = Arr::get($payload, 'chat', []);
-        $message = Arr::get($payload, 'message', []);
+            $tipoMensagem = (string) ($this->payload['tipo'] ?? '');
+            $payload = is_array($this->payload['payload'] ?? null) ? $this->payload['payload'] : [];
 
-        $token = Arr::get($payload, 'token');
-        $conexao = $token ? Conexao::with('cliente')->where('whatsapp_api_key', $token)->first() : null;
-        if (!$conexao) {
-            return;
-        }
+            $chat = Arr::get($payload, 'chat', []);
+            $message = Arr::get($payload, 'message', []);
 
-        if (!$this->userStatus($conexao)) {
-            return;
-        }
+            $token = Arr::get($payload, 'token');
+            $conexao = $token ? Conexao::with('cliente')->where('whatsapp_api_key', $token)->first() : null;
+            if (!$conexao) {
+                $status = 'ignored';
+                $reason = 'conexao_nao_encontrada';
+                return;
+            }
 
-        $phone = $this->resolveWhatsappNumber($message, $chat);
-        if (!$phone) {
-            return;
-        }
+            if (!$this->userStatus($conexao)) {
+                $status = 'ignored';
+                $reason = 'usuario_invalido';
+                return;
+            }
 
-        $textCandidate = Arr::get($message, 'text');
-        if (!is_string($textCandidate) || trim($textCandidate) === '') {
-            $textCandidate = Arr::get($message, 'content.caption')
-                ?? Arr::get($message, 'content.text')
-                ?? (is_string(Arr::get($message, 'content')) ? Arr::get($message, 'content') : null);
-        }
-        $text = $textCandidate ?? '';
-        $eventId = Arr::get($message, 'id') ?? Arr::get($message, 'messageid');
-        $messageTimestamp = Arr::get($message, 'messageTimestamp') ?? Arr::get($chat, 'wa_lastMsgTimestamp');
-        $messageType = Arr::get($message, 'messageType') ?? Arr::get($message, 'type');
-        $fromMe = Arr::get($message, 'fromMe') === true;
+            $phone = $this->resolveWhatsappNumber($message, $chat);
+            if (!$phone) {
+                $status = 'ignored';
+                $reason = 'telefone_invalido';
+                return;
+            }
 
-        $this->logContextBase = LogContext::merge(
-            LogContext::jobContext($this),
-            LogContext::base([
-                'conexao_id' => $conexao->id,
+            $textCandidate = Arr::get($message, 'text');
+            if (!is_string($textCandidate) || trim($textCandidate) === '') {
+                $textCandidate = Arr::get($message, 'content.caption')
+                    ?? Arr::get($message, 'content.text')
+                    ?? (is_string(Arr::get($message, 'content')) ? Arr::get($message, 'content') : null);
+            }
+            $text = $textCandidate ?? '';
+            $eventId = Arr::get($message, 'id') ?? Arr::get($message, 'messageid');
+            $messageTimestamp = Arr::get($message, 'messageTimestamp') ?? Arr::get($chat, 'wa_lastMsgTimestamp');
+            $messageType = Arr::get($message, 'messageType') ?? Arr::get($message, 'type');
+            $fromMe = Arr::get($message, 'fromMe') === true;
+
+            $this->logContextBase = LogContext::merge(
+                LogContext::jobContext($this),
+                LogContext::base([
+                    'conexao_id' => $conexao->id,
+                    'phone' => $phone,
+                    'event_id' => $eventId,
+                    'message_type' => $messageType,
+                    'provider' => $conexao->credential?->iaplataforma?->nome ?? null,
+                ], $conexao)
+            );
+
+            if (!$this->deduplicateEvent($conexao, $phone, $eventId, $messageType, $messageTimestamp, $text)) {
+                $status = 'ignored';
+                $reason = 'duplicado';
+                return;
+            }
+
+            $isGroup = Arr::get($message, 'isGroup');
+            if ($isGroup === true) {
+                $status = 'ignored';
+                $reason = 'mensagem_grupo';
+                return;
+            }
+
+            $leadName = $this->resolveLeadName($message, $chat, $phone);
+            $clienteLead = ClienteLead::where('cliente_id', $conexao->cliente_id)
+                ->where('phone', $phone)
+                ->first();
+
+            $tipoNormalizado = $this->normalizeTipo($tipoMensagem, $message);
+            $media = $this->normalizeMediaPayload($message, $tipoNormalizado, $conexao);
+
+            $normalized = [
                 'phone' => $phone,
+                'text' => is_string($text) ? trim($text) : '',
+                'tipo' => $tipoNormalizado,
+                'from_me' => $fromMe,
+                'is_group' => $isGroup === true,
                 'event_id' => $eventId,
+                'message_timestamp' => $messageTimestamp,
                 'message_type' => $messageType,
-                'provider' => $conexao->credential?->iaplataforma?->nome ?? null,
-            ], $conexao)
-        );
+                'lead_name' => $leadName,
+                'received_at' => $this->payload['received_at'] ?? null,
+                'media' => $media,
+            ];
 
-        if (!$this->deduplicateEvent($conexao, $phone, $eventId, $messageType, $messageTimestamp, $text)) {
-            return;
+            ProcessIncomingMessageJob::dispatch($conexao->id, $clienteLead?->id, $normalized);
+        } catch (\Throwable $exception) {
+            $status = 'failed';
+            $reason = 'exception';
+            throw $exception;
+        } finally {
+            Log::channel('uazapi_job')->info('UazapiJob finalizado.', $this->logContext([
+                'status' => $status,
+                'reason' => $reason,
+            ]));
         }
-
-        $isGroup = Arr::get($message, 'isGroup');
-        if ($isGroup === true) {
-            return;
-        }
-
-        $leadName = $this->resolveLeadName($message, $chat, $phone);
-        $clienteLead = ClienteLead::where('cliente_id', $conexao->cliente_id)
-            ->where('phone', $phone)
-            ->first();
-
-        $tipoNormalizado = $this->normalizeTipo($tipoMensagem, $message);
-        $media = $this->normalizeMediaPayload($message, $tipoNormalizado, $conexao);
-
-        $normalized = [
-            'phone' => $phone,
-            'text' => is_string($text) ? trim($text) : '',
-            'tipo' => $tipoNormalizado,
-            'from_me' => $fromMe,
-            'is_group' => $isGroup === true,
-            'event_id' => $eventId,
-            'message_timestamp' => $messageTimestamp,
-            'message_type' => $messageType,
-            'lead_name' => $leadName,
-            'received_at' => $this->payload['received_at'] ?? null,
-            'media' => $media,
-        ];
-
-        ProcessIncomingMessageJob::dispatch($conexao->id, $clienteLead?->id, $normalized);
     }
 
     private function resolveLeadName(array $message, array $chat, string $fallback): string
