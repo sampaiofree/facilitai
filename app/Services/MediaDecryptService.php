@@ -20,7 +20,7 @@ class MediaDecryptService
         $tipoLower = Str::lower($tipoMensagem);
         $isDocument = str_contains($tipoLower, 'document');
         if ($isDocument && !$this->isAllowedDocument($message)) {
-            Log::channel('media_decrypt')->warning('Documento não suportado para descriptografia.', [
+            Log::channel('media')->warning('Documento não suportado para descriptografia.', [
                 'tipo' => $tipoMensagem,
                 'mimetype' => data_get($message, 'content.mimetype'),
                 'filename' => data_get($message, 'content.fileName'),
@@ -30,7 +30,7 @@ class MediaDecryptService
 
         $payload = $this->descripto->decryptToBase64($message, $tipoMensagem);
         if (!$payload || empty($payload['base64'])) {
-            Log::channel('media_decrypt')->error('Falha ao descriptografar mídia.', [
+            Log::channel('media')->error('Falha ao descriptografar mídia.', [
                 'tipo' => $tipoMensagem,
                 'mimetype' => data_get($message, 'content.mimetype'),
                 'filename' => data_get($message, 'content.fileName'),

@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\UazapiJob;
+use App\Support\LogContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class UazapiWebhookController extends Controller
 {
@@ -16,6 +18,11 @@ class UazapiWebhookController extends Controller
         */
 
         if ($evento !== 'messages') {
+            Log::channel('uazapi_webhook')->info('Evento ignorado no webhook Uazapi.', LogContext::merge([
+                'evento' => $evento,
+                'tipo' => $tipoMensagem,
+                'ip' => $request->ip(),
+            ]));
             return response()->json(['status' => 'ignored']);
         }
 
@@ -27,6 +34,12 @@ class UazapiWebhookController extends Controller
             'payload' => $payload,
             'received_at' => now(),
         ]);
+
+        Log::channel('uazapi_webhook')->info('Webhook Uazapi enfileirado.', LogContext::merge([
+            'evento' => $evento,
+            'tipo' => $tipoMensagem,
+            'ip' => $request->ip(),
+        ]));
 
         return response()->json(['status' => 'queued']);
     }

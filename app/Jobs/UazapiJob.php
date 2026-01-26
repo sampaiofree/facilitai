@@ -6,6 +6,7 @@ use App\Jobs\ProcessIncomingMessageJob;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Services\MediaDecryptService;
+use App\Support\LogContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -25,11 +26,11 @@ class UazapiJob implements ShouldQueue
     private const MAX_INLINE_BYTES_AUDIO = 500000;
     private const DEDUP_TTL_MINUTES = 10;
 
-    public int $tries = 3;
+    public int $tries = 1;
     public int $timeout = 60;
-    public int $backoff = 30;
 
     protected array $payload;
+    protected array $logContextBase = [];
 
     public function __construct(array $payload)
     {
@@ -75,6 +76,17 @@ class UazapiJob implements ShouldQueue
         $messageTimestamp = Arr::get($message, 'messageTimestamp') ?? Arr::get($chat, 'wa_lastMsgTimestamp');
         $messageType = Arr::get($message, 'messageType') ?? Arr::get($message, 'type');
         $fromMe = Arr::get($message, 'fromMe') === true;
+
+        $this->logContextBase = LogContext::merge(
+            LogContext::jobContext($this),
+            LogContext::base([
+                'conexao_id' => $conexao->id,
+                'phone' => $phone,
+                'event_id' => $eventId,
+                'message_type' => $messageType,
+                'provider' => $conexao->credential?->iaplataforma?->nome ?? null,
+            ], $conexao)
+        );
 
         if (!$this->deduplicateEvent($conexao, $phone, $eventId, $messageType, $messageTimestamp, $text)) {
             return;
@@ -217,10 +229,10 @@ class UazapiJob implements ShouldQueue
         $type = $tipoNormalizado;
 
         if ($type === 'document' && !$this->isAllowedDocument($mimetype, $filename)) {
-            Log::channel('uazapijob')->warning('Documento não permitido na whitelist.', [
+            Log::channel('uazapi_job')->warning('Documento não permitido na whitelist.', $this->logContext([
                 'mimetype' => $mimetype,
                 'filename' => $filename,
-            ]);
+            ]));
             return [];
         }
 
@@ -246,11 +258,11 @@ class UazapiJob implements ShouldQueue
 
         $sizeBytes = $this->base64DecodedSize($base64);
         if ($sizeBytes === null) {
-            Log::channel('uazapijob')->warning('Base64 inválido após descriptografia.', [
+            Log::channel('uazapi_job')->warning('Base64 inválido após descriptografia.', $this->logContext([
                 'type' => $type,
                 'mimetype' => $media['mimetype'],
                 'filename' => $media['filename'],
-            ]);
+            ]));
             return [];
         }
         $media['size_bytes'] = $sizeBytes;
@@ -278,17 +290,17 @@ class UazapiJob implements ShouldQueue
         $hasKey = !empty($raw['media_key']);
 
         if (!$hasUrl || !$hasKey) {
-            Log::channel('uazapijob')->warning('Mídia incompleta para descriptografia.', [
+            Log::channel('uazapi_job')->warning('Mídia incompleta para descriptografia.', $this->logContext([
                 'has_url' => $hasUrl,
                 'has_key' => $hasKey,
-            ]);
+            ]));
             return null;
         }
 
         $mediaDecrypt = new MediaDecryptService();
         $mediaPayload = $mediaDecrypt->decrypt($message, $tipoMensagem);
         if (!$mediaPayload) {
-            Log::channel('uazapijob')->warning('Falha ao descriptografar mídia.');
+            Log::channel('uazapi_job')->warning('Falha ao descriptografar mídia.', $this->logContext());
             return null;
         }
 
@@ -308,7 +320,7 @@ class UazapiJob implements ShouldQueue
     {
         $binary = base64_decode($base64, true);
         if ($binary === false) {
-            Log::channel('uazapijob')->warning('Falha ao decodificar base64 para storage.');
+            Log::channel('uazapi_job')->warning('Falha ao decodificar base64 para storage.', $this->logContext());
             throw new \RuntimeException('Falha ao decodificar base64.');
         }
 
@@ -319,10 +331,10 @@ class UazapiJob implements ShouldQueue
         $diskName = config('media.disk', 'local');
         $disk = $this->mediaDisk();
         if (!$disk->put($key, $binary)) {
-            Log::channel('uazapijob')->warning('Falha ao salvar mídia no storage.', [
+            Log::channel('uazapi_job')->warning('Falha ao salvar mídia no storage.', $this->logContext([
                 'disk' => $diskName,
                 'path' => $key,
-            ]);
+            ]));
             throw new \RuntimeException('Falha ao salvar mídia.');
         }
 
@@ -425,6 +437,19 @@ class UazapiJob implements ShouldQueue
     private function userStatus(Conexao $conexao): bool
     {
         return !empty($conexao->cliente) && !empty($conexao->cliente->user_id);
+    }
+
+    private function logContext(array $extra = []): array
+    {
+        return LogContext::merge($this->logContextBase, $extra);
+    }
+
+    public function failed(\Throwable $exception): void
+    {
+        Log::channel('uazapi_job')->error('UazapiJob failed', $this->logContext([
+            'error' => $exception->getMessage(),
+            'exception' => get_class($exception),
+        ]));
     }
 
     private function deduplicateEvent(Conexao $conexao, string $phone, ?string $eventId, ?string $messageType, $messageTimestamp, string $text): bool

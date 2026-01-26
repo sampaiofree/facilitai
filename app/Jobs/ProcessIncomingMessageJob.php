@@ -6,11 +6,9 @@ use App\Models\Assistant;
 use App\Models\AssistantLead;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
-use App\Models\SystemErrorLog;
-use App\Services\FunctionCallService;
-use App\Services\OpenAIService;
-use App\Services\ToolsFactory;
+use App\Services\IAOrchestratorService;
 use App\Services\UazapiService;
+use App\Support\LogContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -20,16 +18,14 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ProcessIncomingMessageJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
-    public int $timeout = 120;
-    public array $backoff = [10, 30, 90];
+    public int $tries = 1;
+    public int $timeout = 300;
 
     protected int $conexaoId;
     protected ?int $clienteLeadId;
@@ -76,19 +72,19 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
         $assistant = $conexao->assistant;
         if (!$assistant) {
-            Log::channel('uazapijob')->warning('Assistente não encontrado para conexão.', [
+            Log::channel('process_job')->warning('Assistente não encontrado para conexão.', $this->logContext([
                 'conexao_id' => $conexao->id,
-            ]);
+            ]));
             return;
         }
 
         $leadName = (string) ($this->payload['lead_name'] ?? $phone);
         $lead = $this->resolveClienteLead($phone, $leadName);
         if (!$lead) {
-            Log::channel('uazapijob')->warning('Falha ao criar/atualizar ClienteLead.', [
+            Log::channel('process_job')->warning('Falha ao criar/atualizar ClienteLead.', $this->logContext([
                 'conexao_id' => $conexao->id,
                 'phone' => $phone,
-            ]);
+            ]));
             return;
         }
         $this->clienteLead = $lead;
@@ -120,13 +116,13 @@ class ProcessIncomingMessageJob implements ShouldQueue
         }
 
         $systemPrompt = $this->buildSystemPrompt($assistant);
-        $openAiService = $this->createOpenAIService();
-        if (!$openAiService) {
-            return;
-        }
-
-        $assistantLead = $this->resolveAssistantLead($lead, $assistant, $openAiService, $systemPrompt);
-        if (!$assistantLead || empty($assistantLead->conv_id)) {
+        $assistantLead = $this->ensureAssistantLead($lead, $assistant);
+        if (!$assistantLead) {
+            Log::channel('process_job')->warning('Falha ao resolver AssistantLead.', $this->logContext([
+                'conexao_id' => $conexao->id,
+                'assistant_id' => $assistant->id,
+                'lead_id' => $lead->id,
+            ]));
             return;
         }
 
@@ -143,13 +139,13 @@ class ProcessIncomingMessageJob implements ShouldQueue
         $tipo = Str::lower((string) ($payload['tipo'] ?? 'text'));
         if ($tipo !== 'text') {
             $payload['is_media'] = true;
-            $this->sendOpenAIResponse($payload, $openAiService);
+            $this->sendIAResponse($payload, $assistant, $lead, $assistantLead);
             return;
         }
 
         if (!$this->cacheDisponivel()) {
             $payload['is_media'] = false;
-            $this->sendOpenAIResponse($payload, $openAiService);
+            $this->sendIAResponse($payload, $assistant, $lead, $assistantLead);
             return;
         }
 
@@ -211,11 +207,17 @@ class ProcessIncomingMessageJob implements ShouldQueue
             return;
         }
 
-        $openAiService = $this->createOpenAIService();
-        if (!$openAiService) {
+        $lead = $this->loadLeadFromPayload($payload);
+        if (!$lead) {
             return;
         }
-        $this->sendOpenAIResponse($payload, $openAiService);
+
+        $assistantLead = $this->ensureAssistantLead($lead, $assistant);
+        if (!$assistantLead) {
+            return;
+        }
+
+        $this->sendIAResponse($payload, $assistant, $lead, $assistantLead);
     }
 
     private function loadConexao(): ?Conexao
@@ -224,11 +226,11 @@ class ProcessIncomingMessageJob implements ShouldQueue
             return $this->conexao;
         }
 
-        $conexao = Conexao::with(['cliente', 'assistant', 'credential'])->find($this->conexaoId);
+        $conexao = Conexao::with(['cliente', 'assistant', 'credential.iaplataforma'])->find($this->conexaoId);
         if (!$conexao) {
-            Log::channel('uazapijob')->error('Conexao não encontrada para ProcessIncomingMessageJob.', [
+            Log::channel('process_job')->error('Conexao não encontrada para ProcessIncomingMessageJob.', $this->logContext([
                 'conexao_id' => $this->conexaoId,
-            ]);
+            ]));
             return null;
         }
 
@@ -272,135 +274,41 @@ class ProcessIncomingMessageJob implements ShouldQueue
         return $lead;
     }
 
-    private function resolveAssistantLead(ClienteLead $lead, Assistant $assistant, OpenAIService $openAiService, string $systemPrompt): ?AssistantLead
+    private function ensureAssistantLead(ClienteLead $lead, Assistant $assistant): ?AssistantLead
     {
         $assistantLead = AssistantLead::where('lead_id', $lead->id)
             ->where('assistant_id', $assistant->id)
             ->first();
 
-        if (!$assistantLead || empty($assistantLead->conv_id)) {
-            $convId = $this->createConversation($openAiService, $systemPrompt, [
-                'conexao_id' => $this->conexao->id,
-                'assistant_id' => $assistant->id,
-                'lead_id' => $lead->id,
-            ]);
+        if ($assistantLead) {
+            return $assistantLead;
+        }
 
-            if (!$convId) {
-                return null;
+        return AssistantLead::create([
+            'lead_id' => $lead->id,
+            'assistant_id' => $assistant->id,
+            'version' => $assistant->version ?? 1,
+            'conv_id' => null,
+        ]);
+    }
+
+    private function loadLeadFromPayload(array $payload): ?ClienteLead
+    {
+        $leadId = $payload['lead_id'] ?? null;
+        if ($leadId) {
+            $lead = ClienteLead::find($leadId);
+            if ($lead) {
+                return $lead;
             }
-
-            if (!$assistantLead) {
-                $assistantLead = AssistantLead::create([
-                    'lead_id' => $lead->id,
-                    'assistant_id' => $assistant->id,
-                    'version' => $assistant->version ?? 1,
-                    'conv_id' => $convId,
-                ]);
-            } else {
-                $assistantLead->conv_id = $convId;
-                $assistantLead->save();
-            }
-        } elseif ($assistantLead->version && $assistant->version && $assistantLead->version !== $assistant->version) {
-            $updated = $this->updateConversationContext($openAiService, $assistantLead->conv_id, $systemPrompt, [
-                'conexao_id' => $this->conexao->id,
-                'assistant_id' => $assistant->id,
-                'lead_id' => $lead->id,
-            ]);
-            if (!$updated) {
-                return null;
-            }
-            $assistantLead->version = $assistant->version;
-            $assistantLead->save();
         }
 
-        return $assistantLead;
-    }
-
-    private function createOpenAIService(): ?OpenAIService
-    {
-        $token = $this->conexao?->credential?->token;
-        if (!$token || $token === '******') {
-            Log::channel('uazapijob')->error('OpenAI token não configurado.', [
-                'conexao_id' => $this->conexao?->id,
-            ]);
+        $phone = (string) ($payload['phone'] ?? '');
+        $leadName = (string) ($payload['lead_name'] ?? $phone);
+        if ($phone === '') {
             return null;
         }
 
-        return new OpenAIService($token);
-    }
-
-    private function openAiRequestOptions(array $logContext = []): array
-    {
-        return [
-            'timeout' => 180,
-            'max_retries' => 3,
-            'base_delay_ms' => 1000,
-            'max_delay_ms' => 8000,
-            'log_context' => $logContext,
-        ];
-    }
-
-    private function createConversation(OpenAIService $openAiService, string $systemPrompt, array $logContext = []): ?string
-    {
-        $payload = [
-            'items' => [
-                [
-                    'type' => 'message',
-                    'role' => 'system',
-                    'content' => $systemPrompt,
-                ],
-            ],
-        ];
-
-        $response = $openAiService->createConversation($payload, $this->openAiRequestOptions($logContext));
-        if (!$response) {
-            $this->throwTransient('Falha ao criar conversation (exception).', $logContext);
-            return null;
-        }
-
-        if ($response->failed()) {
-            $this->handleOpenAIError($response, 'createConversation', $logContext);
-            return null;
-        }
-
-        $convId = $response->json('id');
-        if (!$convId) {
-            Log::channel('uazapijob')->error('OpenAIService createConversation missing id', $logContext);
-            return null;
-        }
-
-        return (string) $convId;
-    }
-
-    private function updateConversationContext(OpenAIService $openAiService, string $conversationId, string $systemPrompt, array $logContext = []): bool
-    {
-        $payload = [
-            'items' => [
-                [
-                    'type' => 'message',
-                    'role' => 'system',
-                    'content' => [
-                        [
-                            'type' => 'input_text',
-                            'text' => "Novo contexto atualizado:\n\n{$systemPrompt}",
-                        ],
-                    ],
-                ],
-            ],
-        ];
-
-        $response = $openAiService->createItems($conversationId, $payload, $this->openAiRequestOptions($logContext));
-        if (!$response) {
-            $this->throwTransient('Falha ao atualizar contexto (exception).', $logContext);
-            return false;
-        }
-
-        if ($response->failed()) {
-            $this->handleOpenAIError($response, 'createItems', $logContext);
-            return false;
-        }
-
-        return true;
+        return $this->resolveClienteLead($phone, $leadName);
     }
 
     private function buildSystemPrompt(Assistant $assistant): string
@@ -424,22 +332,13 @@ class ProcessIncomingMessageJob implements ShouldQueue
         return trim(implode("\n", $parts));
     }
 
-    private function sendOpenAIResponse(array $payload, OpenAIService $openAiService): void
+    private function sendIAResponse(array $payload, Assistant $assistant, ClienteLead $lead, AssistantLead $assistantLead): void
     {
-        $conversationId = (string) ($payload['conversation_id'] ?? '');
-        if ($conversationId === '') {
-            Log::channel('uazapijob')->warning('Conversation id ausente no payload.');
-            return;
-        }
-
         $idempotencyKey = $this->buildIdempotencyKey($payload);
         if ($idempotencyKey && Cache::has($idempotencyKey)) {
             return;
         }
 
-        $model = (string) ($payload['assistant_model'] ?? 'gpt-4.1-mini');
-        $contactName = $payload['contact_name'] ?? null;
-        $systemPrompt = (string) ($payload['system_prompt'] ?? '');
         $phone = (string) ($payload['phone'] ?? '');
         $token = $this->conexao?->whatsapp_api_key;
 
@@ -452,73 +351,19 @@ class ProcessIncomingMessageJob implements ShouldQueue
             return $value !== null && $value !== '';
         });
 
-        $input = $this->buildOpenAIInput($payload, $openAiService, $logContext);
-        if (empty($input)) {
-            Log::channel('uazapijob')->warning('OpenAI input vazio.', $logContext);
-            return;
-        }
-
-        $input = $this->prependSystemContext($input, is_string($contactName) ? $contactName : null);
-
-        $requestPayload = [
-            'model' => $model,
-            'input' => $input,
-            'conversation' => $conversationId,
-        ];
-
-        $tools = ToolsFactory::fromSystemPrompt($systemPrompt);
-        if (!empty($tools)) {
-            $requestPayload['tools'] = $tools;
-        }
-
-        $response = $openAiService->createResponse($requestPayload, $this->openAiRequestOptions($logContext));
-        if (!$response) {
-            $this->throwTransient('OpenAIService createResponse exception', $logContext);
-            return;
-        }
-
-        if ($response->failed()) {
-            $this->handleOpenAIError($response, 'createResponse', $logContext);
-            return;
-        }
-
-        $context = [
-            'conversation_id' => $conversationId,
-            'model' => $model,
-            'conexao_id' => $payload['conexao_id'] ?? $this->conexao?->id,
-            'lead_id' => $payload['lead_id'] ?? null,
-            'assistant_id' => $payload['assistant_id'] ?? null,
-            'phone' => $phone,
-            'token' => $token,
-            'system_prompt' => $systemPrompt,
-        ];
-
         $handlers = $this->buildToolHandlers($payload, $this->conexao, $this->clienteLead);
-        $functionCallService = new FunctionCallService();
+        $orchestrator = new IAOrchestratorService();
+        $result = $orchestrator->handleMessage($this->conexao, $assistant, $lead, $assistantLead, $payload, $handlers);
 
-        $response = $functionCallService->process($response, $openAiService, $context, $handlers, [
-            'on_assistant_message' => function (string $message) use ($token, $phone, $logContext) {
-                $this->sendText($token, $phone, $message, $logContext);
-            },
-            'request_options' => $this->openAiRequestOptions($logContext),
-        ]) ?? $response;
-
-        if (!$response) {
-            $this->throwTransient('OpenAIService response missing after function calls.', $logContext);
-            return;
-        }
-        if ($response->failed()) {
-            $this->handleOpenAIError($response, 'function_call_response', $logContext);
+        if (!$result->ok || !is_string($result->text) || trim($result->text) === '') {
+            Log::channel('process_job')->warning('IAOrchestratorService sem resposta final.', $this->logContext(array_merge($logContext, [
+                'provider' => $result->provider,
+                'error' => $result->error,
+            ])));
             return;
         }
 
-        $assistantText = $this->extractAssistantMessage($response->json() ?? []);
-        if (!$assistantText) {
-            Log::channel('uazapijob')->warning('OpenAIService sem mensagem do assistente.', $logContext);
-            return;
-        }
-
-        $this->sendText($token, $phone, $assistantText, $logContext);
+        $this->sendText($token, $phone, $result->text, $logContext);
 
         if ($idempotencyKey) {
             Cache::put($idempotencyKey, true, now()->addHours($this->idempotencyTtlHours()));
@@ -528,16 +373,16 @@ class ProcessIncomingMessageJob implements ShouldQueue
     private function sendText(?string $token, string $phone, string $message, array $logContext = []): void
     {
         if (!$token || $phone === '') {
-            Log::channel('uazapijob')->warning('Token ou telefone ausente para envio da resposta.', $logContext);
+            Log::channel('process_job')->warning('Token ou telefone ausente para envio da resposta.', $this->logContext($logContext));
             return;
         }
 
         $uazapi = new UazapiService();
         $sendResult = $uazapi->sendText($token, $phone, $message);
         if (!empty($sendResult['error'])) {
-            Log::channel('uazapijob')->error('Falha ao enviar mensagem via Uazapi.', array_merge($logContext, [
+            Log::channel('process_job')->error('Falha ao enviar mensagem via Uazapi.', $this->logContext(array_merge($logContext, [
                 'response' => $sendResult,
-            ]));
+            ])));
             $this->throwTransient('Falha ao enviar mensagem via Uazapi.', $logContext);
         }
     }
@@ -586,212 +431,6 @@ class ProcessIncomingMessageJob implements ShouldQueue
     {
         $value = (int) env('IDEMPOTENCY_TTL_HOURS', 6);
         return $value > 0 ? $value : 6;
-    }
-
-    private function buildOpenAIInput(array $payload, OpenAIService $openAiService, array $logContext): array
-    {
-        $tipo = Str::lower((string) ($payload['tipo'] ?? 'text'));
-        $text = (string) ($payload['text'] ?? '');
-
-        if (str_contains($tipo, 'audio')) {
-            $media = $this->resolveMediaFromPayload($payload);
-            $base64 = $this->resolveMediaBase64($media, $logContext);
-            if (!$base64) {
-                return [];
-            }
-
-            $response = $openAiService->transcreverAudio($base64, $this->openAiRequestOptions($logContext));
-            if (!$response) {
-                $this->throwTransient('Transcrição de áudio exception', $logContext);
-                return [];
-            }
-
-            if ($response->failed()) {
-                $this->handleOpenAIError($response, 'transcreverAudio', $logContext);
-                return [];
-            }
-
-            $transcription = $response->json('text');
-            $transcription = is_string($transcription) ? trim($transcription) : '';
-            if ($transcription === '') {
-                return [];
-            }
-
-            return [
-                [
-                    'role' => 'user',
-                    'content' => $transcription,
-                ],
-            ];
-        }
-
-        if (str_contains($tipo, 'image')) {
-            $media = $this->resolveMediaFromPayload($payload);
-            $base64 = $this->resolveMediaBase64($media, $logContext);
-            if (!$base64) {
-                return [];
-            }
-
-            $caption = $text !== '' ? $text : 'Imagem enviada.';
-            $mimetype = $media['mimetype'] ?? 'image/jpeg';
-
-            return [
-                [
-                    'role' => 'user',
-                    'content' => [
-                        [
-                            'type' => 'input_text',
-                            'text' => $caption,
-                        ],
-                        [
-                            'type' => 'input_image',
-                            'image_url' => "data:{$mimetype};base64,{$base64}",
-                        ],
-                    ],
-                ],
-            ];
-        }
-
-        if (str_contains($tipo, 'video')) {
-            if ($text !== '') {
-                return [
-                    [
-                        'role' => 'user',
-                        'content' => $text,
-                    ],
-                ];
-            }
-
-            Log::channel('uazapijob')->warning('Video sem legenda não suportado.', $logContext);
-            return [];
-        }
-
-        if (str_contains($tipo, 'document')) {
-            $media = $this->resolveMediaFromPayload($payload);
-            $base64 = $this->resolveMediaBase64($media, $logContext);
-            if (!$base64) {
-                return [];
-            }
-
-            $caption = $text !== '' ? $text : 'Documento enviado.';
-            $filename = $media['filename'] ?? 'documento.pdf';
-            $mimetype = $media['mimetype'] ?? 'application/octet-stream';
-
-            return [
-                [
-                    'role' => 'user',
-                    'content' => [
-                        [
-                            'type' => 'input_text',
-                            'text' => $caption,
-                        ],
-                        [
-                            'type' => 'input_file',
-                            'filename' => $filename,
-                            'file_data' => "data:{$mimetype};base64,{$base64}",
-                        ],
-                    ],
-                ],
-            ];
-        }
-
-        if (trim($text) === '') {
-            return [];
-        }
-
-        return [
-            [
-                'role' => 'user',
-                'content' => $text,
-            ],
-        ];
-    }
-
-    private function resolveMediaFromPayload(array $payload): array
-    {
-        $media = is_array($payload['media'] ?? null) ? $payload['media'] : [];
-        return $media;
-    }
-
-    private function resolveMediaBase64(array $media, array $logContext): ?string
-    {
-        $base64 = $media['base64'] ?? null;
-        if (is_string($base64) && $base64 !== '') {
-            return $base64;
-        }
-
-        $storageKey = $media['storage_key'] ?? null;
-        if (!is_string($storageKey) || $storageKey === '') {
-            Log::channel('uazapijob')->warning('Media sem base64/storage_key.', $logContext);
-            return null;
-        }
-
-        $disk = Storage::disk(config('media.disk', 'local'));
-        if (!$disk->exists($storageKey)) {
-            Log::channel('uazapijob')->warning('Arquivo de mídia não encontrado.', array_merge($logContext, [
-                'storage_key' => $storageKey,
-            ]));
-            return null;
-        }
-
-        $binary = $disk->get($storageKey);
-        if ($binary === false || $binary === null) {
-            Log::channel('uazapijob')->warning('Falha ao ler arquivo de mídia.', array_merge($logContext, [
-                'storage_key' => $storageKey,
-            ]));
-            return null;
-        }
-
-        return base64_encode($binary);
-    }
-
-    private function prependSystemContext(array $input, ?string $contactName = null, ?string $timezone = null): array
-    {
-        $timezone = $timezone ?: config('app.timezone', 'America/Sao_Paulo');
-        $now = now($timezone);
-        $dayName = $now->locale('pt_BR')->isoFormat('dddd');
-        $date = $now->format('Y-m-d');
-        $time = $now->format('H:i');
-        $contactInfo = $contactName ? "nome do cliente/contato: {$contactName}" : '';
-
-        return array_merge([
-            [
-                'role' => 'system',
-                'content' => "Agora: {$now->toIso8601String()} ({$dayName}, {$date} as {$time}, tz: {$timezone}).\n{$contactInfo}",
-            ],
-        ], $input);
-    }
-
-    private function extractAssistantMessage(array $apiResponse): ?string
-    {
-        $output = $apiResponse['output'] ?? [];
-        if (!is_array($output) || empty($output)) {
-            return null;
-        }
-
-        $lastOutput = end($output);
-        if (
-            is_array($lastOutput) &&
-            ($lastOutput['type'] ?? null) !== null &&
-            in_array($lastOutput['type'], ['message', 'output_text'], true) &&
-            ($lastOutput['role'] ?? null) === 'assistant' &&
-            isset($lastOutput['content'][0]['text'])
-        ) {
-            return $lastOutput['content'][0]['text'];
-        }
-
-        foreach (array_reverse($output) as $outputItem) {
-            if (
-                isset($outputItem['type']) &&
-                in_array($outputItem['type'], ['message', 'output_text'], true) &&
-                ($outputItem['role'] ?? null) === 'assistant' &&
-                isset($outputItem['content'][0]['text'])
-            ) {
-                return $outputItem['content'][0]['text'];
-            }
-        }
-
-        return null;
     }
 
     private function buildToolHandlers(array $payload, ?Conexao $conexao, ?ClienteLead $lead): array
@@ -860,7 +499,9 @@ class ProcessIncomingMessageJob implements ShouldQueue
         $response = $uazapi->sendMedia($token, $phone, $finalType, $url, $options);
 
         if (!empty($response['error'])) {
-            Log::channel('uazapijob')->error('Falha ao enviar mídia via Uazapi.', ['response' => $response]);
+            Log::channel('process_job')->error('Falha ao enviar mídia via Uazapi.', $this->logContext([
+                'response' => $response,
+            ]));
             return 'Falha ao enviar mídia.';
         }
 
@@ -945,7 +586,9 @@ class ProcessIncomingMessageJob implements ShouldQueue
                 ->get($url);
 
             if ($response->failed()) {
-                Log::channel('uazapijob')->error('Falha ao buscar URL.', ['status' => $response->status()]);
+                Log::channel('process_job')->error('Falha ao buscar URL.', $this->logContext([
+                    'status' => $response->status(),
+                ]));
                 return 'Nao foi possivel obter conteudo da URL.';
             }
 
@@ -959,7 +602,9 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
             return trim($content);
         } catch (\Throwable $e) {
-            Log::channel('uazapijob')->error('Erro em buscar_get', ['error' => $e->getMessage()]);
+            Log::channel('process_job')->error('Erro em buscar_get', $this->logContext([
+                'error' => $e->getMessage(),
+            ]));
             return 'Erro ao buscar conteudo da URL.';
         }
     }
@@ -1071,9 +716,9 @@ class ProcessIncomingMessageJob implements ShouldQueue
             }
             return 'Erro ao enviar o evento.';
         } catch (\Throwable $e) {
-            Log::channel('uazapijob')->error('Erro ao enviar webhook', [
+            Log::channel('process_job')->error('Erro ao enviar webhook', $this->logContext([
                 'error' => $e->getMessage(),
-            ]);
+            ]));
             return 'Erro ao enviar o evento.';
         }
     }
@@ -1090,47 +735,26 @@ class ProcessIncomingMessageJob implements ShouldQueue
         }
     }
 
-    private function handleOpenAIError($response, string $context, array $logContext): void
-    {
-        $status = $response->status();
-        if (in_array($status, [400, 401, 403], true)) {
-            $this->logPermanentError($context, $response, $logContext);
-            return;
-        }
-
-        $this->throwTransient("OpenAI error: {$context}", array_merge($logContext, [
-            'status' => $status,
-            'body' => $response->body(),
-        ]));
-    }
-
     private function throwTransient(string $message, array $logContext): void
     {
-        Log::channel('uazapijob')->warning($message, $logContext);
+        Log::channel('process_job')->warning($message, $this->logContext($logContext));
         throw new \RuntimeException($message);
     }
 
-    private function logPermanentError(string $function, $response, array $logContext): void
+    private function logContext(array $extra = []): array
     {
-        Log::channel('uazapijob')->error("OpenAI error permanente: {$function}", array_merge($logContext, [
-            'status' => $response->status(),
-            'body' => $response->body(),
-        ]));
+        return LogContext::merge(
+            LogContext::jobContext($this),
+            LogContext::base($this->payload, $this->conexao),
+            $extra
+        );
+    }
 
-        try {
-            SystemErrorLog::create([
-                'context' => 'ProcessIncomingMessageJob',
-                'function_name' => $function,
-                'message' => 'OpenAI error permanente',
-                'payload' => array_merge($logContext, [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]),
-            ]);
-        } catch (\Throwable $e) {
-            Log::channel('uazapijob')->error('Falha ao registrar SystemErrorLog', [
-                'error' => $e->getMessage(),
-            ]);
-        }
+    public function failed(\Throwable $exception): void
+    {
+        Log::channel('process_job')->error('ProcessIncomingMessageJob failed', $this->logContext([
+            'error' => $exception->getMessage(),
+            'exception' => get_class($exception),
+        ]));
     }
 }

@@ -90,7 +90,7 @@ UazapiWebhookController::handle
 UazapiJob (padroniza payload + resolve dominio basico)
         |
         v
-ProcessIncomingMessageJob (debounce + versionamento + OpenAI + tools + resposta)
+ProcessIncomingMessageJob (debounce + versionamento + IAOrchestrator + resposta)
         |
         v
 UazapiService::sendText (resposta ao cliente)
@@ -159,10 +159,9 @@ Configuração relacionada:
 - debounce (re-dispatch)
 - idempotência de resposta (anti-duplicação)
 - criação/atualização do `ClienteLead`
-- versionamento do `AssistantLead` + `createItems` quando versão muda
+- versionamento do `AssistantLead` + `createItems` quando versão muda (delegado ao `OpenAIOrchestratorService`)
 - transcrição de áudio
-- chamada OpenAI (responses)
-- execução de tools
+- chamada IA via `IAOrchestratorService`
 - envio da resposta final via Uazapi
 
 ### 1) Regras iniciais
@@ -177,6 +176,7 @@ Configuração relacionada:
 - se `tipo` é `video`: envia `sendText` pedindo descrição do vídeo e encerra
 
 ### 2) Versionamento / Conversa OpenAI
+- executado dentro do `OpenAIOrchestratorService`
 - monta `systemPrompt` com os prompts do `Assistant`
 - cria `OpenAIService` usando `conexao->credential->token`
 - resolve `AssistantLead` (lead + assistant):
@@ -209,14 +209,15 @@ Processo acontece **no UazapiJob** (provider job):
 - `raw` só é enviado quando `app.debug=true` ou `FEATURE_MEDIA_RAW=true`
 - `ProcessIncomingMessageJob` apenas consome `base64` ou `storage_key`
 - falha na descriptografia:
-  - transiente (timeout/5xx/429) → exceção sobe (retry/backoff da fila)
-  - permanente (400/401/403) → log estruturado e segue sem mídia
+  - log e segue sem mídia (sem retry)
 
 ### 6) Transcrição de áudio
 usa `OpenAIService::transcreverAudio` com `media.base64` ou `storage_key` (carregado do storage)
 - retorna texto transcrito
 
-### 7) Chamada OpenAI (responses)
+### 7) Chamada IA (IAOrchestratorService)
+- `IAOrchestratorService` resolve provider via `conexao->credential->iaplataforma->nome`
+- se `openai`: monta input, executa tools e retorna texto final
 - monta `input` com base no tipo:
   - text → `role=user`, `content=text`
   - image → `input_text + input_image (data:...)`
@@ -225,10 +226,9 @@ usa `OpenAIService::transcreverAudio` com `media.base64` ou `storage_key` (carre
   - video → **não chama OpenAI** (responde com pedido de descrição)
 - injeta contexto de sistema (data/hora + nome)
 - tools via `ToolsFactory::fromSystemPrompt`
-- chama `OpenAIService::createResponse`
 
 ### 8) Tools / Function Calls
-- usa `FunctionCallService`
+- usa `OpenAIOrchestratorService` (loop + execução de tools)
 - handlers definidos no próprio `ProcessIncomingMessageJob`:
   - `enviar_media` → `UazapiService::sendMedia`
   - `notificar_adm` → `UazapiService::sendText` para admins
@@ -242,7 +242,7 @@ usa `OpenAIService::transcreverAudio` com `media.base64` ou `storage_key` (carre
 - envia via `UazapiService::sendText`
 
 ### 10) Regras de erro OpenAI
-- **Transiente** (429/5xx/timeout): lança exception → queue faz retry/backoff
+- **Transiente** (429/5xx/timeout): lança exception → job falha (sem retry)
 - **Permanente** (400/401/403): log estruturado em `SystemErrorLog` e encerra
 
 ### Regras de erro de mídia (provider job)
@@ -264,15 +264,19 @@ usa `OpenAIService::transcreverAudio` com `media.base64` ou `storage_key` (carre
 - `app/Jobs/UazapiJob.php`
   - normaliza payload, resolve domínio mínimo, dedup, despacha `ProcessIncomingMessageJob`
 - `app/Jobs/ProcessIncomingMessageJob.php`
-  - debounce, versionamento, OpenAI, tools e resposta
+  - debounce, versionamento, IAOrchestrator e resposta
 
-## Services (OpenAI e mídia)
+## Services (IA e mídia)
+- `app/Services/IAOrchestratorService.php`
+  - resolve provider e retorna `IAResult`
+- `app/DTOs/IAResult.php`
+  - resultado padronizado da IA (sucesso/erro)
+- `app/Services/OpenAIOrchestratorService.php`
+  - orquestra OpenAI + tools + loop
 - `app/Services/OpenAIService.php`
   - chamadas HTTP puras para a OpenAI (responses, conversations, items, transcriptions)
 - `app/Services/ToolsFactory.php`
   - cria schemas de tools a partir do system prompt
-- `app/Services/FunctionCallService.php`
-  - processa function_calls e reenvia outputs à OpenAI
 - `app/Services/MediaDecryptService.php`
   - descriptografa mídia usando `DescriptoService`
 - `app/Services/DescriptoService.php`
@@ -300,10 +304,11 @@ routes/api.php
        -> UazapiJob
            -> MediaDecryptService -> DescriptoService
            -> ProcessIncomingMessageJob
-               -> OpenAIService (API)
-               -> ToolsFactory
-               -> FunctionCallService
-                   -> handlers no ProcessIncomingMessageJob
+               -> IAOrchestratorService
+                   -> OpenAIOrchestratorService
+                       -> OpenAIService (API)
+                       -> ToolsFactory
+                       -> handlers no ProcessIncomingMessageJob
                -> UazapiService (sendText / sendMedia)
 ```
 
@@ -345,10 +350,10 @@ routes/api.php
 
 ## Versionamento / Conversa OpenAI
 - [ ] token OpenAI ausente → log error + encerrar
-- [ ] createConversation falhou (exception) → lançar exception (retry)
+- [ ] createConversation falhou (exception) → lançar exception (sem retry)
 - [ ] createConversation falhou (4xx permanente) → log estruturado + encerrar
 - [ ] createConversation sem `id` → log error + encerrar
-- [ ] createItems falhou (exception) → lançar exception (retry)
+- [ ] createItems falhou (exception) → lançar exception (sem retry)
 - [ ] createItems falhou (4xx permanente) → log estruturado + encerrar
 
 ## Debounce
@@ -361,12 +366,12 @@ routes/api.php
 - [ ] documento fora da whitelist → log warning + encerrar input
 
 ## Transcrição de áudio (OpenAI)
-- [ ] transcrição exception/timeout → lançar exception (retry)
+- [ ] transcrição exception/timeout → lançar exception (sem retry)
 - [ ] transcrição falhou (4xx permanente) → log estruturado + encerrar
 - [ ] transcrição vazia → encerrar input
 
 ## OpenAI Responses
-- [ ] createResponse exception/timeout → lançar exception (retry)
+- [ ] createResponse exception/timeout → lançar exception (sem retry)
 - [ ] createResponse falhou (4xx permanente) → log estruturado + encerrar
 - [ ] resposta sem `output` → log warning + encerrar
 
@@ -374,7 +379,7 @@ routes/api.php
 - [ ] handler não encontrado → retorna “Função não suportada”
 - [ ] handler exception → log error + retorna output padrão
 - [ ] resposta após function_call falhou (4xx permanente) → log estruturado + encerrar
-- [ ] resposta após function_call exception → lançar exception (retry)
+- [ ] resposta após function_call exception → lançar exception (sem retry)
 
 ## Envio Uazapi
 - [ ] token/telefone ausente → log warning + encerrar
@@ -385,3 +390,36 @@ routes/api.php
   - context: `ProcessIncomingMessageJob`
   - function_name: etapa (`createConversation`, `createItems`, `createResponse`, `transcreverAudio`, `function_call_response`)
   - payload: status, body, ids (conexao_id/assistant_id/lead_id/phone)
+
+---
+
+# Logs e Observabilidade (simples para iniciar)
+
+## Canais por domínio (logs diários em arquivo)
+- `uazapi_webhook` → entrada HTTP
+- `uazapi_job` → normalização/dedup/mídia do provider
+- `process_job` → orquestração do fluxo e envio
+- `ia_orchestrator` → OpenAI + tools
+- `openai` → HTTP client OpenAI
+- `media` → decrypt/arquivos de mídia
+
+## Contexto mínimo em toda exceção/log relevante
+- `conexao_id`
+- `assistant_id`
+- `assistant_lead_id`
+- `lead_id`
+- `phone`
+- `event_id`
+- `message_type`
+- `conversation_id`
+- `provider`
+- `model`
+- `job` / `job_id` / `queue` / `attempt`
+
+## Jobs (falha padrão)
+- `failed()` em `UazapiJob` e `ProcessIncomingMessageJob` para logar contexto extra
+- tabela `failed_jobs` habilitada por padrão (Laravel)
+
+## Próximo nível (opcional)
+- Horizon para monitorar filas Redis
+- Sentry/Flare para rastreio de stacktrace e alertas

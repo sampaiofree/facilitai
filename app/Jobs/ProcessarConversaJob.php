@@ -19,7 +19,6 @@ class ProcessarConversaJob implements ShouldQueue
 
     public int $tries = 1;
     public int $timeout = 240;
-    public int $backoff = 30;
 
     protected $messageText;
     protected $contactNumber;
