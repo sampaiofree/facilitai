@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Conexao;
 
 class Cliente extends Model
 {
@@ -32,5 +33,10 @@ class Cliente extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function conexoes()
+    {
+        return $this->hasMany(Conexao::class, 'cliente_id');
     }
 }

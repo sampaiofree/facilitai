@@ -21,32 +21,55 @@ class OpenAIController extends Controller
                 'conv_id' => ['required', 'string'],
             ]);
 
-            $assistantLead = AssistantLead::with(['assistant.credential'])
+            $assistantLead = AssistantLead::with(['assistant', 'lead.cliente'])
                 ->where('conv_id', $convId)
                 ->first();
 
             if (!$assistantLead) {
                 $error = "Conv_id \"{$convId}\" não encontrado em assistant_lead.";
             } else {
-                $credential = $assistantLead->assistant?->credential;
-                if (!$credential || !$credential->token) {
-                    $error = 'Credencial vinculada ao assistant não contém token.';
+                $cliente = $assistantLead->lead?->cliente;
+                if (!$cliente) {
+                    $error = 'Cliente associado ao conv_id não encontrado.';
                 } else {
-                    try {
-                        $openAi = new OpenAIService($credential->token);
-                        $response = $openAi->getConversationItems($convId);
+                    $conexao = $cliente->conexoes()
+                        ->where('assistant_id', $assistantLead->assistant_id)
+                        ->whereNotNull('credential_id')
+                        ->with('credential')
+                        ->first();
 
-                        if ($response === null) {
-                            $error = 'OpenAIService retornou resposta nula.';
+                    if (!$conexao) {
+                        $conexao = $cliente->conexoes()
+                            ->whereNotNull('credential_id')
+                            ->with('credential')
+                            ->first();
+                    }
+
+                    if (!$conexao) {
+                        $error = 'Não há conexão com credencial disponível para este cliente.';
+                    } else {
+                        $credential = $conexao->credential;
+                        if (!$credential || !$credential->token) {
+                            $error = 'Credencial vinculada à conexão não contém token.';
                         } else {
-                            $result = $response->json();
+                            try {
+                                $openAi = new OpenAIService($credential->token);
+                                $response = $openAi->getConversationItems($convId);
+
+                                if ($response === null) {
+                                    $error = 'OpenAIService retornou resposta nula.';
+                                } else {
+                                    $result = $response->json();
+                                }
+                            } catch (\Throwable $exception) {
+                                Log::channel('admin')->error('Erro ao buscar conversa no OpenAI', [
+                                    'conv_id' => $convId,
+                                    'conexao_id' => $conexao->id,
+                                    'error' => $exception->getMessage(),
+                                ]);
+                                $error = 'Falha ao consultar o OpenAI: ' . $exception->getMessage();
+                            }
                         }
-                    } catch (\Throwable $exception) {
-                        Log::channel('admin')->error('Erro ao buscar conversa no OpenAI', [
-                            'conv_id' => $convId,
-                            'error' => $exception->getMessage(),
-                        ]);
-                        $error = 'Falha ao consultar o OpenAI: ' . $exception->getMessage();
                     }
                 }
             }
