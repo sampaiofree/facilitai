@@ -58,22 +58,38 @@ class OpenAIService
         $language = (string) ($options['language'] ?? 'pt');
 
         try {
+            // Garante o diretório temporário antes de criar arquivos.
             if (!file_exists($tmpPath)) {
                 mkdir($tmpPath, 0777, true);
             }
 
-            file_put_contents($originalAudioPath, base64_decode($base64));
-
-            $result = Process::run("ffmpeg -i {$originalAudioPath} -acodec libmp3lame -q:a 2 {$convertedAudioPath} -y");
-            if (!$result->successful()) {
-                Log::channel('openai')->error('OpenAIService transcreverAudio ffmpeg failed', [
-                    'exit_code' => $result->exitCode(),
-                    'error' => $result->errorOutput(),
-                ]);
+            // Decodifica o áudio recebido em base64 (falha aqui indica mídia inválida).
+            $binary = base64_decode($base64, true);
+            if ($binary === false) {
+                Log::channel('openai')->error('OpenAIService transcreverAudio base64 inválido');
                 return null;
             }
 
-            $fileHandle = fopen($convertedAudioPath, 'r');
+            file_put_contents($originalAudioPath, $binary);
+
+            // Tenta converter com ffmpeg quando disponível; se falhar, mantém o .ogg original.
+            $uploadPath = $originalAudioPath;
+            if ($this->isFfmpegAvailable()) {
+                $result = Process::run('ffmpeg -i "' . $originalAudioPath . '" -acodec libmp3lame -q:a 2 "' . $convertedAudioPath . '" -y');
+                if ($result->successful()) {
+                    $uploadPath = $convertedAudioPath;
+                } else {
+                    Log::channel('openai')->warning('OpenAIService transcreverAudio ffmpeg falhou, usando ogg original', [
+                        'exit_code' => $result->exitCode(),
+                        'error' => $result->errorOutput(),
+                    ]);
+                }
+            } else {
+                Log::channel('openai')->warning('OpenAIService transcreverAudio ffmpeg não encontrado, usando ogg original');
+            }
+
+            // Envia o arquivo de áudio para transcrição.
+            $fileHandle = fopen($uploadPath, 'r');
             $payload = [
                 'file' => $fileHandle,
                 'model' => $model,
@@ -94,12 +110,26 @@ class OpenAIService
             ]);
             return null;
         } finally {
+            // Remove arquivos temporários criados para a transcrição.
             if (file_exists($originalAudioPath)) {
                 unlink($originalAudioPath);
             }
             if (file_exists($convertedAudioPath)) {
                 unlink($convertedAudioPath);
             }
+        }
+    }
+
+    private function isFfmpegAvailable(): bool
+    {
+        try {
+            $result = Process::run('ffmpeg -version');
+            return $result->successful();
+        } catch (\Throwable $e) {
+            Log::channel('openai')->warning('OpenAIService ffmpeg check failed', [
+                'error' => $e->getMessage(),
+            ]);
+            return false;
         }
     }
 

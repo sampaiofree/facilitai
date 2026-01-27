@@ -205,17 +205,46 @@ class UazapiJob implements ShouldQueue
 
     private function normalizeTipo(string $tipoMensagem, array $message): string
     {
-        $value = trim($tipoMensagem);
-        if ($value === '') {
-            $value = (string) (Arr::get($message, 'messageType') ?? Arr::get($message, 'type'));
+        // Normaliza o tipo de mensagem recebido para valores canônicos (text/audio/image/video/document).
+        $candidates = [
+            trim($tipoMensagem),
+            (string) (Arr::get($message, 'messageType') ?? ''),
+            (string) (Arr::get($message, 'mediaType') ?? ''),
+            (string) (Arr::get($message, 'type') ?? ''),
+        ];
+
+        foreach ($candidates as $candidate) {
+            $value = trim($candidate);
+            if ($value === '') {
+                continue;
+            }
+
+            $lower = Str::lower($value);
+
+            if (in_array($lower, ['text', 'conversation'], true)) {
+                return 'text';
+            }
+
+            if (Str::contains($lower, ['audio', 'ptt'])) {
+                return 'audio';
+            }
+
+            if (Str::contains($lower, 'image')) {
+                return 'image';
+            }
+
+            if (Str::contains($lower, 'video')) {
+                return 'video';
+            }
+
+            if (Str::contains($lower, 'document')) {
+                return 'document';
+            }
+
+            return $value;
         }
 
-        $lower = Str::lower($value);
-        if (in_array($lower, ['text', 'conversation'], true)) {
-            return 'text';
-        }
-
-        return $value !== '' ? $value : 'unknown';
+        return 'unknown';
     }
 
     private function extractMediaPayload(array $message): array

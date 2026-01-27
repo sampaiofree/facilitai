@@ -34,6 +34,7 @@ use App\Http\Controllers\Agencia\AgenciaAssistantController;
 use App\Http\Controllers\Agencia\AgenciaClienteController;
 use App\Http\Controllers\Agencia\AgenciaConexaoController;
 use App\Http\Controllers\Agencia\AgenciaCredentialController;
+use App\Http\Controllers\Agencia\AgenciaSettingsController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
@@ -292,4 +293,6 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('assistant', [AgenciaAssistantController::class, 'index'])->name('assistant.index');
     Route::post('assistant', [AgenciaAssistantController::class, 'store'])->name('assistant.store');
     Route::patch('assistant/{assistant}', [AgenciaAssistantController::class, 'update'])->name('assistant.update');
+    Route::get('agency-settings', [AgenciaSettingsController::class, 'edit'])->name('agency-settings.edit');
+    Route::post('agency-settings', [AgenciaSettingsController::class, 'update'])->name('agency-settings.update');
 });
