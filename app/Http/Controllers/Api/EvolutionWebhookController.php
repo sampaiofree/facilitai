@@ -7,39 +7,34 @@ use App\Models\Instance;
 use App\Models\Chat; // <-- Precisamos deste modelo
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use App\Services\ConversationsService;
-use App\Jobs\ProcessarConversaJob;
 use Illuminate\Support\Facades\Cache;
-use App\Jobs\DebounceConversationJob;
-use Illuminate\Support\Carbon;
 use App\Models\WebhookRequest;
-use App\Services\EvolutionService;
 use App\Jobs\SendPresenceJob;
 
 class EvolutionWebhookController extends Controller
 {
     public function handle(Request $request) 
     {        
-        // 2. Extrair dados cruciais do JSON (com base na estrutura que você forneceu)
+        // 2. Extrair dados cruciais do JSON (com base na estrutura que vocÃª forneceu)
         $instanceName = $request->input('instance'); // 'instance'
         $remoteJid = $request->input('data.key.remoteJid'); // 'data.key.remoteJid'
         $fromMe = $request->input('data.key.fromMe'); // 'data.key.fromMe'
         $messageText = $request->input('data.message.conversation'); // 'data.message.conversation'
-        $contactNumber = preg_replace('/[^0-9]/', '', $remoteJid);// Extrai apenas os números do JID do contato
+        $contactNumber = preg_replace('/[^0-9]/', '', $remoteJid);// Extrai apenas os nÃºmeros do JID do contato
 
         $contactNumber = $this->padronizarNumero($contactNumber);
         $instance = Instance::where('id', $instanceName)->first(); //BUSCAR INSTANCIA
         
-        // Se não achar a instância, já retorna
+        // Se nÃ£o achar a instÃ¢ncia, jÃ¡ retorna
         if (!$instance) {
             return response()->json(['error' => 'Instance not found'], 404);
         }
         // ===================================================================
-        // LÓGICA DA TABELA CHATS
+        // LÃ“GICA DA TABELA CHATS
         // ===================================================================
         
 
-        // Busca o registro de chat para este contato nesta instância
+        // Busca o registro de chat para este contato nesta instÃ¢ncia
         $chat = Chat::where('instance_id', $instance->id)
                     ->where('contact', $contactNumber)
                     ->first();
@@ -67,31 +62,31 @@ class EvolutionWebhookController extends Controller
         }
 
         // ===================================================================
-        // REGRA DE NEGÓCIO 2: VERIFICAR SE O BOT ESTÁ ATIVO
+        // REGRA DE NEGÃ“CIO 2: VERIFICAR SE O BOT ESTÃ ATIVO
         // ===================================================================
         
         
-        // Se o registro de chat ainda não existe, o bot está ativo por padrão.
+        // Se o registro de chat ainda nÃ£o existe, o bot estÃ¡ ativo por padrÃ£o.
 
-        //VERIFICAR SE MENSAGEM VEIO DE GRUPO OU NÃO
+        //VERIFICAR SE MENSAGEM VEIO DE GRUPO OU NÃƒO
         if (str_ends_with($remoteJid, '@g.us')) {
             
             return response()->json(['status' => 'ignored', 'reason' => 'mensagem_de_grupo']);
         }
 
-        // Validação inicial: se não tiver os dados mínimos, ignora.
+        // ValidaÃ§Ã£o inicial: se nÃ£o tiver os dados mÃ­nimos, ignora.
         if (!$instanceName || !$remoteJid || is_null($fromMe)) {
             
-            // Retornamos 200 OK para o Evolution não tentar reenviar.
+            // Retornamos 200 OK para o Evolution nÃ£o tentar reenviar.
             return response()->json(['status' => 'ignored', 'reason' => 'missing_data']);
         }
         
         // ===================================================================
-        // REGRA DE NEGÓCIO 1: IGNORAR MENSAGENS ENVIADAS PELA PRÓPRIA INSTÂNCIA
+        // REGRA DE NEGÃ“CIO 1: IGNORAR MENSAGENS ENVIADAS PELA PRÃ“PRIA INSTÃ‚NCIA
         // ===================================================================
         str($fromMe);
         
-        if ($fromMe === true) { //MENSAGEM DO PRÓPRIO ADM
+        if ($fromMe === true) { //MENSAGEM DO PRÃ“PRIO ADM
 
             
             
@@ -109,16 +104,16 @@ class EvolutionWebhookController extends Controller
             return response()->json(['status' => 'ignored', 'reason' => 'from_me']);
         }
 
-        // Se um chat existe E o bot_enabled é false, ignora.
+        // Se um chat existe E o bot_enabled Ã© false, ignora.
         if (isset($chat->bot_enabled) and !$chat->bot_enabled) {
             
             return response()->json(['status' => 'ignored', 'reason' => 'bot_disabled']);
         }
 
         // ===================================================================
-        // VALIDAÇÃO DA INSTÂNCIA E BUSCA DO ASSISTENTE
+        // VALIDAÃ‡ÃƒO DA INSTÃ‚NCIA E BUSCA DO ASSISTENTE
         // ===================================================================
-        // Busca a instância pelo nome, como você especificou
+        // Busca a instÃ¢ncia pelo nome, como vocÃª especificou
        
 
         if (!$instance) {
@@ -126,7 +121,7 @@ class EvolutionWebhookController extends Controller
             return response()->json(['error' => 'Instance not found'], 404);
         }
 
-        // Pega o ID do assistente vinculado a esta instância
+        // Pega o ID do assistente vinculado a esta instÃ¢ncia
         $assistantId = $instance->default_assistant_id;
 
         if (!$assistantId) {
@@ -137,7 +132,7 @@ class EvolutionWebhookController extends Controller
    
 
         // ===================================================================
-        // PONTO DE PARADA: SE CHEGAMOS ATÉ AQUI, A MENSAGEM DEVE SER PROCESSADA
+        // PONTO DE PARADA: SE CHEGAMOS ATÃ‰ AQUI, A MENSAGEM DEVE SER PROCESSADA
         // ===================================================================
         
         $threadId = $chat->thread_id ?? null;
@@ -196,14 +191,14 @@ class EvolutionWebhookController extends Controller
             return true;
         }
 
-        //NUMERO INVÁLIDO
+        //NUMERO INVÃLIDO
         if(!$contactNumber){
             
             return response()->json(['status' => 'ignored', 'reason' => 'invalid_contact_number']);
         }
 
         // ===================================================================
-        // DETECÇÃO DE DUPLICIDADE VIA CACHE
+        // DETECÃ‡ÃƒO DE DUPLICIDADE VIA CACHE
 
         $dedupKeySeed = $eventId ?: hash('sha256', json_encode([
             $instanceName,
@@ -290,73 +285,20 @@ class EvolutionWebhookController extends Controller
         if (isset($chat->bot_enabled) and !$chat->bot_enabled) { return true;}
 
         // ===================================================================
-        // PROCESSAMENTO DA MENSAGEM COM DEBOUNCE
-
-        //DISPLAY DE DIGITANDO (assíncrono)
+        // PROCESSAMENTO DA MENSAGEM (fluxo antigo removido)
+        // Mantemos apenas o indicador de digitando.
         SendPresenceJob::dispatch($instanceName, $contactNumber, 'composing');
 
-        // Se nao é texto (ex.: midia), processa imediatamente
-        if (empty($messageText)) {
-            
-            ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data);
-            return true;
-        }
-
-        // Tenta usar cache para debounce; se indisponivel, processa direto
-        if (!$this->cacheDisponivel()) {
-            
-            ProcessarConversaJob::dispatch($messageText, $contactNumber, $instanceName, $data);
-            return true;
-        }
-        $cacheKey = "conv_buffer:{$instanceName}:{$contactNumber}";
-        $buffer = Cache::get($cacheKey, []);
-        $agora = Carbon::now()->timestamp;
-
-        if (empty($buffer)) {
-            $buffer = [
-                'started_at' => $agora,
-                'last_at' => $agora,
-                'messages' => [$messageText],
-                'data' => $data,
-            ];
-        } else {
-            $buffer['last_at'] = $agora;
-            $buffer['messages'][] = $messageText;
-            $buffer['data'] = $data; // mantem dados da ultima mensagem
-        }
-
-        
-
-// TTL curto para evitar vazar cache (120s)
-        Cache::put($cacheKey, $buffer, now()->addSeconds(120));
-
-        // Agenda job de debounce com delay de 5s e teto de 40s
-        DebounceConversationJob::dispatch($cacheKey, $contactNumber, $instanceName, 7, 40)
-            ->delay(now()->addSeconds(5));
-
-        
-
-        
-        /*
-        //ABILITE ISSO AQUI EM CASO DE ERRO NO JOB
-        $open = new ConversationsService(
-            $messageText,
-            $contactNumber,
-            $instanceName
-        );
-        
-        $open->evolution($data);*/
-        
         return true;
  
     }
 
 
     function padronizarNumero($numero) {
-    // Remove espaços, traços, parênteses e tudo que não for número
+    // Remove espaÃ§os, traÃ§os, parÃªnteses e tudo que nÃ£o for nÃºmero
     $numero = preg_replace('/\D/', '', $numero);
 
-    // Se tiver 13 dígitos (ex: 55 + 62 + 995772922), remove o 9 se for celular antigo
+    // Se tiver 13 dÃ­gitos (ex: 55 + 62 + 995772922), remove o 9 se for celular antigo
     if (strlen($numero) === 13 && substr($numero, 4, 1) === '9') {
         // Remove o 9 extra
         $numero = substr($numero, 0, 4) . substr($numero, 5);
@@ -379,3 +321,4 @@ class EvolutionWebhookController extends Controller
     }
 
 }
+

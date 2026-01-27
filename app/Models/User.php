@@ -25,9 +25,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
-        'is_admin' => 'boolean',
-        'cpf_cnpj', 
-        'customer_asaas_id', 
+        'is_admin',
+        'cpf_cnpj',
+        'customer_asaas_id',
         'mobile_phone',
     ];
 

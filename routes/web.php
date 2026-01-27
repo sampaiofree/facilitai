@@ -29,6 +29,7 @@ use App\Http\Controllers\ProxyBanController;
 use App\Http\Controllers\Admin\WebhookRequestController;
 use App\Http\Controllers\Admin\InstanceReportController;
 use App\Http\Controllers\Admin\SystemErrorLogController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\UazapiController;
 use App\Http\Controllers\Agencia\AgenciaAssistantController;
 use App\Http\Controllers\Agencia\AgenciaClienteController;
@@ -130,6 +131,9 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::post('conexoes', [App\Http\Controllers\Admin\ConexaoController::class, 'store'])->name('conexoes.store');
     Route::patch('conexoes/{conexao}', [App\Http\Controllers\Admin\ConexaoController::class, 'update'])->name('conexoes.update');
     Route::delete('conexoes/{conexao}', [App\Http\Controllers\Admin\ConexaoController::class, 'destroy'])->name('conexoes.destroy');
+    Route::get('users', [UserController::class, 'index'])->name('users.index');
+    Route::post('users', [UserController::class, 'store'])->name('users.store');
+    Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::get('ia-plataformas', [App\Http\Controllers\Admin\IaplataformaController::class, 'index'])->name('iaplataformas.index');
     Route::post('ia-plataformas', [App\Http\Controllers\Admin\IaplataformaController::class, 'store'])->name('iaplataformas.store');
     Route::patch('ia-plataformas/{iaplataforma}', [App\Http\Controllers\Admin\IaplataformaController::class, 'update'])->name('iaplataformas.update');
