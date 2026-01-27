@@ -577,7 +577,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
         $docName = $arguments['docName'] ?? null;
 
         $finalType = $type ? Str::lower((string) $type) : $this->resolveMediaType($url);
-        if ($finalType === 'audio' && $this->isMp3Url($url)) {
+        if ($finalType === 'audio') {
             $finalType = 'ptt';
         }
         $options = [];
@@ -633,16 +633,6 @@ class ProcessIncomingMessageJob implements ShouldQueue
             'pdf', 'doc', 'docx', 'xls', 'xlsx' => 'document',
             default => 'document',
         };
-    }
-
-    private function isMp3Url(string $url): bool
-    {
-        $path = parse_url($url, PHP_URL_PATH);
-        if (!$path) {
-            return false;
-        }
-
-        return str_ends_with(Str::lower($path), '.mp3');
     }
 
     private function extractFilename(string $url): ?string
