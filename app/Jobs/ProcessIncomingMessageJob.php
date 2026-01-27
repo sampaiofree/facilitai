@@ -577,9 +577,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
         $docName = $arguments['docName'] ?? null;
 
         $finalType = $type ? Str::lower((string) $type) : $this->resolveMediaType($url);
-        if ($finalType === 'audio') {
-            $finalType = 'ptt';
-        }
+        
         $options = [];
 
         if (is_string($text) && trim($text) !== '') {
@@ -617,7 +615,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
                 return 'video';
             }
             if (str_starts_with($lower, 'data:audio/')) {
-                return 'audio';
+                return 'ptt';
             }
             if (str_starts_with($lower, 'data:application/')) {
                 return 'document';
@@ -629,7 +627,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
         return match ($ext) {
             'jpg', 'jpeg', 'png', 'webp' => 'image',
             'mp4' => 'video',
-            'mp3', 'ogg' => 'audio',
+            'mp3', 'ogg' => 'ptt',
             'pdf', 'doc', 'docx', 'xls', 'xlsx' => 'document',
             default => 'document',
         };
