@@ -18,6 +18,14 @@ class AssistantLead extends Model
         'assistant_id',
         'version',
         'conv_id',
+        'webhook_payload',
+        'assistant_response',
+        'job_message',
+    ];
+
+    protected $casts = [
+        'webhook_payload' => 'array',
+        'assistant_response' => 'array',
     ];
 
     public function lead()

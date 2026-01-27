@@ -287,7 +287,7 @@ class EvolutionWebhookController extends Controller
         // ===================================================================
         // PROCESSAMENTO DA MENSAGEM (fluxo antigo removido)
         // Mantemos apenas o indicador de digitando.
-        SendPresenceJob::dispatch($instanceName, $contactNumber, 'composing');
+        //SendPresenceJob::dispatch($instanceName, $contactNumber, 'composing');
 
         return true;
  

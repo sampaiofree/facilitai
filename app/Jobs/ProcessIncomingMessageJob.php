@@ -8,6 +8,7 @@ use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Services\IAOrchestratorService;
 use App\Services\UazapiService;
+use App\DTOs\IAResult;
 use App\Support\LogContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -125,6 +126,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
             ]));
             return;
         }
+        $this->persistAssistantLeadWebhookPayload($assistantLead);
 
         $payload = $this->payload;
         $payload['conexao_id'] = $conexao->id;
@@ -216,6 +218,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
         if (!$assistantLead) {
             return;
         }
+        $this->persistAssistantLeadWebhookPayload($assistantLead);
 
         $this->sendIAResponse($payload, $assistant, $lead, $assistantLead);
     }
@@ -374,6 +377,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
         $handlers = $this->buildToolHandlers($payload, $this->conexao, $this->clienteLead);
         $orchestrator = new IAOrchestratorService();
         $result = $orchestrator->handleMessage($this->conexao, $assistant, $lead, $assistantLead, $payload, $handlers);
+        $this->persistAssistantLeadResponse($assistantLead, $result);
 
         if (!$result->ok || !is_string($result->text) || trim($result->text) === '') {
             Log::channel('process_job')->warning('IAOrchestratorService sem resposta final.', $this->logContext(array_merge($logContext, [
@@ -388,6 +392,59 @@ class ProcessIncomingMessageJob implements ShouldQueue
         if ($idempotencyKey) {
             Cache::put($idempotencyKey, true, now()->addHours($this->idempotencyTtlHours()));
         }
+    }
+
+    private function persistAssistantLeadWebhookPayload(AssistantLead $assistantLead): void
+    {
+        try {
+            $assistantLead->update([
+                'webhook_payload' => $this->payload,
+            ]);
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->error('Falha ao salvar webhook_payload.', $this->logContext([
+                'assistant_lead_id' => $assistantLead->id,
+                'error' => $exception->getMessage(),
+            ]));
+        }
+    }
+
+    private function persistAssistantLeadResponse(AssistantLead $assistantLead, IAResult $result): void
+    {
+        try {
+            $assistantLead->update([
+                'assistant_response' => $this->serializeIAResult($result),
+                'job_message' => $this->buildJobMessageFromResult($result),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->error('Falha ao salvar resposta da IA.', $this->logContext([
+                'assistant_lead_id' => $assistantLead->id,
+                'error' => $exception->getMessage(),
+            ]));
+        }
+    }
+
+    private function serializeIAResult(IAResult $result): array
+    {
+        return [
+            'ok' => $result->ok,
+            'text' => $result->text,
+            'provider' => $result->provider,
+            'error' => $result->error,
+            'raw' => $result->raw,
+        ];
+    }
+
+    private function buildJobMessageFromResult(IAResult $result): string
+    {
+        $payload = [
+            'status' => $result->ok ? 'concluido' : 'erro',
+            'provider' => $result->provider,
+            'text' => $result->text,
+            'error' => $result->error,
+            'raw' => $result->raw,
+        ];
+
+        return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     private function sendText(?string $token, string $phone, string $message, array $logContext = []): void

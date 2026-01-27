@@ -93,7 +93,7 @@ UazapiJob (padroniza payload + resolve dominio basico)
 ProcessIncomingMessageJob (debounce + versionamento + IAOrchestrator + resposta)
         |
         v
-UazapiService::sendText (resposta ao cliente)
+UazapiService::sendText (resposta ao cliente) 
 ```
 
 ## UazapiWebhookController (entrada HTTP)
