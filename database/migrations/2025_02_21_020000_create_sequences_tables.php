@@ -33,7 +33,8 @@ return new class extends Migration {
         Schema::create('sequence_chats', function (Blueprint $table) {
             $table->id();
             $table->foreignId('sequence_id')->constrained('sequences')->cascadeOnDelete();
-            $table->foreignId('chat_id')->constrained()->cascadeOnDelete();
+            // NOTE: `chats` is created later in the timeline. We add the FK in a follow-up migration.
+            $table->foreignId('chat_id')->index();
             $table->foreignId('passo_atual_id')->nullable()->constrained('sequence_steps')->nullOnDelete();
             $table->enum('status', ['em_andamento', 'concluida', 'pausada', 'cancelada'])->default('em_andamento');
             $table->timestamp('iniciado_em')->nullable();

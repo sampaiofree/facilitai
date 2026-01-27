@@ -20,7 +20,8 @@ return new class extends Migration {
 
         Schema::create('chat_tag', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('chat_id')->constrained()->cascadeOnDelete();
+            // NOTE: `chats` is created later in the timeline. We add the FK in a follow-up migration.
+            $table->foreignId('chat_id')->index();
             $table->foreignId('tag_id')->constrained()->cascadeOnDelete();
             $table->foreignId('applied_by_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('origem')->nullable(); // admin/tool
