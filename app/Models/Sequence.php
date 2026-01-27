@@ -2,6 +2,10 @@
 
 namespace App\Models;
 
+use App\Models\Cliente;
+use App\Models\Conexao;
+use App\Models\SequenceChat;
+use App\Models\SequenceLog;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -11,6 +15,8 @@ class Sequence extends Model
 
     protected $fillable = [
         'user_id',
+        'cliente_id',
+        'conexao_id',
         'name',
         'description',
         'active',
@@ -37,5 +43,21 @@ class Sequence extends Model
     public function chats()
     {
         return $this->hasMany(SequenceChat::class);
+    }
+
+    public function logs()
+    {
+        return $this->hasManyThrough(SequenceLog::class, SequenceChat::class)
+            ->orderBy('created_at', 'desc');
+    }
+
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class);
+    }
+
+    public function conexao()
+    {
+        return $this->belongsTo(Conexao::class);
     }
 }

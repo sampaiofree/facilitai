@@ -18,19 +18,9 @@ class ToolsFactory
                 'type' => 'function',
                 'name' => 'notificar_adm',
                 'description' => <<<TXT
-Use esta ferramenta **somente em casos excepcionais** onde a conversa exige **intervenção humana imediata**.
-
-**Objetivo:** enviar uma notificação a um administrador humano quando a IA não puder seguir o atendimento de forma segura ou apropriada.
-
-**Regras de uso:**
-- ✅ Use **apenas** se:
-- houver **erro técnico grave** (ex: falha em ferramentas, dados ausentes, exceções);
-- o usuário **solicitar explicitamente falar com um humano**;
-- for detectado um **assunto sensível** (reclamação, problema grave, pagamento não confirmado, suporte avançado).
-- ⚠️ **Não use** esta ferramenta apenas porque você está em dúvida sobre a resposta.
-- ⚠️ **Não use** para enviar atualizações rotineiras, mensagens informativas ou notificações comuns.
-- ⚠️ **Não use** automaticamente ao final da conversa.
-- ✅ Sempre inclua uma mensagem clara explicando **o motivo do alerta** no campo `mensagem`.
+Envia um alerta para um administrador humano com um resumo do caso.
+Use para escalar atendimentos que precisam de intervenção humana.
+Parâmetro obrigatório: mensagem (texto curto e objetivo com o motivo e o contexto).
 TXT,
                 'parameters' => [
                     'type' => 'object',
@@ -57,14 +47,7 @@ TXT,
                 'type' => 'function',
                 'name' => 'enviar_media',
                 'description' => <<<TXT
-Use **somente** para enviar um audio, PDF, imagem ou vídeo **já pronto e hospedado publicamente**,
-**como resposta final visual ao usuário**.
-
-- ⚠️ **Não use** esta ferramenta para criar, gerar, sugerir ou buscar imagens.
-- ⚠️ **Não use** esta ferramenta apenas porque o usuário mencionou algo visual.
-- ✅ Use **apenas** se o assistente precisar realmente **enviar um link de imagem/vídeo pronto**,
-como parte da mensagem final enviada ao WhatsApp ou à interface do usuário.
-- O conteúdo deve ser **acessível publicamente por URL**.
+Use para enviar áudio/imagem/vídeo hospedado publicamente em qualquer momento do atendimento, quando a estratégia pedir envio de mídia.
 TXT,
                 'parameters' => [
                     'type' => 'object',
@@ -116,16 +99,7 @@ TXT,
                 'type' => 'function',
                 'name' => 'buscar_get',
                 'description' => <<<TXT
-Use esta ferramenta **somente quando precisar obter informações reais e atualizadas de uma URL pública e confiável**.
-
-**Objetivo:** fazer uma requisição GET simples para ler o conteúdo de uma página ou API e usar as informações obtidas na resposta ao usuário.
-
-**Regras de uso:**
-- ✅ Use **apenas** se a pergunta do usuário depender de dados externos (ex: “qual o valor atual do dólar?”, “o que diz essa notícia?”).
-- ⚠️ **Não use** se a informação puder ser respondida com o próprio conhecimento do modelo.
-- ⚠️ **Não use** para sites genéricos, buscas no Google, ou páginas sem URL específica fornecida.
-- ⚠️ **Não use** para gerar, criar, ou adivinhar conteúdo.
-- ✅ Após obter os dados, **resuma e explique de forma simples** ao usuário.
+Faz uma requisição HTTP GET para a URL informada e retorna o conteúdo (texto/HTML/JSON) para consulta. Use apenas quando houver uma URL específica a ser lida.
 TXT,
                 'parameters' => [
                     'type' => 'object',
@@ -147,20 +121,7 @@ TXT,
                 'type' => 'function',
                 'name' => 'registrar_info_chat',
                 'description' => <<<TXT
-Use esta ferramenta quando precisar **registrar informações sobre o cliente ou o atendimento** no sistema interno.
-
-**Objetivo:** salvar ou atualizar os dados do chat atual, incluindo nome, informações complementares e status de atendimento.
-
-**Regras de uso:**
-- ✅ Use quando o usuário informar dados úteis (ex: nome, e-mail, produto de interesse, etc.).
-- ✅ Use se quiser marcar o chat como "aguardando atendimento humano".
-- ⚠️ Não use para mensagens comuns, respostas de texto ou confirmação simples.
-- ⚠️ Só use uma vez por interação, com dados claros e estruturados.
-
-Campos aceitos:
-- `nome`: nome da pessoa (string)
-- `informacoes`: texto livre (ex: “interessado no plano empresarial”)
-- `aguardando_atendimento`: booleano (true se precisar de atendimento humano)
+Registra ou atualiza informações do chat/lead no sistema interno (ex.: nome, observações, status de atendimento humano).
 TXT,
                 'parameters' => [
                     'type' => 'object',
@@ -190,10 +151,7 @@ TXT,
                 'type' => 'function',
                 'name' => 'aplicar_tags',
                 'description' => <<<TXT
-Aplique tags existentes ao chat atual para classificar o atendimento.
-- Use apenas tags que já existam (informadas no contexto/prompt).
-- Não crie novas tags e não peça IDs.
-- Se não houver tags para aplicar, não chame esta ferramenta.
+Aplica tags existentes ao chat atual para classificação/etapa do atendimento.
 TXT,
                 'parameters' => [
                     'type' => 'object',
@@ -216,10 +174,7 @@ TXT,
                 'type' => 'function',
                 'name' => 'inscrever_sequencia',
                 'description' => <<<TXT
-Inscreva o chat atual em uma sequência de mensagens automáticas.
-- Sempre use um ID de sequência existente.
-- Não reinscreva se já estiver na sequência.
-- Respeite as regras de tags configuradas na sequência (aplicadas pelo scheduler).
+Inscreve o chat atual em uma sequência automática existente identificada por `sequence_id`.
 TXT,
                 'parameters' => [
                     'type' => 'object',
@@ -241,16 +196,7 @@ TXT,
                 'type' => 'function',
                 'name' => 'gerenciar_agenda',
                 'description' => <<<TXT
-Use esta ferramenta para **consultar, agendar, cancelar ou alterar horários** na agenda interna.
-
-* Sempre que falarem de horários/agendamentos, chame esta tool.  
-* **Nunca peça ou mostre IDs**. Envie horário natural (`horario`) e duração (`duracao_minutos`). IDs são só fallback interno.  
-* Mostre horários assim: “Quarta, 21/02 — 15h00–15h30”.  
-* Se o usuário não disser mês, use o mês atual. Se preciso, consulte por um intervalo curto (`data_inicio`/`data_fim`).  
-* Para agendar/alterar, envie o horário exato e a duração do serviço (vem do contexto/prompt).  
-* Para cancelar/alterar, use o horário original pelo histórico; não peça ID ao usuário.
-
-Ações suportadas: consultar, agendar, cancelar, alterar.
+Gerencia agendamentos do chat atual (consultar, agendar, cancelar, alterar) apenas para o próprio cliente desta conversa, usando data/hora explícitas informadas pelo usuário ou presentes no histórico. Não crie, cancele ou altere eventos fora deste contexto.
 TXT,
                 'parameters' => [
                     'type' => 'object',

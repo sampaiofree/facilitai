@@ -12,12 +12,10 @@
         ['label' => 'Mídias', 'route' => 'images.index'],
         ['label' => 'Biblioteca', 'route' => 'library.index'],
         ['label' => 'Tags', 'route' => 'tags.index'],
-        ['label' => 'Sequências', 'route' => 'sequences.index'],
     ];
 
     if (Auth::user()->canManageCredentials()) {
         $ferramentas[] = ['label' => 'Buscar Empresas', 'route' => 'empresas.index'];
-        $ferramentas[] = ['label' => 'Disparos em Massa', 'route' => 'mass.historico'];
         $ferramentas[] = ['label' => 'Credenciais', 'route' => 'credentials.index'];
         $ferramentas[] = ['label' => 'Agenda', 'route' => 'agendas.index'];
         

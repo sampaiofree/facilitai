@@ -25,4 +25,9 @@ class Tag extends Model
     {
         return $this->belongsToMany(Chat::class)->withTimestamps();
     }
+
+    public function clienteLeads()
+    {
+        return $this->belongsToMany(ClienteLead::class, 'cliente_lead_tag')->withTimestamps();
+    }
 }

@@ -6,6 +6,9 @@ use App\Models\Assistant;
 use App\Models\AssistantLead;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
+use App\Models\Sequence;
+use App\Models\SequenceChat;
+use App\Models\Tag;
 use App\Services\IAOrchestratorService;
 use App\Services\UazapiService;
 use App\DTOs\IAResult;
@@ -552,11 +555,107 @@ class ProcessIncomingMessageJob implements ShouldQueue
             'gerenciar_agenda' => function (array $arguments, array $context) {
                 return 'Funcao nao suportada no Uazapi.';
             },
-            'aplicar_tags' => function (array $arguments, array $context) {
-                return 'Funcao nao suportada no Uazapi.';
+            'aplicar_tags' => function (array $arguments, array $context) use ($lead) {
+                try {
+                    if (!$lead) {
+                        return '⚠️ Lead não encontrado.';
+                    }
+                    $cliente = $lead->cliente;
+                    $userId = $cliente->user_id ?? null;
+                    if (!$userId) {
+                        return '⚠️ Cliente sem usuário associado.';
+                    }
+
+                    $tags = collect($arguments['tags'] ?? [])
+                        ->map(fn ($tag) => trim((string) $tag))
+                        ->filter()
+                        ->unique()
+                        ->values();
+
+                    if ($tags->isEmpty()) {
+                        return '⚠️ Nenhuma tag informada.';
+                    }
+
+                    $existing = Tag::where('user_id', $userId)
+                        ->whereIn('name', $tags)
+                        ->get();
+
+                    if ($existing->isEmpty()) {
+                        return '⚠️ Nenhuma das tags informadas existe para este usuário.';
+                    }
+
+                    $lead->tags()->syncWithoutDetaching($existing->pluck('id')->all());
+
+                    $aplicadas = $existing->pluck('name')->implode(', ');
+                    $faltantes = $tags->diff($existing->pluck('name'))->values();
+
+                    $msg = '✅ Tags aplicadas: ' . $aplicadas;
+                    if ($faltantes->isNotEmpty()) {
+                        $msg .= '. Não encontrei: ' . $faltantes->implode(', ');
+                    }
+
+                    return $msg;
+                } catch (\Throwable $e) {
+                    Log::channel('process_job')->error('Erro ao aplicar tags via tool.', [
+                        'error' => $e->getMessage(),
+                        'args' => $arguments,
+                        'lead_id' => $lead?->id,
+                    ]);
+                    return '❌ Não foi possível aplicar as tags.';
+                }
             },
-            'inscrever_sequencia' => function (array $arguments, array $context) {
-                return 'Funcao nao suportada no Uazapi.';
+            'inscrever_sequencia' => function (array $arguments, array $context) use ($lead) {
+                try {
+                    if (!$lead || !$lead->bot_enabled) {
+                        return ['output' => '⚠️ Lead indisponível ou bot desativado.'];
+                    }
+
+                    $sequenceId = $arguments['sequence_id'] ?? null;
+                    if (!$sequenceId) {
+                        return ['output' => '⚠️ ID da sequência não informado.'];
+                    }
+
+                    $cliente = $lead->cliente;
+                    $userId = $cliente?->user_id;
+                    if (!$userId) {
+                        return ['output' => '⚠️ Cliente sem usuário associado.'];
+                    }
+
+                    $sequence = Sequence::where('id', $sequenceId)
+                        ->where('user_id', $userId)
+                        ->where('active', true)
+                        ->first();
+
+                    if (!$sequence) {
+                        return ['output' => '⚠️ Sequência não encontrada ou inativa.'];
+                    }
+
+                    $existing = SequenceChat::where('sequence_id', $sequence->id)
+                        ->where('cliente_lead_id', $lead->id)
+                        ->whereIn('status', ['em_andamento', 'concluida', 'pausada'])
+                        ->first();
+
+                    if ($existing) {
+                        return ['output' => 'ℹ️ Este lead já está inscrito ou finalizou esta sequência.'];
+                    }
+
+                    SequenceChat::create([
+                        'sequence_id' => $sequence->id,
+                        'cliente_lead_id' => $lead->id,
+                        'status' => 'em_andamento',
+                        'iniciado_em' => now('America/Sao_Paulo'),
+                        'proximo_envio_em' => null,
+                        'criado_por' => 'assistant',
+                    ]);
+
+                    return ['output' => '✅ Lead inscrito na sequência com sucesso.'];
+                } catch (\Throwable $e) {
+                    Log::error('Erro ao inscrever em sequência (tool): ' . $e->getMessage(), [
+                        'args' => $arguments,
+                        'lead_id' => $lead?->id,
+                    ]);
+                    return ['output' => '❌ Não foi possível inscrever na sequência.'];
+                }
             },
         ];
     }

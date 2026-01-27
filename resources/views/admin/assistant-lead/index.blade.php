@@ -88,7 +88,7 @@
                     </div>
                     <div>
                         <dt class="text-xs uppercase tracking-wide text-slate-400">Conv ID</dt>
-                        <dd id="assistantLeadDetailConvId"></dd>
+                        <dd id="assistantLeadDetailConvId" style="word-wrap: anywhere;"></dd>
                     </div>
                     <div>
                         <dt class="text-xs uppercase tracking-wide text-slate-400">Criado em</dt>

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Cliente;
 use App\Models\AssistantLead;
+use App\Models\Tag;
 
 class ClienteLead extends Model
 {
@@ -33,5 +34,10 @@ class ClienteLead extends Model
     public function assistantLeads()
     {
         return $this->hasMany(AssistantLead::class, 'lead_id');
+    }
+
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class, 'cliente_lead_tag')->withTimestamps();
     }
 }

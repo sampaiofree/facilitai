@@ -18,12 +18,9 @@ use App\Http\Controllers\HomepageController;
 use App\Http\Controllers\TokensController;
 use App\Http\Controllers\Admin\DashboardController; 
 use App\Http\Controllers\Admin\LessonController as AdminLessonController; 
-use App\Http\Controllers\EmpresasController;
-use App\Http\Controllers\MassSendController;
 use App\Http\Controllers\LandingPageController;
 use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\AgendaPublicaController; 
-use App\Http\Controllers\SequenceController;
 use App\Http\Controllers\LessonPublicController;
 use App\Http\Controllers\ProxyBanController;
 use App\Http\Controllers\Admin\WebhookRequestController;
@@ -37,6 +34,8 @@ use App\Http\Controllers\Agencia\AgenciaClienteController;
 use App\Http\Controllers\Agencia\AgenciaConexaoController;
 use App\Http\Controllers\Agencia\AgenciaCredentialController;
 use App\Http\Controllers\Agencia\AgenciaSettingsController;
+use App\Http\Controllers\Agencia\AgenciaSequenceController;
+use App\Http\Controllers\Agencia\AgenciaTagController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
@@ -214,21 +213,6 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::post('/chats/inscrever-sequencia', [ChatController::class, 'inscreverSequencia'])->name('chats.sequence.subscribe');
     Route::resource('chats', ChatController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::resource('tags', TagController::class)->only(['index', 'store', 'update', 'destroy']);
-    Route::resource('sequences', SequenceController::class);
-    Route::delete('sequences/{sequence}/chats/{sequenceChat}', [SequenceController::class, 'removeChat'])
-        ->name('sequences.chats.destroy');
-
-    //DISPAROS EM MASSA
-    Route::get('/disparos', [MassSendController::class, 'index'])->name('mass.index');
-    Route::post('/disparos', [MassSendController::class, 'store'])->name('mass.store');
-    Route::get('/disparos/preview', [MassSendController::class, 'preview'])->name('mass.preview');
-    Route::get('/disparos/historico', [MassSendController::class, 'historico'])
-    ->name('mass.historico');
-    Route::get('/disparos/{id}', [MassSendController::class, 'show'])
-    ->name('mass.show');
-    Route::delete('/disparos/{campanha}/contatos/{contato}', [MassSendController::class, 'removerContato'])
-        ->name('mass.contacts.destroy');
-
 
 
     // INSTANCIAS
@@ -303,4 +287,12 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::patch('assistant/{assistant}', [AgenciaAssistantController::class, 'update'])->name('assistant.update');
     Route::get('agency-settings', [AgenciaSettingsController::class, 'edit'])->name('agency-settings.edit');
     Route::post('agency-settings', [AgenciaSettingsController::class, 'update'])->name('agency-settings.update');
+    Route::get('sequence', [AgenciaSequenceController::class, 'index'])->name('sequences.index');
+    Route::post('sequences', [AgenciaSequenceController::class, 'store'])->name('sequences.store');
+    Route::post('sequences/{sequence}/steps', [AgenciaSequenceController::class, 'storeStep'])->name('sequences.steps.store');
+    Route::patch('sequences/{sequence}/steps/{step}', [AgenciaSequenceController::class, 'updateStep'])->name('sequences.steps.update');
+    Route::get('clientes/{cliente}/conexoes', [AgenciaSequenceController::class, 'conexoes'])->name('sequences.cliente.conexoes');
+    Route::get('tags', [AgenciaTagController::class, 'index'])->name('tags.index');
+    Route::post('tags', [AgenciaTagController::class, 'store'])->name('tags.store');
+    Route::delete('tags/{tag}', [AgenciaTagController::class, 'destroy'])->name('tags.destroy');
 });
