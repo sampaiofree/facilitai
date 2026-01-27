@@ -172,7 +172,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
         Cache::put($cacheKey, $buffer, now()->addSeconds(120));
 
         self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
-            ->delay(now()->addSeconds($this->debounceSeconds));
+            ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
     }
 
     private function handleDebounce(): void
@@ -193,7 +193,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
         if ($lastAt->gt($now->subSeconds($this->debounceSeconds)) && $startedAt->gt($now->subSeconds($this->maxWaitSeconds))) {
             self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
-                ->delay(now()->addSeconds($this->debounceSeconds));
+                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
             return;
         }
 

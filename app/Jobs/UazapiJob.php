@@ -135,7 +135,7 @@ class UazapiJob implements ShouldQueue
                 'media' => $media,
             ];
 
-            ProcessIncomingMessageJob::dispatch($conexao->id, $clienteLead?->id, $normalized);
+            ProcessIncomingMessageJob::dispatch($conexao->id, $clienteLead?->id, $normalized)->onQueue('processarconversa');
         } catch (\Throwable $exception) {
             $status = 'failed';
             $reason = 'exception';

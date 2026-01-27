@@ -33,7 +33,7 @@ class UazapiWebhookController extends Controller
             'tipo' => $tipoMensagem,
             'payload' => $payload,
             'received_at' => now(),
-        ]);
+        ])->onQueue('webhook');
 
         Log::channel('uazapi_webhook')->info('Webhook Uazapi enfileirado.', LogContext::merge([
             'evento' => $evento,
