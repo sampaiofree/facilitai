@@ -137,6 +137,7 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::get('assistant-lead', [AssistantLeadController::class, 'index'])->name('assistant-lead.index');
     Route::delete('assistant-lead/{assistantLead}', [AssistantLeadController::class, 'destroy'])->name('assistant-lead.destroy');
+    Route::get('openai/conv_id', [App\Http\Controllers\Admin\OpenAIController::class, 'convId'])->name('openai.conv_id');
     Route::get('ia-plataformas', [App\Http\Controllers\Admin\IaplataformaController::class, 'index'])->name('iaplataformas.index');
     Route::post('ia-plataformas', [App\Http\Controllers\Admin\IaplataformaController::class, 'store'])->name('iaplataformas.store');
     Route::patch('ia-plataformas/{iaplataforma}', [App\Http\Controllers\Admin\IaplataformaController::class, 'update'])->name('iaplataformas.update');

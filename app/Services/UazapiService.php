@@ -210,6 +210,28 @@ class UazapiService
         }
     }
 
+    public function messagePresence(string $token, string $number, string $presence = 'composing', int $delay = 30000): array
+    {
+        $payload = [
+            'number' => $number,
+            'presence' => $presence,
+            'delay' => $delay,
+        ];
+
+        try {
+            $response = $this->client->post('/message/presence', [
+                'headers' => $this->instanceHeaders($token),
+                'json' => $payload,
+            ]);
+
+            return $this->successResponse($response);
+        } catch (RequestException $exception) {
+            return $this->handleRequestException('message_presence', $exception);
+        } catch (\Throwable $exception) {
+            return $this->handleUnexpectedError('message_presence', $exception);
+        }
+    }
+
     public function instance_proxy(string $token): array
     {
         try {

@@ -365,6 +365,24 @@ class ProcessIncomingMessageJob implements ShouldQueue
         $phone = (string) ($payload['phone'] ?? '');
         $token = $this->conexao?->whatsapp_api_key;
 
+        if ($token && $phone !== '') {
+            try {
+                $presenceResult = (new UazapiService())->messagePresence($token, $phone);
+
+                if (!empty($presenceResult['error'])) {
+                    Log::channel('process_job')->warning('Falha ao enviar presence via Uazapi.', $this->logContext([
+                        'response' => $presenceResult,
+                    ]));
+                }
+            } catch (\Throwable $exception) {
+                Log::channel('process_job')->error('Erro inesperado ao chamar messagePresence.', [
+                    'error' => $exception->getMessage(),
+                    'assistant_lead_id' => $assistantLead->id,
+                    'conexao_id' => $this->conexao?->id,
+                ]);
+            }
+        }
+
         $logContext = array_filter([
             'conexao_id' => $payload['conexao_id'] ?? $this->conexao?->id,
             'assistant_id' => $payload['assistant_id'] ?? null,
