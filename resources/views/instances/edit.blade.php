@@ -31,7 +31,7 @@
                             <select id="credential_selector" name="credential_id" class="block mt-1 w-full border-gray-300 rounded-md shadow-sm">
                                 <option value="">-- Selecione a Credencial --</option>
                                 @foreach ($credentials as $credential)
-                                    <option value="{{ $credential->id  }}" {{ $instance->credential_id == $credential->id ? 'selected' : '' }}>{{ $credential->name }}</option>
+                                    <option value="{{ $credential->id  }}" {{ $instance->credential_id == $credential->id ? 'selected' : '' }}>{{ $credential->label }}</option>
                                 @endforeach
                                 <option value="" {{ is_null($instance->credential_id) ? 'selected' : '' }}>Tokens</option> {{-- Alterado o valor e adicionado 'id' --}}
                             </select>
