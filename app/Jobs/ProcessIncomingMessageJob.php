@@ -617,12 +617,14 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
                     $cliente = $lead->cliente;
                     $userId = $cliente?->user_id;
-                    if (!$userId) {
+                    $clienteId = $cliente?->id;
+                    if (!$userId || !$clienteId) {
                         return ['output' => '⚠️ Cliente sem usuário associado.'];
                     }
 
                     $sequence = Sequence::where('id', $sequenceId)
                         ->where('user_id', $userId)
+                        ->where('cliente_id', $clienteId)
                         ->where('active', true)
                         ->first();
 

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Carbon\Carbon;
-use App\Models\Chat;
 
 class Instance extends Model
 {
@@ -91,7 +90,8 @@ class Instance extends Model
      */
     public function chats()
     {
-        return $this->hasMany(Chat::class);
+        // Chat model removed; relacionamento suspenso.
+        return null;
     }
 
     /**

@@ -1,3 +1,4 @@
+@if (!empty($agencyBranding['whatsapp_url']))
 <!-- BOTÃO WHATSAPP FIXO -->
 <div class="fixed bottom-6 right-6 z-50 flex items-center gap-3">
   
@@ -10,7 +11,7 @@
   </div>
 
   <!-- Botão -->
-  <a href="https://wa.me/5527981227636"
+  <a href="{{ $agencyBranding['whatsapp_url'] }}"
      target="_blank"
      aria-label="Fale conosco no WhatsApp"
      class="flex h-16 w-16 items-center justify-center rounded-full bg-green-500 text-white shadow-lg shadow-green-500/40 
@@ -20,6 +21,7 @@
                         </svg>
   </a>
 </div>
+@endif
 
 <!-- ANIMAÇÃO CSS -->
 <style>
@@ -33,6 +35,7 @@
 </style>
 
 <!-- SCRIPT para ocultar o balão após alguns segundos -->
+@if (!empty($agencyBranding['whatsapp_url']))
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const bubble = document.getElementById("whatsapp-bubble");
@@ -47,10 +50,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }, 8000);
 });
 </script>
+@endif
 
 <footer class="flex flex-col items-center gap-5 bg-slate-900 py-10 text-sm text-white text-opacity-70">
         
-        <p>&copy; {{ date('Y') }} FacilitAI. Todos os direitos reservados. | <a href="{{route('politica')}}" class="text-blue-500 transition-colors hover:text-emerald-500">Política de Privacidade</a></p>
+        <p>&copy; {{ date('Y') }} Todos os direitos reservados. | <a href="{{route('politica')}}" class="text-blue-500 transition-colors hover:text-emerald-500">Política de Privacidade</a></p>
     </footer>
     <!-- Banner de Cookies -->
     <div id="cookieBanner" class="fixed bottom-0 left-0 right-0 z-50 bg-slate-900 text-white text-center p-4 shadow-lg hidden">

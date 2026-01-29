@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Lead; // Importe o modelo Lead
 use Illuminate\Validation\ValidationException;
-use App\Services\ConversationsService;
 
 class LeadController extends Controller
 {

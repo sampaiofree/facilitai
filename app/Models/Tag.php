@@ -23,7 +23,8 @@ class Tag extends Model
 
     public function chats()
     {
-        return $this->belongsToMany(Chat::class)->withTimestamps();
+        // Relacionamento com chats removido.
+        return null;
     }
 
     public function clienteLeads()

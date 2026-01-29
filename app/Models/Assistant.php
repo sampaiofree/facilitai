@@ -55,7 +55,8 @@ class Assistant extends Model
 
     public function chats()
     {
-        return $this->hasMany(Chat::class, 'assistant_id', 'id');
+        // Relacionamento com chats removido.
+        return null;
     }
 
 

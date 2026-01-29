@@ -33,6 +33,12 @@
             <div class="mt-auto px-6 py-6 border-t border-slate-800 text-xs text-slate-400">
                 {{ auth()->user()->name ?? 'Usuário' }}
             </div>
+            <div class="px-6 py-6 border-t border-slate-800">
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="w-full text-left rounded-lg px-3 py-2 text-sm font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700">Sair</button>
+                </form>
+            </div>
         </aside>
 
         <main class="flex-1 px-10 py-8">

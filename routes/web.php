@@ -36,12 +36,14 @@ use App\Http\Controllers\Agencia\AgenciaCredentialController;
 use App\Http\Controllers\Agencia\AgenciaSettingsController;
 use App\Http\Controllers\Agencia\AgenciaSequenceController;
 use App\Http\Controllers\Agencia\AgenciaTagController;
+use App\Http\Controllers\Cliente\ClienteAuthController;
+use App\Http\Controllers\Cliente\ClienteDashboardController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
 
 //PÁGINAS PUBLICAS
-Route::get('/', function () {return redirect()->route('facilitai.pricing');})->name('homepage');
+Route::get('/', function () { return redirect()->route('login'); })->name('homepage');
 Route::get('/politica', function () {return view('homepage.politica');})->name('politica');
 Route::get('/bio', function () {return view('homepage.bio');});
 Route::get('/grupo-black', function () {return view('homepage.blackfriday');});
@@ -127,6 +129,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 });
 
 Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(function () {
+    Route::get('dashboard', function () {
+        return view('adm.dashboard');
+    })->name('dashboard');
     Route::get('conexoes', [App\Http\Controllers\Admin\ConexaoController::class, 'index'])->name('conexoes.index');
     Route::post('conexoes', [App\Http\Controllers\Admin\ConexaoController::class, 'store'])->name('conexoes.store');
     Route::patch('conexoes/{conexao}', [App\Http\Controllers\Admin\ConexaoController::class, 'update'])->name('conexoes.update');
@@ -268,6 +273,9 @@ Route::get('/test-credential/{id}', function ($id) {
 require __DIR__.'/auth.php';
 
 Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function () {
+    Route::get('dashboard', function () {
+        return view('agencia.dashboard');
+    })->name('dashboard');
     Route::get('clientes', [AgenciaClienteController::class, 'index'])->name('clientes.index');
     Route::post('clientes', [AgenciaClienteController::class, 'store'])->name('clientes.store');
     Route::patch('clientes/{cliente}', [AgenciaClienteController::class, 'update'])->name('clientes.update');
@@ -295,4 +303,16 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('tags', [AgenciaTagController::class, 'index'])->name('tags.index');
     Route::post('tags', [AgenciaTagController::class, 'store'])->name('tags.store');
     Route::delete('tags/{tag}', [AgenciaTagController::class, 'destroy'])->name('tags.destroy');
+});
+
+Route::prefix('cliente')->name('cliente.')->group(function () {
+    Route::middleware('guest:client')->group(function () {
+        Route::get('login', [ClienteAuthController::class, 'create'])->name('login');
+        Route::post('login', [ClienteAuthController::class, 'store']);
+    });
+
+    Route::middleware('auth:client')->group(function () {
+        Route::get('dashboard', [ClienteDashboardController::class, 'index'])->name('dashboard');
+        Route::post('logout', [ClienteAuthController::class, 'destroy'])->name('logout');
+    });
 });

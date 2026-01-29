@@ -32,16 +32,20 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
         // Verifica se o usuário é admin ou tem uma compra registrada
-        if (!$user->is_admin && !$user->hotmartWebhooks()) {
+        /*if (!$user->is_admin && !$user->hotmartWebhooks()) {
             Auth::logout(); // Desloga o usuário
 
             // Retorna para a tela de login com mensagem de erro
             return back()->withErrors([
                 'email' => 'Você precisa ter uma assinatura ativa para acessar o sistema.',
             ]);
-        }
+        }*/
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $targetPath = $user->is_admin
+            ? route('adm.dashboard', absolute: false)
+            : route('agencia.dashboard', absolute: false);
+
+        return redirect()->intended($targetPath);
     }
 
     /**

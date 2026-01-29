@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Assistant;
-use App\Models\Chat;
 use App\Models\Instance;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -98,6 +97,7 @@ class ExampleUserDataSeeder extends Seeder
             ],
         ];
 
+        /*
         foreach ($chatConfigs as $config) {
             Chat::updateOrCreate([
                 'instance_id' => $config['instance']->id,
@@ -114,5 +114,6 @@ class ExampleUserDataSeeder extends Seeder
                 'bot_enabled' => true,
             ]);
         }
+        */
     }
 }

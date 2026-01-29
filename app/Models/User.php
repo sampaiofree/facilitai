@@ -168,9 +168,10 @@ class User extends Authenticatable implements MustVerifyEmail
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
-    public function chats() // <-- O MÉTODO QUE FALTAVA
+    public function chats() // <-- Chat removido
     {
-        return $this->hasMany(Chat::class);
+        // Relacionamento suspenso.
+        return null;
     }
 
     public function images()

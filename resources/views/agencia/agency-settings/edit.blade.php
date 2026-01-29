@@ -14,19 +14,6 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="subdomain">Subdomínio</label>
-                    <input
-                        id="subdomain"
-                        name="subdomain"
-                        type="text"
-                        value="{{ old('subdomain', $settings->subdomain) }}"
-                        placeholder="sua-agencia"
-                        class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    >
-                    <p class="mt-1 text-xs text-slate-400">Apenas letras, números e hífen.</p>
-                </div>
-
-                <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="custom_domain">Domínio customizado</label>
                     <input
                         id="custom_domain"
@@ -143,8 +130,12 @@
                         class="mt-1 w-full rounded-lg border-slate-200 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     >
                     @if ($settings->logo_path)
-                        <div class="mt-2 text-xs text-slate-500">
-                            Atual: <a class="text-blue-600 underline" href="{{ Storage::url($settings->logo_path) }}" target="_blank" rel="noreferrer">ver logo</a>
+                        <div class="mt-2 flex flex-col gap-1 text-xs text-slate-500">
+                            <span>Atual:</span>
+                            <a class="text-blue-600 underline" href="{{ Storage::url($settings->logo_path) }}" target="_blank" rel="noreferrer">ver logo</a>
+                            <div class="mt-1 h-24 w-24 overflow-hidden rounded-lg border border-slate-200">
+                                <img class="h-full w-full object-contain" src="{{ Storage::url($settings->logo_path) }}" alt="Logo atual">
+                            </div>
                         </div>
                     @endif
                 </div>
@@ -159,8 +150,12 @@
                         class="mt-1 w-full rounded-lg border-slate-200 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     >
                     @if ($settings->favicon_path)
-                        <div class="mt-2 text-xs text-slate-500">
-                            Atual: <a class="text-blue-600 underline" href="{{ Storage::url($settings->favicon_path) }}" target="_blank" rel="noreferrer">ver favicon</a>
+                        <div class="mt-2 flex flex-col gap-1 text-xs text-slate-500">
+                            <span>Atual:</span>
+                            <a class="text-blue-600 underline" href="{{ Storage::url($settings->favicon_path) }}" target="_blank" rel="noreferrer">ver favicon</a>
+                            <div class="mt-1 h-12 w-12 overflow-hidden rounded-lg border border-slate-200">
+                                <img class="h-full w-full object-contain" src="{{ Storage::url($settings->favicon_path) }}" alt="Favicon atual">
+                            </div>
                         </div>
                     @endif
                 </div>

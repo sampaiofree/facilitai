@@ -13,7 +13,6 @@ use App\Models\Credential;
 use App\Services\WebshareService; 
 use App\Services\EvolutionService;
 use App\Models\Payment;
-use App\Models\Chat;
 use App\Models\Agenda;
 use Illuminate\Support\Facades\Response;
 
@@ -117,10 +116,8 @@ class InstanceController extends Controller
         ];
 
         // --- busca de chats aguardando atendimento ---
-        $chatsAguardando = Chat::where('instance_id', $instance->id)
-            ->where('aguardando_atendimento', true)
-            ->latest()
-            ->get(['id', 'nome', 'informacoes', 'contact', 'updated_at']);
+        // Chat model foi removido; mantemos placeholder vazio.
+        $chatsAguardando = collect();
 
         // --- horários agendados (ocupados) ---
         // Filtra apenas a agenda vinculada à instância; se não houver, não retorna registros
@@ -645,7 +642,7 @@ class InstanceController extends Controller
         $instance->update($validated);
         
         //REINICIA TODOS OS CHATS
-        Chat::where('assistant_id', (string)$validated['default_assistant_id'])->update(['conv_id' => null]);
+        // Chat model removido; reinicialização automática não aplicável.
 
         return redirect()->route('instances.index')->with('success', 'Conexão atualizada com sucesso!');
     }

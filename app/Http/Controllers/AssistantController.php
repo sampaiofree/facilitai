@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Log;
 use App\Services\PromptBuilderService;
 use App\Models\Payment;
 use App\Models\Assistant;
-use App\Models\Chat;
 use Illuminate\Support\Str;
 
 class AssistantController extends Controller

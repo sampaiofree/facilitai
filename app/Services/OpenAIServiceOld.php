@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use App\Models\LeadEmpresa;
-use App\Models\Chat;
 use Illuminate\Support\Facades\Process;
 
 class OpenAIService
@@ -276,12 +275,8 @@ class OpenAIService
     }
 
     public function encerrarAtendimento(){
-        Chat::where('contact', $this->contact)
-            ->where('thread_id', $this->threadId)
-            ->delete();
-
-        return "encerrado";    
-
+        // Chat model removed; encerramento manual desativado.
+        return "chat feature disabled";
     }
 
     public function buscar_get($url)

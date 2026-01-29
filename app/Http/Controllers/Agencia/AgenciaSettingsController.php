@@ -35,8 +35,11 @@ class AgenciaSettingsController extends Controller
     {
         $userId = Auth::id();
 
+        $request->merge([
+            'custom_domain' => $this->normalizeDomain($request->input('custom_domain')),
+        ]);
+
         $validated = $request->validate([
-            'subdomain' => ['nullable', 'string', 'max:255', 'regex:/^[a-z0-9-]+$/i', 'unique:agency_settings,subdomain,' . $userId . ',user_id'],
             'custom_domain' => ['nullable', 'string', 'max:255', 'unique:agency_settings,custom_domain,' . $userId . ',user_id'],
             'app_name' => ['nullable', 'string', 'max:255'],
             'support_email' => ['nullable', 'email', 'max:255'],
@@ -48,13 +51,11 @@ class AgenciaSettingsController extends Controller
             'logo' => ['nullable', 'image', 'max:2048'],
             'favicon' => ['nullable', 'image', 'max:1024'],
         ], [
-            'subdomain.regex' => 'O subdomínio deve conter apenas letras, números e hífen.',
             'primary_color.regex' => 'Cor primária deve estar no formato HEX (ex: #1a2b3c).',
             'secondary_color.regex' => 'Cor secundária deve estar no formato HEX (ex: #1a2b3c).',
         ]);
 
         $payload = [
-            'subdomain' => $request->filled('subdomain') ? Str::lower($validated['subdomain']) : null,
             'custom_domain' => $request->filled('custom_domain') ? $validated['custom_domain'] : null,
             'app_name' => $validated['app_name'] ?? null,
             'support_email' => $validated['support_email'] ?? null,
@@ -81,6 +82,25 @@ class AgenciaSettingsController extends Controller
         return redirect()
             ->route('agencia.agency-settings.edit')
             ->with('success', 'Configurações atualizadas com sucesso.');
+    }
+
+    private function normalizeDomain(?string $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $value = preg_replace('#^https?://#i', '', $value);
+        $value = preg_replace('#/.*$#', '', $value);
+        $value = preg_replace('/:\d+$/', '', $value);
+        $value = preg_replace('/^www\./i', '', $value);
+
+        return $value !== '' ? Str::lower($value) : null;
     }
 
     /**

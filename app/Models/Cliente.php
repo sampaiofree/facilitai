@@ -3,11 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Conexao;
 
-class Cliente extends Model
+class Cliente extends Authenticatable
 {
     use HasFactory, SoftDeletes;
 
@@ -28,6 +28,11 @@ class Cliente extends Model
         'is_active' => 'boolean',
         'last_login_at' => 'datetime',
         'metadata' => 'array',
+        'password' => 'hashed',
+    ];
+
+    protected $hidden = [
+        'password',
     ];
 
     public function user()
