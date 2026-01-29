@@ -82,7 +82,7 @@
         </table>
     </div>
 
-    <div id="clienteLeadViewModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 backdrop-blur">
+    <div id="clienteLeadViewModal" class="fixed inset-0 hidden flex items-center justify-center bg-black/40 backdrop-blur">
         <div class="w-[640px] max-w-full rounded-2xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-slate-900">Detalhes do lead</h3>

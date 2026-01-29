@@ -10,7 +10,6 @@ use App\Http\Controllers\Admin\ClienteLeadController;
 use App\Http\Controllers\Admin\LeadEmpresaController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\TagController;
-use App\Http\Controllers\ImageController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\LibraryEntryController;
 use App\Http\Controllers\LeadController; 
@@ -29,6 +28,7 @@ use App\Http\Controllers\Admin\SystemErrorLogController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\AssistantLeadController;
 use App\Http\Controllers\UazapiController;
+use App\Http\Controllers\Admin\PlanController;
 use App\Http\Controllers\Agencia\AgenciaAssistantController;
 use App\Http\Controllers\Agencia\AgenciaClienteController;
 use App\Http\Controllers\Agencia\AgenciaConexaoController;
@@ -36,6 +36,9 @@ use App\Http\Controllers\Agencia\AgenciaCredentialController;
 use App\Http\Controllers\Agencia\AgenciaSettingsController;
 use App\Http\Controllers\Agencia\AgenciaSequenceController;
 use App\Http\Controllers\Agencia\AgenciaTagController;
+use App\Http\Controllers\Agencia\ClienteLeadController as AgenciaClienteLeadController;
+use App\Http\Controllers\Agencia\ImageController as AgenciaImageController;
+use App\Http\Controllers\Agencia\LibraryEntryController as AgenciaLibraryEntryController;
 use App\Http\Controllers\Cliente\ClienteAuthController;
 use App\Http\Controllers\Cliente\ClienteDashboardController;
 
@@ -158,6 +161,10 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::delete('cliente-lead/{clienteLead}', [ClienteLeadController::class, 'destroy'])->name('cliente-lead.destroy');
     Route::view('payload', 'admin.payload.index')->name('payload.index');
     Route::post('payload', [App\Http\Controllers\Admin\PayloadController::class, 'send'])->name('payload.send');
+    Route::get('plano', [PlanController::class, 'index'])->name('plano.index');
+    Route::post('plano', [PlanController::class, 'store'])->name('plano.store');
+    Route::put('plano/{plan}', [PlanController::class, 'update'])->name('plano.update');
+    Route::delete('plano/{plan}', [PlanController::class, 'destroy'])->name('plano.destroy');
 });
 
 Route::get('/dashboard', function () {
@@ -199,11 +206,6 @@ Route::middleware('auth', 'verified')->group(function () {
 
     //PASTAS DE IMAGENS
     Route::resource('folders', FolderController::class)->only(['store', 'update', 'destroy']);
-
-    //CRIAR IMAGENS
-    Route::post('/images/move', [ImageController::class, 'move'])->name('images.move');
-    Route::delete('/images/bulk-destroy', [ImageController::class, 'bulkDestroy'])->name('images.bulkDestroy');
-    Route::resource('images', ImageController::class)->only(['index', 'store', 'destroy', 'update']);
 
     //BIBLIOTECA DE TEXTOS
     Route::resource('library', LibraryEntryController::class)->except(['show']);
@@ -296,13 +298,27 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('agency-settings', [AgenciaSettingsController::class, 'edit'])->name('agency-settings.edit');
     Route::post('agency-settings', [AgenciaSettingsController::class, 'update'])->name('agency-settings.update');
     Route::get('sequence', [AgenciaSequenceController::class, 'index'])->name('sequences.index');
+    Route::get('conversas', [AgenciaClienteLeadController::class, 'index'])->name('conversas.index');
+    Route::post('conversas', [AgenciaClienteLeadController::class, 'store'])->name('conversas.store');
+    Route::post('conversas/import', [AgenciaClienteLeadController::class, 'import'])->name('conversas.import');
+    Route::put('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'update'])->name('conversas.update');
+    Route::delete('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'destroy'])->name('conversas.destroy');
     Route::post('sequences', [AgenciaSequenceController::class, 'store'])->name('sequences.store');
     Route::post('sequences/{sequence}/steps', [AgenciaSequenceController::class, 'storeStep'])->name('sequences.steps.store');
     Route::patch('sequences/{sequence}/steps/{step}', [AgenciaSequenceController::class, 'updateStep'])->name('sequences.steps.update');
     Route::get('clientes/{cliente}/conexoes', [AgenciaSequenceController::class, 'conexoes'])->name('sequences.cliente.conexoes');
+    Route::delete('sequence-chats/{sequenceChat}', [AgenciaSequenceController::class, 'destroySequenceChat'])->name('sequence-chats.destroy');
+    Route::post('images/move', [AgenciaImageController::class, 'move'])->name('images.move');
+    Route::delete('images/bulk-destroy', [AgenciaImageController::class, 'bulkDestroy'])->name('images.bulkDestroy');
+    Route::resource('images', AgenciaImageController::class)->only(['index', 'store', 'destroy', 'update']);
+    Route::resource('folders', FolderController::class)->only(['store', 'update', 'destroy']);
     Route::get('tags', [AgenciaTagController::class, 'index'])->name('tags.index');
     Route::post('tags', [AgenciaTagController::class, 'store'])->name('tags.store');
     Route::delete('tags/{tag}', [AgenciaTagController::class, 'destroy'])->name('tags.destroy');
+    Route::get('library', [AgenciaLibraryEntryController::class, 'index'])->name('library.index');
+    Route::post('library', [AgenciaLibraryEntryController::class, 'store'])->name('library.store');
+    Route::put('library/{libraryEntry}', [AgenciaLibraryEntryController::class, 'update'])->name('library.update');
+    Route::delete('library/{libraryEntry}', [AgenciaLibraryEntryController::class, 'destroy'])->name('library.destroy');
 });
 
 Route::prefix('cliente')->name('cliente.')->group(function () {

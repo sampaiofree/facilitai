@@ -1,62 +1,114 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight mb-3">
-            {{ __('Minhas Imagens') }}
-        </h2>
-        <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div class="flex items-start gap-3">
-                            <div class="flex-shrink-0">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 14h.01M16 10h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="text-gray-700 text-sm leading-relaxed">
-                                    🎥 <strong>Precisa de ajuda?</strong><br>
-                                    Assista o vídeo e aprenda como instruir o assistente a enviar imagens, vídeos, áudios ou PDFs automaticamente.
-                                </p>
-                            </div>
-                        </div>
+@extends('layouts.agencia')
 
-                        <a href="https://youtu.be/yADDjjphelM" target="_blank"
-                        class="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M4 6h8m0 0v12m0-12L4 18" />
-                            </svg>
-                            Assistir tutorial
-                        </a>
-                    </div>
-    </x-slot>
+@section('content')
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <!-- Secao de Upload -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-8">
-                <div class="p-6 text-gray-900 flex items-center justify-between flex-wrap gap-3">
-                    <div>
-                        <h3 class="text-lg font-medium">Enviar Nova Imagem, Audio, PDF ou Video</h3>
-                        <p class="text-sm text-gray-600 mt-1">Arquivos ate 10MB (imagem, video, audio ou PDF).</p>
-                    </div>
-                    <button id="open-upload-modal" type="button" class="inline-flex items-center gap-2 bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                        Adicionar midia
-                    </button>
+    @php
+        $imagesRouteBase = $imagesRouteBase ?? 'images';
+        $foldersRouteBase = $foldersRouteBase ?? 'folders';
+        $quotaUser = auth()->user();
+        $quotaPlan = $quotaUser?->plan;
+        $quotaUsedMb = (int) ($quotaUser?->storage_used_mb ?? 0);
+        $quotaLimitMb = (int) ($quotaPlan?->storage_limit_mb ?? 0);
+        $quotaPercent = $quotaLimitMb > 0 ? min(100, (int) round(($quotaUsedMb / $quotaLimitMb) * 100)) : 0;
+        $quotaColor = $quotaLimitMb > 0
+            ? ($quotaPercent > 90 ? 'bg-rose-500' : ($quotaPercent >= 70 ? 'bg-amber-400' : 'bg-emerald-500'))
+            : 'bg-slate-300';
+        $formatStorage = function (int $mb): string {
+            if ($mb >= 1024) {
+                return number_format($mb / 1024, 1, ',', '.') . ' GB';
+            }
+            return number_format($mb, 0, ',', '.') . ' MB';
+        };
+    @endphp
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-2xl font-semibold text-slate-900">Imagens</h2>
+            <p class="text-sm text-slate-500">Gerencie imagens, vídeos, áudios e PDFs do seu usuário.</p>
+        </div>
+        <button id="open-upload-modal" type="button" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Adicionar mídia
+        </button>
+    </div>
+    <div class="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p class="text-sm font-semibold text-slate-800">Armazenamento</p>
+                <p class="text-xs text-slate-500">
+                    @if($quotaLimitMb > 0)
+                        {{ $formatStorage($quotaUsedMb) }} de {{ $formatStorage($quotaLimitMb) }} usados
+                    @else
+                        Nenhum plano definido
+                    @endif
+                </p>
+            </div>
+            <div class="flex-1 sm:max-w-md">
+                <div class="h-2 w-full rounded-full bg-slate-100">
+                    <div class="h-2 rounded-full {{ $quotaColor }}" style="width: {{ $quotaPercent }}%"></div>
+                </div>
+                <div class="mt-1 text-[11px] text-slate-500">
+                    @if($quotaLimitMb > 0)
+                        {{ $quotaPercent }}% usado
+                    @else
+                        Selecione um plano para liberar uploads
+                    @endif
                 </div>
             </div>
+        </div>
+    </div>
 
-            <!-- Modal Upload -->
+    <div class="mb-4 text-sm text-slate-600">
+        1. Envie os arquivos &nbsp;|&nbsp; 2. Organize em pastas &nbsp;|&nbsp; 3. Copie o link para usar no assistente
+    </div>
+
+    <div class="mb-6 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-start gap-3">
+                <div class="flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 14h.01M16 10h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" />
+                    </svg>
+                </div>
+                <div>
+                    <p class="text-sm leading-relaxed text-slate-700">
+                        🎥 <strong>Precisa de ajuda?</strong><br>
+                        Assista o vídeo e aprenda como instruir o assistente a enviar imagens, vídeos, áudios ou PDFs automaticamente.
+                    </p>
+                </div>
+            </div>
+            <a href="https://youtu.be/yADDjjphelM" target="_blank"
+                class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M4 6h8m0 0v12m0-12L4 18" />
+                </svg>
+                Assistir tutorial
+            </a>
+        </div>
+    </div>
+
+    <div class="grid gap-6">
+        <!-- Secao de Upload -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900">Enviar nova mídia</h3>
+                    <p class="text-sm text-slate-500 mt-1">Arquivos até 10MB (imagem, vídeo, áudio ou PDF).</p>
+                </div>
+            </div>
+        </div>
+<!-- Modal Upload -->
             <div id="upload-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-start justify-center z-50 overflow-y-auto py-6">
                 <div class="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
                     <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-semibold text-gray-800">Enviar midia</h3>
-                        <button type="button" id="upload-modal-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                        <h3 class="text-lg font-semibold text-slate-800">Enviar midia</h3>
+                        <button type="button" id="upload-modal-close" class="text-slate-500 hover:text-slate-700">&times;</button>
                     </div>
-                    <form id="upload-form" action="{{ route('images.store') }}" method="POST" enctype="multipart/form-data">
+                    <form id="upload-form" action="{{ route($imagesRouteBase . '.store') }}" method="POST" enctype="multipart/form-data">
                         @csrf
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm text-gray-700 mb-1" for="upload-images">Arquivos</label>
-                                <input id="upload-images" type="file" name="images[]" multiple required accept="image/jpeg,image/png,video/mp4,video/quicktime,application/pdf,audio/mpeg,audio/mp3" class="block w-full text-sm text-gray-700 border rounded-lg px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                                <label class="block text-sm text-slate-700 mb-1" for="upload-images">Arquivos</label>
+                                <input id="upload-images" type="file" name="images[]" multiple required accept="image/jpeg,image/png,video/mp4,video/quicktime,application/pdf,audio/mpeg,audio/mp3" class="block w-full text-sm text-slate-700 border rounded-lg px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                                 @error('images')
                                     <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
                                 @enderror
@@ -66,11 +118,14 @@
                                 @error('image')
                                     <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
                                 @enderror
-                                <p class="mt-1 text-xs text-gray-500">Selecione um ou mais arquivos. PNG, JPG, MP4, MP3 ou PDF. Ate 10MB por arquivo.</p>
+                                <p class="mt-1 text-xs text-slate-500">Selecione um ou mais arquivos. PNG, JPG, MP4, MP3 ou PDF. Ate 10MB por arquivo.</p>
                             </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm text-gray-700 mb-1" for="upload-folder-all">Pasta para todos (opcional)</label>
+                                    <div class="flex items-center justify-between gap-2">
+                                        <label class="block text-sm text-slate-700 mb-1" for="upload-folder-all">Pasta para todos (opcional)</label>
+                                        <span class="text-xs text-slate-400">Opcional - pode editar depois</span>
+                                    </div>
                                     <select id="upload-folder-all" name="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full">
                                         <option value="">Sem pasta</option>
                                         @foreach($folders as $folder)
@@ -81,17 +136,17 @@
                                         <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
                                     @enderror
                                 </div>
-                                <div class="text-xs text-gray-600 sm:flex sm:items-end">
+                                <div class="text-xs text-slate-600 sm:flex sm:items-end">
                                     <p>Edite titulo, descricao e pasta de cada arquivo na lista abaixo. A pasta escolhida aqui pode ser aplicada a todos os itens.</p>
                                 </div>
                             </div>
 
                             <div>
                                 <div class="flex items-center justify-between mb-2">
-                                    <h4 class="text-sm font-semibold text-gray-800">Arquivos selecionados</h4>
-                                    <span id="upload-files-count" class="text-xs text-gray-500">0 selecionados</span>
+                                    <h4 class="text-sm font-semibold text-slate-800">Arquivos selecionados</h4>
+                                    <span id="upload-files-count" class="text-xs text-slate-500">0 selecionados</span>
                                 </div>
-                                <div id="upload-empty" class="border border-dashed border-gray-300 rounded-lg p-4 text-sm text-gray-500 bg-gray-50">Selecione um ou mais arquivos para visualizar e editar.</div>
+                                <div id="upload-empty" class="border border-dashed border-slate-300 rounded-lg p-4 text-sm text-slate-500 bg-slate-50">Selecione um ou mais arquivos para visualizar e editar.</div>
                                 <div id="upload-list" class="space-y-3 max-h-[60vh] overflow-y-auto pr-1"></div>
                                 @if($errors->has('titles.*') || $errors->has('descriptions.*') || $errors->has('folders.*'))
                                     <p class="text-red-500 text-xs mt-2">Corrija os campos invalidos antes de reenviar.</p>
@@ -99,7 +154,7 @@
                             </div>
                         </div>
                         <div class="flex justify-end gap-2 pt-4">
-                            <button type="button" id="upload-cancel" class="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancelar</button>
+                            <button type="button" id="upload-cancel" class="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200">Cancelar</button>
                             <button id="upload-submit" type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Enviar</button>
                         </div>
                     </form>
@@ -116,19 +171,19 @@
                 <div class="bg-white rounded-lg shadow-lg px-6 py-4 flex items-center gap-3">
                     <svg class="w-5 h-5 text-blue-600 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle class="opacity-25" cx="12" cy="12" r="10" stroke-width="4"></circle><path class="opacity-75" stroke-width="4" d="M4 12a8 8 0 018-8"></path></svg>
                     <div>
-                        <p class="text-sm font-semibold text-gray-800">Enviando arquivo(s)...</p>
-                        <p class="text-xs text-gray-600">Isso pode levar alguns segundos para arquivos maiores.</p>
+                        <p class="text-sm font-semibold text-slate-800">Enviando arquivo(s)...</p>
+                        <p class="text-xs text-slate-600">Isso pode levar alguns segundos para arquivos maiores.</p>
                     </div>
                 </div>
             </div>
             <!-- Seção da Galeria -->
-            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900">
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="text-slate-900">
 
                     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
                         <div class="flex items-center gap-3">
-                            <span class="text-sm text-gray-700 font-semibold">Você está em:</span>
-                            <span class="text-sm text-gray-900">
+                            <span class="text-sm text-slate-700 font-semibold">Você está em:</span>
+                            <span class="text-sm text-slate-900">
                                 @if($currentFolder)
                                     Pasta: {{ $currentFolder->name }} ({{ $images->total() }} arquivos)
                                 @elseif($selectedFolderId === 'none')
@@ -139,13 +194,13 @@
                             </span>
                         </div>
                         @if($currentFolder || $selectedFolderId === 'none')
-                            <a href="{{ route('images.index') }}" class="inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow">
+                            <a href="{{ route($imagesRouteBase . '.index') }}" class="inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                                 Voltar
                             </a>
                         @else
-                            <form method="GET" action="{{ route('images.index') }}" class="flex flex-wrap items-center gap-3">
-                                <label for="filter-folder" class="text-sm text-gray-700">Filtrar por pasta:</label>
+                            <form method="GET" action="{{ route($imagesRouteBase . '.index') }}" class="flex flex-wrap items-center gap-3">
+                                <label for="filter-folder" class="text-sm text-slate-700">Filtrar por pasta:</label>
                                 <select id="filter-folder" name="folder_id" class="border rounded-lg px-3 py-2 text-sm" onchange="this.form.submit()">
                                     <option value="" {{ empty($selectedFolderId) ? 'selected' : '' }}>Todas</option>
                                     <option value="none" {{ $selectedFolderId === 'none' ? 'selected' : '' }}>Sem pasta</option>
@@ -161,7 +216,7 @@
 
                     @if($currentFolder)
                         <div class="mb-4 flex items-center gap-3 flex-wrap">
-                            <form action="{{ route('folders.update', $currentFolder) }}" method="POST" class="flex items-center gap-2">
+                            <form action="{{ route($foldersRouteBase . '.update', $currentFolder) }}" method="POST" class="flex items-center gap-2">
                                 @csrf
                                 @method('PUT')
                                 <input type="text" name="name" value="{{ $currentFolder->name }}" class="border rounded-lg px-3 py-2 text-sm w-52" required>
@@ -170,7 +225,7 @@
                                     Renomear
                                 </button>
                             </form>
-                            <form action="{{ route('folders.destroy', $currentFolder) }}" method="POST" onsubmit="return confirm('Excluir pasta? Certifique-se de que ela esteja vazia.');">
+                            <form action="{{ route($foldersRouteBase . '.destroy', $currentFolder) }}" method="POST" onsubmit="return confirm('Excluir pasta? Certifique-se de que ela esteja vazia.');">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="bg-red-600 text-white text-sm font-semibold px-3 py-2 rounded-lg inline-flex items-center gap-1">
@@ -181,7 +236,7 @@
                         </div>
                     @endif
 
-                    <form id="move-form" action="{{ route('images.move') }}" method="POST" class="mb-4">
+                    <form id="move-form" action="{{ route($imagesRouteBase . '.move') }}" method="POST" class="mb-4">
                         @csrf
                         <div id="selection-bar" class="hidden bg-blue-50 border border-blue-100 text-blue-800 rounded-lg p-3 flex flex-wrap items-center gap-3">
                             <span class="text-sm font-semibold">Itens selecionados: <span id="selected-count">0</span></span>
@@ -195,11 +250,11 @@
                             <div class="flex items-center gap-2 flex-wrap">
                                 <button type="submit" class="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">Mover selecionados</button>
                                 <button type="button" id="delete-selected" class="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">Excluir selecionados</button>
-                                <button type="button" id="copy-selected" class="bg-gray-100 text-gray-800 text-sm font-semibold px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-200">Copiar todos os links</button>
+                                <button type="button" id="copy-selected" class="bg-slate-100 text-slate-800 text-sm font-semibold px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-200">Copiar todos os links</button>
                             </div>
                         </div>
                     </form>
-                    <form id="delete-form" action="{{ route('images.bulkDestroy') }}" method="POST" class="hidden">
+                    <form id="delete-form" action="{{ route($imagesRouteBase . '.bulkDestroy') }}" method="POST" class="hidden">
                         @csrf
                         @method('DELETE')
                         <div id="delete-form-images"></div>
@@ -208,11 +263,11 @@
                     @if($showFolders)
                         <div class="mb-6 space-y-3">
                             <div class="flex items-center justify-between flex-wrap gap-3">
-                                <h3 class="text-md font-semibold text-gray-800">Pastas</h3>
-                                <form action="{{ route('folders.store') }}" method="POST" class="flex flex-wrap items-end gap-3">
+                                <h3 class="text-md font-semibold text-slate-800">Pastas</h3>
+                                <form action="{{ route($foldersRouteBase . '.store') }}" method="POST" class="flex flex-wrap items-end gap-3">
                                     @csrf
                                     <div>
-                                        <label class="block text-sm text-gray-600 mb-1" for="folder-name-inline">Nova pasta</label>
+                                        <label class="block text-sm text-slate-600 mb-1" for="folder-name-inline">Nova pasta</label>
                                         <input id="folder-name-inline" type="text" name="name" required maxlength="255" class="border rounded-lg px-3 py-2 text-sm w-52" placeholder="Nome da pasta">
                                     </div>
                                     <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm">Criar</button>
@@ -221,37 +276,37 @@
 
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 @forelse($folders as $folder)
-                                    <a href="{{ route('images.index', ['folder_id' => $folder->id]) }}" class="border rounded-lg p-3 flex items-center gap-2 hover:border-blue-500 transition">
+                                    <a href="{{ route($imagesRouteBase . '.index', ['folder_id' => $folder->id]) }}" class="border rounded-lg p-3 flex items-center gap-2 hover:border-blue-500 transition">
                                         <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 7l2-3h5l2 3h10v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"></path></svg>
-                                        <span class="font-semibold text-gray-800 truncate">{{ $folder->name }}</span>
+                                        <span class="font-semibold text-slate-800 truncate">{{ $folder->name }}</span>
                                     </a>
                                 @empty
-                                    <p class="text-sm text-gray-600">Nenhuma pasta criada ainda.</p>
+                                    <p class="text-sm text-slate-600">Nenhuma pasta criada ainda.</p>
                                 @endforelse
                             </div>
                         </div>
                     @endif
 
                     @if(!$showFolders && !$currentFolder)
-                        <p class="text-sm text-gray-700 mb-2 font-semibold">Arquivos sem pasta</p>
+                        <p class="text-sm text-slate-700 mb-2 font-semibold">Arquivos sem pasta</p>
                     @endif
 
 
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200 text-sm">
-                            <thead class="bg-gray-50">
+                    <div id="gallery-table" class="overflow-x-auto transition">
+                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                            <thead class="bg-slate-50">
                                 <tr>
                                     <th class="px-3 py-2 w-10">
                                         <span class="sr-only">Selecionar</span>
                                     </th>
-                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Nome</th>
-                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Tipo</th>
-                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Pasta</th>
-                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Tamanho</th>
-                                    <th class="px-3 py-2 text-left font-semibold text-gray-700">Acoes</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-slate-700">Nome</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-slate-700">Tipo</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-slate-700">Pasta</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-slate-700">Tamanho</th>
+                                    <th class="px-3 py-2 text-left font-semibold text-slate-700">Acoes</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100">
+                            <tbody class="divide-y divide-slate-100">
                                 @forelse ($images as $file)
                                     @php
                                         $ext = strtolower(pathinfo($file->url, PATHINFO_EXTENSION));
@@ -278,14 +333,14 @@
                                         </td>
                                         <td class="px-3 py-2 align-top">
                                             <div class="flex flex-col gap-1">
-                                                <span class="font-semibold text-gray-800 truncate max-w-xs" title="{{ $displayTitle }}">{{ $displayTitle }}</span>
-                                                <p class="text-xs text-gray-600">
+                                                <span class="font-semibold text-slate-800 truncate max-w-xs" title="{{ $displayTitle }}">{{ $displayTitle }}</span>
+                                                <p class="text-xs text-slate-600">
                                                     {{ $hasDescription ? $shortDescription : '-' }}
                                                 </p>
                                                 
                                             </div>
                                         </td>
-                                        <td class="px-3 py-2 align-top text-gray-700">
+                                        <td class="px-3 py-2 align-top text-slate-700">
                                             <span class="inline-flex items-center gap-2 px-2 py-1 rounded-lg text-xs font-semibold {{ $typeColor }}">
                                                 @if($isVideo)
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-5.197-3.132A1 1 0 008 8.868v6.264a1 1 0 001.555.832l5.197-3.132a1 1 0 000-1.664z"></path></svg>
@@ -299,23 +354,23 @@
                                                 <span>{{ $typeLabel }}</span>
                                             </span>
                                         </td>
-                                        <td class="px-3 py-2 align-top text-gray-700">
+                                        <td class="px-3 py-2 align-top text-slate-700">
                                             {{ $file->folder->name ?? 'Sem pasta' }}
                                         </td>
-                                        <td class="px-3 py-2 align-top text-gray-700">
+                                        <td class="px-3 py-2 align-top text-slate-700">
                                             {{ $file->size }} KB
                                         </td>
                                         <td class="px-3 py-2 align-top">
                                             <div class="flex flex-wrap items-center gap-2">
-                                                <button type="button" class="edit-image inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-md hover:bg-blue-200" data-update-url="{{ route('images.update', $file) }}" data-title="{{ e($file->title ?? '') }}" data-description="{{ e($file->description ?? '') }}" data-fallback-title="{{ e($file->original_name) }}">
+                                                <button type="button" class="edit-image inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-md hover:bg-blue-200" data-update-url="{{ route($imagesRouteBase . '.update', $file) }}" data-title="{{ e($file->title ?? '') }}" data-description="{{ e($file->description ?? '') }}" data-fallback-title="{{ e($file->original_name) }}">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-4-9l3 3m-4-3l-7 7v3h3l7-7"></path></svg>
                                                     Editar
                                                 </button>
-                                                <button type="button" class="copy-image-link inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-md hover:bg-gray-200" data-url="{{ $file->url }}" data-title="{{ e($file->title ?? '') }}" data-description="{{ e($file->description ?? '') }}" title="Copiar URL">
+                                                <button type="button" class="copy-image-link inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-md hover:bg-slate-200" data-url="{{ $file->url }}" data-title="{{ e($file->title ?? '') }}" data-description="{{ e($file->description ?? '') }}" title="Copiar URL">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                                                     Link
                                                 </button>
-                                                <form action="{{ route('images.destroy', $file) }}" method="POST" onsubmit="return confirm('Tem certeza?');">
+                                                <form action="{{ route($imagesRouteBase . '.destroy', $file) }}" method="POST" onsubmit="return confirm('Tem certeza?');">
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" title="Excluir" class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-semibold rounded-md hover:bg-red-200">
@@ -328,7 +383,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="px-3 py-6 text-center text-gray-500">Nenhum arquivo enviado ainda.</td>
+                                        <td colspan="6" class="px-3 py-6 text-center text-slate-500">Nenhum arquivo enviado ainda.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -341,28 +396,27 @@
                     </div>
                 </div>
             </div>
-        </div>
     </div>
 
 <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
     <div class="bg-white rounded-lg shadow-lg max-w-lg w-full mx-4 p-6">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-800">Editar midia</h3>
-            <button type="button" id="edit-modal-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+            <h3 class="text-lg font-semibold text-slate-800">Editar midia</h3>
+            <button type="button" id="edit-modal-close" class="text-slate-500 hover:text-slate-700">&times;</button>
         </div>
         <form id="edit-form" method="POST">
             @csrf
             @method('PATCH')
             <div class="mb-4">
-                <label for="edit-title" class="block text-sm text-gray-700 mb-1">Titulo</label>
+                <label for="edit-title" class="block text-sm text-slate-700 mb-1">Titulo</label>
                 <input id="edit-title" type="text" name="title" maxlength="255" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Digite o titulo">
             </div>
             <div class="mb-4">
-                <label for="edit-description" class="block text-sm text-gray-700 mb-1">Descricao</label>
+                <label for="edit-description" class="block text-sm text-slate-700 mb-1">Descricao</label>
                 <textarea id="edit-description" name="description" rows="4" maxlength="500" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Digite a descricao"></textarea>
             </div>
             <div class="flex justify-end gap-2">
-                <button type="button" id="edit-cancel" class="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancelar</button>
+                <button type="button" id="edit-cancel" class="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200">Cancelar</button>
                 <button type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Salvar</button>
             </div>
         </form>
@@ -373,6 +427,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         const checkboxes = Array.from(document.querySelectorAll('.image-checkbox'));
         const selectionBar = document.getElementById('selection-bar');
+        const galleryTable = document.getElementById('gallery-table');
         const selectedCount = document.getElementById('selected-count');
         const moveForm = document.getElementById('move-form');
         const imagesContainer = document.getElementById('move-form-images');
@@ -416,6 +471,10 @@
             const selected = getSelectedIds();
             selectedCount.textContent = selected.length;
             selectionBar.classList.toggle('hidden', selected.length === 0);
+            galleryTable?.classList.toggle('bg-slate-50/70', selected.length > 0);
+            galleryTable?.classList.toggle('rounded-xl', selected.length > 0);
+            galleryTable?.classList.toggle('ring-1', selected.length > 0);
+            galleryTable?.classList.toggle('ring-slate-200', selected.length > 0);
         };
 
         checkboxes.forEach(cb => cb.addEventListener('change', updateSelection));
@@ -482,13 +541,13 @@
                 if (title) parts.push(`**Titulo:** ${title}`);
                 if (description) parts.push(`**Descricao:** ${description}`);
                 if (url) parts.push(`**Link:** ${url}`);
-                return parts.join('\n');
+                return parts.join('\\n');
             }).filter(Boolean);
 
             if (!blocks.length) return;
 
             try {
-                await copyText(blocks.join('\n\n'));
+                await copyText(blocks.join('\\n\\n'));
                 if (typeof showAlert === 'function') {
                     showAlert('Links copiados!', 'success');
                 }
@@ -521,7 +580,7 @@
 
         const createPreview = (file) => {
             const wrapper = document.createElement('div');
-            wrapper.className = 'w-24 h-16 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden';
+            wrapper.className = 'w-24 h-16 bg-slate-100 rounded-md flex items-center justify-center overflow-hidden';
             const type = file.type || '';
             const name = (file.name || '').toLowerCase();
 
@@ -535,7 +594,7 @@
             }
 
             const badge = document.createElement('span');
-            badge.className = 'text-xs font-semibold text-gray-700 px-2 py-1 rounded-md bg-white border';
+            badge.className = 'text-xs font-semibold text-slate-700 px-2 py-1 rounded-md bg-white border';
             if (type.startsWith('video/')) {
                 badge.textContent = 'Video';
             } else if (type.startsWith('audio/')) {
@@ -572,7 +631,7 @@
 
             files.forEach((file, index) => {
                 const card = document.createElement('div');
-                card.className = 'border border-gray-200 rounded-lg p-3 bg-gray-50';
+                card.className = 'border border-slate-200 rounded-lg p-3 bg-slate-50';
 
                 const header = document.createElement('div');
                 header.className = 'flex items-start gap-3';
@@ -587,11 +646,11 @@
                 nameRow.className = 'flex items-center justify-between gap-2';
 
                 const name = document.createElement('p');
-                name.className = 'text-sm font-semibold text-gray-800 truncate';
+                name.className = 'text-sm font-semibold text-slate-800 truncate';
                 name.textContent = file.name || `Arquivo ${index + 1}`;
 
                 const badge = document.createElement('span');
-                badge.className = 'text-xs font-semibold text-gray-600 bg-white border rounded-md px-2 py-1';
+                badge.className = 'text-xs font-semibold text-slate-600 bg-white border rounded-md px-2 py-1';
                 badge.textContent = `${getTypeLabel(file)} · ${formatSize(file.size)}`;
 
                 nameRow.appendChild(name);
@@ -604,7 +663,7 @@
 
                 const titleWrapper = document.createElement('div');
                 const titleLabel = document.createElement('label');
-                titleLabel.className = 'block text-xs text-gray-600 mb-1';
+                titleLabel.className = 'block text-xs text-slate-600 mb-1';
                 titleLabel.textContent = 'Titulo';
                 const titleInput = document.createElement('input');
                 titleInput.type = 'text';
@@ -617,8 +676,8 @@
 
                 const folderWrapper = document.createElement('div');
                 const folderLabel = document.createElement('label');
-                folderLabel.className = 'block text-xs text-gray-600 mb-1';
-                folderLabel.textContent = 'Pasta';
+                folderLabel.className = 'block text-xs text-slate-600 mb-1';
+                folderLabel.textContent = 'Pasta (opcional)';
                 const folderSelect = document.createElement('select');
                 folderSelect.name = 'folders[]';
                 folderSelect.className = 'border rounded-lg px-3 py-2 text-sm w-full file-folder';
@@ -632,8 +691,8 @@
                 const descriptionWrapper = document.createElement('div');
                 descriptionWrapper.className = 'md:col-span-2';
                 const descriptionLabel = document.createElement('label');
-                descriptionLabel.className = 'block text-xs text-gray-600 mb-1';
-                descriptionLabel.textContent = 'Descricao';
+                descriptionLabel.className = 'block text-xs text-slate-600 mb-1';
+                descriptionLabel.textContent = 'Descricao (opcional)';
                 const descriptionInput = document.createElement('textarea');
                 descriptionInput.name = 'descriptions[]';
                 descriptionInput.rows = 2;
@@ -716,7 +775,7 @@
                 if (title) parts.push(`**Titulo:** ${title}`);
                 if (description) parts.push(`**Descricao:** ${description}`);
                 parts.push(`**Link:** ${url}`);
-                const text = parts.join('\n');
+                const text = parts.join('\\n');
                 try {
                     await copyText(text);
                     showAlert?.('Link copiado!', 'success');
@@ -736,7 +795,7 @@
             btn.addEventListener('click', () => {
                 const title = btn.dataset.title || 'Descricao';
                 const description = btn.dataset.description || '';
-                alert(`${title}\\n\\n${description}`);
+                alert(`${title}\n\n${description}`);
             });
         });
 
@@ -773,4 +832,9 @@
         });
     });
 </script>
-</x-app-layout>
+@endsection
+
+
+
+
+

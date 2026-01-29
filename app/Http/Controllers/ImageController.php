@@ -5,12 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\Image;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class ImageController extends Controller
 {
+    protected string $imagesRouteBase = 'images';
+    protected string $foldersRouteBase = 'folders';
+    protected string $viewName = 'images.index';
+
     // Mostra a galeria de imagens do usuário
     public function index(Request $request)
     {
@@ -42,7 +47,15 @@ class ImageController extends Controller
         $folders = $user->folders()->orderBy('name')->get();
         $selectedFolderId = $folderId;
 
-        return view('images.index', compact('images', 'folders', 'selectedFolderId', 'currentFolder', 'showFolders')); 
+        return view($this->viewName, [
+            'images' => $images,
+            'folders' => $folders,
+            'selectedFolderId' => $selectedFolderId,
+            'currentFolder' => $currentFolder,
+            'showFolders' => $showFolders,
+            'imagesRouteBase' => $this->imagesRouteBase,
+            'foldersRouteBase' => $this->foldersRouteBase,
+        ]); 
     } 
 
     // Salva a nova imagem
@@ -85,12 +98,32 @@ class ImageController extends Controller
         ]);
 
         $user = Auth::user();
+        $plan = $user->plan;
 
         $files = [];
         if ($request->hasFile('images')) {
             $files = $request->file('images');
         } elseif ($request->hasFile('image')) {
             $files = [$request->file('image')];
+        }
+
+        if (!$plan || empty($plan->storage_limit_mb) || $plan->storage_limit_mb <= 0) {
+            return back()->with('error', 'Selecione um plano para liberar o envio de midias.');
+        }
+
+        $incomingKb = 0;
+        $fileSizesKb = [];
+        foreach ($files as $file) {
+            $sizeKb = $this->calculateFileSizeKb($file);
+            $fileSizesKb[] = $sizeKb;
+            $incomingKb += $sizeKb;
+        }
+
+        $currentKb = (int) $user->images()->sum('size');
+        $nextUsedMb = (int) ceil(($currentKb + $incomingKb) / 1024);
+
+        if ($nextUsedMb > $plan->storage_limit_mb) {
+            return back()->with('error', 'Limite de armazenamento do plano excedido. Ajuste seu plano para continuar.');
         }
 
         // Garante que a pasta do usuário existe com permissão correta
@@ -104,22 +137,42 @@ class ImageController extends Controller
         $defaultTitle = $validated['title'] ?? null;
         $defaultDescription = $validated['description'] ?? null;
 
-        foreach ($files as $index => $file) {
-            // Armazena o arquivo em uma pasta única para o usuário (storage/app/public/user_images/{user_id})
-            $path = $file->store('user_images/' . $user->id, 'public');
+        $storedPaths = [];
 
-            // Garante que o arquivo seja público (importante!)
-            Storage::disk('public')->setVisibility($path, 'public');
+        DB::beginTransaction();
+        try {
+            foreach ($files as $index => $file) {
+                // Armazena o arquivo em uma pasta unica para o usuario (storage/app/public/user_images/{user_id})
+                $path = $file->store('user_images/' . $user->id, 'public');
 
-            $user->images()->create([
-                'folder_id' => $folders[$index] ?? $defaultFolder,
-                'path' => $path,
-                'original_name' => $file->getClientOriginalName(),
-                'title' => $titles[$index] ?? $defaultTitle,
-                'description' => $descriptions[$index] ?? $defaultDescription,
-                'size' => round($file->getSize() / 1024), // Salva o tamanho em KB
+                // Garante que o arquivo seja publico (importante!)
+                Storage::disk('public')->setVisibility($path, 'public');
+                $storedPaths[] = $path;
+
+                $user->images()->create([
+                    'folder_id' => $folders[$index] ?? $defaultFolder,
+                    'path' => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                    'title' => $titles[$index] ?? $defaultTitle,
+                    'description' => $descriptions[$index] ?? $defaultDescription,
+                    'size' => $fileSizesKb[$index] ?? $this->calculateFileSizeKb($file),
+                ]);
+            }
+
+            $this->recalculateStorageUsedMb($user);
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            foreach ($storedPaths as $path) {
+                Storage::disk('public')->delete($path);
+            }
+            Log::error('Erro ao enviar midias', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
             ]);
+            return back()->with('error', 'Nao foi possivel enviar as midias.');
         }
+
 
         $count = count($files);
         $message = $count > 1 ? 'Mídias enviadas com sucesso!' : 'Mídia enviada com sucesso!';
@@ -167,6 +220,21 @@ class ImageController extends Controller
         return back()->with('success', 'Imagens movidas com sucesso.');
     }
 
+    protected function calculateFileSizeKb($file): int
+    {
+        return (int) round($file->getSize() / 1024);
+    }
+
+    protected function recalculateStorageUsedMb($user): int
+    {
+        $totalKb = (int) Image::where('user_id', $user->id)->sum('size');
+        $usedMb = (int) ceil($totalKb / 1024);
+
+        $user->forceFill(['storage_used_mb' => $usedMb])->save();
+
+        return $usedMb;
+    }
+
     public function bulkDestroy(Request $request)
     {
         $user = Auth::user();
@@ -180,44 +248,72 @@ class ImageController extends Controller
         ]);
 
         $images = $user->images()->whereIn('id', $validated['images'])->get();
-        $errors = [];
+        if ($images->isEmpty()) {
+            return back()->with('error', 'Nenhuma midia encontrada para exclusao.');
+        }
 
-        foreach ($images as $image) {
+        $paths = $images->pluck('path')->all();
+
+        DB::beginTransaction();
+        try {
+            Image::whereIn('id', $images->pluck('id'))->delete();
+            $this->recalculateStorageUsedMb($user);
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Erro ao excluir midias em lote', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Nao foi possivel excluir as midias.');
+        }
+
+        foreach ($paths as $path) {
             try {
-                Storage::disk('public')->delete($image->path);
-                $image->delete();
-            } catch (\Exception $e) {
-                $errors[] = $image->id;
-                Log::error("Erro ao excluir imagem {$image->id}: " . $e->getMessage());
+                Storage::disk('public')->delete($path);
+            } catch (\Throwable $e) {
+                Log::warning('Erro ao remover arquivo de midia', [
+                    'user_id' => $user->id,
+                    'path' => $path,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 
-        if (!empty($errors)) {
-            return back()->with('error', 'Algumas mídias não puderam ser excluídas.');
-        }
-
-        return back()->with('success', 'Mídias excluídas com sucesso.');
+        return back()->with('success', 'Midias excluidas com sucesso.');
     }
 
     // Exclui uma imagem
     public function destroy(Image $image)
     {
-        // Segurança: Garante que o usuário só pode excluir suas próprias imagens
         if ($image->user_id !== Auth::id()) {
             abort(403);
         }
 
-        try {
-            // 1. Exclui o arquivo físico do disco
-            Storage::disk('public')->delete($image->path);
+        $user = Auth::user();
+        $path = $image->path;
 
-            // 2. Exclui o registro do banco de dados
+        DB::beginTransaction();
+        try {
             $image->delete();
-            
-            return back()->with('success', 'Imagem excluída com sucesso.');
-        } catch (\Exception $e) {
-            Log::error("Erro ao excluir imagem {$image->id}: " . $e->getMessage());
-            return back()->with('error', 'Não foi possível excluir a imagem.');
+            $this->recalculateStorageUsedMb($user);
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error("Erro ao excluir midia {$image->id}: " . $e->getMessage());
+            return back()->with('error', 'Nao foi possivel excluir a midia.');
         }
+
+        try {
+            Storage::disk('public')->delete($path);
+        } catch (\Throwable $e) {
+            Log::warning('Erro ao remover arquivo de midia', [
+                'user_id' => $user->id,
+                'path' => $path,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return back()->with('success', 'Imagem excluida com sucesso.');
     }
 }

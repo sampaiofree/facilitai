@@ -24,6 +24,21 @@
                         class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     >
                 </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="plan_id">Plano</label>
+                    <select
+                        id="plan_id"
+                        name="plan_id"
+                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    >
+                        <option value="">Selecione um plano</option>
+                        @foreach ($plans as $plan)
+                            <option value="{{ $plan->id }}" @selected((string) old('plan_id', $user?->plan_id) === (string) $plan->id)>
+                                {{ $plan->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">

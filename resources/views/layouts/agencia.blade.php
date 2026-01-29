@@ -25,9 +25,32 @@
                 <a href="{{ route('agencia.conexoes.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('agencia.conexoes.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Conexões</a>
                 <a href="{{ route('agencia.assistant.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('agencia.assistant.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Assistentes</a>
                 <a href="{{ route('agencia.sequences.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('agencia.sequences.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Sequências</a>
+                <a href="{{ route('agencia.conversas.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('agencia.conversas.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Conversas</a>
                 <a href="{{ route('agencia.tags.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('agencia.tags.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Tags</a>
+                <a href="{{ route('agencia.images.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('agencia.images.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Imagens</a>
+                <a href="{{ route('agencia.library.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('agencia.library.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Library</a>
                 <a href="{{ route('agencia.agency-settings.edit') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('agencia.agency-settings.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Configurações</a>
             </nav>
+            @php
+                $sidebarUser = auth()->user();
+                $sidebarPlan = $sidebarUser?->plan;
+                $connectionsUsed = $sidebarUser?->conexoesCount() ?? 0;
+                $connectionsLimit = $sidebarPlan?->max_conexoes;
+                $storageUsed = $sidebarUser?->storage_used_mb ?? 0;
+                $storageLimit = $sidebarPlan?->storage_limit_mb;
+            @endphp
+            <div class="px-6 py-4 border-t border-slate-800 text-xs text-slate-300 space-y-2">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Plano</div>
+                <div class="text-sm font-semibold text-slate-100">{{ $sidebarPlan?->name ?? 'Sem plano' }}</div>
+                <div class="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Conexões</span>
+                    <span>{{ $connectionsUsed }} / {{ $connectionsLimit ?? '-' }}</span>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Armazenamento</span>
+                    <span>{{ $storageUsed }} MB / {{ $storageLimit ? $storageLimit . ' MB' : '-' }}</span>
+                </div>
+            </div>
             <div class="mt-auto px-6 py-6 border-t border-slate-800 text-xs text-slate-400">
                 {{ auth()->user()->name ?? 'Usuário' }}
             </div>

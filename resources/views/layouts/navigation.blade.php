@@ -9,7 +9,6 @@
     ];
 
     $ferramentas = [
-        ['label' => 'Mídias', 'route' => 'images.index'],
         ['label' => 'Biblioteca', 'route' => 'library.index'],
         ['label' => 'Tags', 'route' => 'tags.index'],
     ];

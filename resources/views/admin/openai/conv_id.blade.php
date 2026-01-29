@@ -30,7 +30,7 @@
     @if($result)
         <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 class="text-sm font-semibold text-slate-500">JSON retornado</h3>
-            <pre class="mt-3 max-h-[650px] overflow-auto rounded-lg bg-slate-900/80 p-4 text-xs text-slate-50">
+            <pre class="mt-3 max-h-[650px] overflow-auto rounded-lg bg-slate-900/80 p-4 text-xs text-slate-50 whitespace-pre-wrap break-words">
 {{ json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}
             </pre>
         </div>

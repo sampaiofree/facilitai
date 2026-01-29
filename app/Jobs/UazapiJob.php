@@ -150,10 +150,8 @@ class UazapiJob implements ShouldQueue
 
     private function resolveLeadName(array $message, array $chat, string $fallback): string
     {
-        $candidate = Arr::get($message, 'senderName')
-            ?? Arr::get($message, 'sender')
-            ?? Arr::get($chat, 'wa_lastMessageSender')
-            ?? Arr::get($chat, 'senderName')
+        $candidate = Arr::get($chat, 'wa_name')
+            ?? Arr::get($chat, 'name')
             ?? $fallback;
 
         $normalized = trim((string) $candidate);
@@ -163,11 +161,10 @@ class UazapiJob implements ShouldQueue
     private function resolveWhatsappNumber(array $message, array $chat): ?string
     {
         $candidates = [
-            Arr::get($message, 'sender_pn'),
+            
             Arr::get($message, 'chatid'),
-            Arr::get($message, 'sender'),
             Arr::get($chat, 'wa_chatid'),
-            Arr::get($chat, 'wa_lastMessageSender'),
+            
         ];
 
         foreach ($candidates as $candidate) {

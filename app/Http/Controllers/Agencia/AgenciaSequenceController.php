@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\Conexao;
 use App\Models\Sequence;
+use App\Models\SequenceChat;
 use App\Models\SequenceStep;
 use App\Models\Tag;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 
 class AgenciaSequenceController extends Controller
 {
@@ -22,7 +24,27 @@ class AgenciaSequenceController extends Controller
             ->latest()
             ->get();
 
-        return view('agencia.sequences.index', compact('sequences', 'clients', 'tags'));
+        $sequenceChatsBySequence = [];
+        foreach ($sequences as $sequence) {
+            $pageParam = (int) $request->input("sequence_chats_page_{$sequence->id}", 1);
+            $sequenceChatsBySequence[$sequence->id] = SequenceChat::with('clienteLead')
+                ->where('sequence_id', $sequence->id)
+                ->orderByDesc('id')
+                ->paginate(50, ['*'], "sequence_chats_page_{$sequence->id}", $pageParam)
+                ->withQueryString();
+        }
+
+        return view('agencia.sequences.index', compact('sequences', 'clients', 'tags', 'sequenceChatsBySequence'));
+    }
+
+    public function destroySequenceChat(Request $request, SequenceChat $sequenceChat): RedirectResponse
+    {
+        $sequence = $sequenceChat->sequence;
+        abort_unless($sequence && $sequence->user_id === $request->user()->id, 404);
+
+        $sequenceChat->delete();
+
+        return back()->with('success', 'Registro de SequenceChat removido com sucesso.');
     }
 
     public function store(Request $request)

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Agencia;
 
 use App\Http\Controllers\Controller;
 use App\Models\AgencySetting;
+use App\Models\Plan;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,11 +21,14 @@ class AgenciaSettingsController extends Controller
     {
         $userId = Auth::id();
         $settings = AgencySetting::firstOrNew(['user_id' => $userId]);
+        $plans = Plan::orderBy('name')->get();
 
         return view('agencia.agency-settings.edit', [
             'settings' => $settings,
             'timezones' => $this->timezoneOptions(),
             'locales' => $this->localeOptions(),
+            'plans' => $plans,
+            'user' => Auth::user(),
         ]);
     }
 
@@ -48,6 +52,7 @@ class AgenciaSettingsController extends Controller
             'secondary_color' => ['nullable', 'string', 'max:20', 'regex:/^#([0-9a-fA-F]{3}){1,2}$/'],
             'timezone' => ['nullable', 'string', 'max:100'],
             'locale' => ['nullable', 'string', 'max:20'],
+            'plan_id' => ['nullable', 'integer', 'exists:plans,id'],
             'logo' => ['nullable', 'image', 'max:2048'],
             'favicon' => ['nullable', 'image', 'max:1024'],
         ], [
@@ -78,6 +83,10 @@ class AgenciaSettingsController extends Controller
 
         $settings->fill($payload);
         $settings->save();
+
+        $request->user()->forceFill([
+            'plan_id' => $validated['plan_id'] ?? null,
+        ])->save();
 
         return redirect()
             ->route('agencia.agency-settings.edit')

@@ -184,6 +184,78 @@
                     </div>
                 </details>
             </div>
+            <div class="mt-4">
+                @php
+                    $sequenceChatsPaginator = $sequenceChatsBySequence[$sequence->id] ?? null;
+                    $sequenceChats = collect($sequenceChatsPaginator?->items() ?? []);
+                @endphp
+                <details class="log-accordion sequence-chats-accordion rounded-2xl border border-slate-200 bg-slate-50">
+                    <summary class="flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 cursor-pointer">
+                        <span>Chats da sequência ({{ $sequenceChatsPaginator ? $sequenceChatsPaginator->total() : 0 }})</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6" />
+                        </svg>
+                    </summary>
+                    <div class="px-4 py-3">
+                        @if($sequenceChats->isEmpty())
+                            <p class="text-xs text-slate-500">Nenhum chat associado a esta sequência.</p>
+                        @else
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-xs text-slate-600 border border-slate-100">
+                                    <thead class="bg-slate-100 text-slate-500 text-[11px] uppercase">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left">ClienteLead (ID)</th>
+                                            <th class="px-3 py-2 text-left">Passo atual</th>
+                                            <th class="px-3 py-2 text-left">Status</th>
+                                            <th class="px-3 py-2 text-left">Iniciado em</th>
+                                            <th class="px-3 py-2 text-left">Próximo envio</th>
+                                            <th class="px-3 py-2 text-left">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($sequenceChats as $chat)
+                                            <tr class="border-t border-slate-100">
+                                            <td class="px-3 py-2">
+                                                {{ $chat->cliente_lead_id ?? '—' }}
+                                                @if($chat->clienteLead?->name)
+                                                    ({{ $chat->clienteLead->name }})
+                                                @endif
+                                            </td>
+                                                <td class="px-3 py-2">{{ $chat->passo_atual_id ?? '—' }}</td>
+                                                <td class="px-3 py-2">{{ $chat->status ? ucfirst($chat->status) : '—' }}</td>
+                                                <td class="px-3 py-2">
+                                                    {{ $chat->iniciado_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}
+                                                </td>
+                                                <td class="px-3 py-2">
+                                                    {{ $chat->proximo_envio_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}
+                                                </td>
+                                                <td class="px-3 py-2">
+                                                    <form method="POST" action="{{ route('agencia.sequence-chats.destroy', $chat) }}">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button
+                                                            type="submit"
+                                                            class="inline-flex items-center rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-200"
+                                                            onclick="return confirm('Tem certeza de que deseja excluir este SequenceChat?');"
+                                                        >
+                                                            Excluir
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                            @if($sequenceChatsPaginator && $sequenceChatsPaginator->hasPages())
+                                <div class="mt-3 flex items-center justify-end">
+                                    {{ $sequenceChatsPaginator->links('pagination::tailwind') }}
+                                </div>
+                            @endif
+                        @endif
+                    </div>
+                </details>
+            </div>
         </article>
         @empty
             <div class="rounded-2xl border border-slate-200 bg-white p-5 text-center text-sm text-slate-500">

@@ -9,6 +9,8 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Auth\Notifications\ResetPassword as ResetPasswordNotification;
 use Illuminate\Auth\Notifications\VerifyEmail as VerifyEmailNotification;
+use App\Models\Conexao;
+use App\Models\Plan;
 use App\Models\Sequence;
 
 class User extends Authenticatable implements MustVerifyEmail 
@@ -29,6 +31,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'cpf_cnpj',
         'customer_asaas_id',
         'mobile_phone',
+        'plan_id',
+        'storage_used_mb',
     ];
 
     /**
@@ -51,6 +55,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'storage_used_mb' => 'integer',
         ];
     }
 
@@ -59,6 +64,16 @@ class User extends Authenticatable implements MustVerifyEmail
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
+    public function clientes()
+    {
+        return $this->hasMany(\App\Models\Cliente::class);
+    }
+
+    public function conexoesCount(): int
+    {
+        return Conexao::whereHas('cliente', fn ($q) => $q->where('user_id', $this->id))->count();
+    }
+
     public function instances()
     {
         return $this->hasMany(Instance::class);
@@ -197,6 +212,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function folders()
     {
         return $this->hasMany(\App\Models\Folder::class);
+    }
+
+    public function plan()
+    {
+        return $this->belongsTo(Plan::class);
     }
 
     public function hotmartWebhooks()
