@@ -7,14 +7,6 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        if (Schema::hasTable('chat_tag')) {
-            Schema::dropIfExists('chat_tag');
-        }
-
-        if (Schema::hasTable('chats')) {
-            Schema::dropIfExists('chats');
-        }
-
         if (Schema::hasTable('disponibilidades') && Schema::hasColumn('disponibilidades', 'chat_id')) {
             Schema::table('disponibilidades', function (Blueprint $table) {
                 $table->dropForeign(['chat_id']);
@@ -27,6 +19,14 @@ return new class extends Migration {
                 $table->dropForeign(['chat_id']);
                 $table->dropColumn('chat_id');
             });
+        }
+
+        if (Schema::hasTable('chat_tag')) {
+            Schema::dropIfExists('chat_tag');
+        }
+
+        if (Schema::hasTable('chats')) {
+            Schema::dropIfExists('chats');
         }
     }
 
