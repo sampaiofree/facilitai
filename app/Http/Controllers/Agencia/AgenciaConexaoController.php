@@ -47,6 +47,22 @@ class AgenciaConexaoController extends Controller
     public function store(Request $request)
     {
         $user = $request->user();
+        $limit = $user->plan?->max_conexoes ?? 0;
+        $used = $user->conexoesCount();
+
+        if ($limit <= 0) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'Selecione um plano para liberar novas conexões.');
+        }
+
+        if ($used >= $limit) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'Limite de conexões do plano atingido.');
+        }
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],

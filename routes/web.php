@@ -41,6 +41,8 @@ use App\Http\Controllers\Agencia\ImageController as AgenciaImageController;
 use App\Http\Controllers\Agencia\LibraryEntryController as AgenciaLibraryEntryController;
 use App\Http\Controllers\Cliente\ClienteAuthController;
 use App\Http\Controllers\Cliente\ClienteDashboardController;
+use App\Http\Controllers\Cliente\ConexaoClienteController;
+use App\Http\Controllers\Cliente\LibraryClienteController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
@@ -301,6 +303,8 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('conversas', [AgenciaClienteLeadController::class, 'index'])->name('conversas.index');
     Route::post('conversas', [AgenciaClienteLeadController::class, 'store'])->name('conversas.store');
     Route::post('conversas/import', [AgenciaClienteLeadController::class, 'import'])->name('conversas.import');
+    Route::post('conversas/preview', [AgenciaClienteLeadController::class, 'preview'])->name('conversas.preview');
+    Route::get('conversas/export', [AgenciaClienteLeadController::class, 'export'])->name('conversas.export');
     Route::put('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'update'])->name('conversas.update');
     Route::delete('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'destroy'])->name('conversas.destroy');
     Route::post('sequences', [AgenciaSequenceController::class, 'store'])->name('sequences.store');
@@ -330,5 +334,12 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
     Route::middleware('auth:client')->group(function () {
         Route::get('dashboard', [ClienteDashboardController::class, 'index'])->name('dashboard');
         Route::post('logout', [ClienteAuthController::class, 'destroy'])->name('logout');
+        Route::get('conexoes', [ConexaoClienteController::class, 'index'])->name('conexoes.index');
+        Route::get('conexoes/{conexao}/status', [ConexaoClienteController::class, 'status'])->name('conexoes.status');
+        Route::post('conexoes/{conexao}/connect', [ConexaoClienteController::class, 'connect'])->name('conexoes.connect');
+        Route::get('library', [LibraryClienteController::class, 'index'])->name('library.index');
+        Route::post('library', [LibraryClienteController::class, 'store'])->name('library.store');
+        Route::put('library/{libraryEntry}', [LibraryClienteController::class, 'update'])->name('library.update');
+        Route::delete('library/{libraryEntry}', [LibraryClienteController::class, 'destroy'])->name('library.destroy');
     });
 });

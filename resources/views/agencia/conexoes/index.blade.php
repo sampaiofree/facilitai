@@ -1,15 +1,34 @@
 @extends('layouts.agencia')
 
 @section('content')
+    @php
+        $conexoesUser = auth()->user();
+        $conexoesLimit = $conexoesUser?->plan?->max_conexoes ?? 0;
+        $conexoesUsed = $conexoesUser?->conexoesCount() ?? 0;
+        $conexoesCanCreate = $conexoesLimit > 0 && $conexoesUsed < $conexoesLimit;
+    @endphp
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Conexões</h2>
             <p class="text-sm text-slate-500">Gerencie as conexões vinculadas ao seu usuário.</p>
         </div>
-        <button id="openConexaoModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+        <button
+            id="openConexaoModal"
+            class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            @disabled(!$conexoesCanCreate)
+        >
             Nova conexão
         </button>
     </div>
+    @if(!$conexoesCanCreate)
+        <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            @if($conexoesLimit <= 0)
+                Selecione um plano para liberar novas conexoes.
+            @else
+                Limite de conexoes do plano atingido ({{ $conexoesUsed }}/{{ $conexoesLimit }}).
+            @endif
+        </div>
+    @endif
 
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <table class="min-w-full text-sm">

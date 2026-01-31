@@ -6,11 +6,33 @@
             <h2 class="text-2xl font-semibold text-slate-900">Conversas</h2>
             <p class="text-sm text-slate-500">Todos os leads dos seus clientes, filtráveis por cliente, data e tags.</p>
         </div>
-        <button
-            type="button"
-            id="openClienteLeadForm"
-            class="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >Adicionar</button>
+        <div class="flex items-center gap-2">
+            @php
+                $exportCsv = route('agencia.conversas.export', array_merge(request()->query(), ['format' => 'csv']));
+                $exportXlsx = route('agencia.conversas.export', array_merge(request()->query(), ['format' => 'xlsx']));
+                $exportPdf = route('agencia.conversas.export', array_merge(request()->query(), ['format' => 'pdf']));
+            @endphp
+            <div class="relative">
+                <button
+                    type="button"
+                    id="exportToggle"
+                    class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 flex items-center gap-2"
+                >
+                    Exportar
+                    <svg class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div id="exportMenu" class="hidden absolute right-0 mt-1 w-40 rounded-2xl border border-slate-200 bg-white shadow-lg">
+                    <a href="{{ $exportXlsx }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">XLSX</a>
+                    <a href="{{ $exportCsv }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">CSV</a>
+                    <a href="{{ $exportPdf }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">PDF</a>
+                </div>
+            </div>
+            <button
+                type="button"
+                id="openClienteLeadForm"
+                class="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+            >Adicionar</button>
+        </div>
     </div>
 
     
@@ -196,8 +218,8 @@
         {{ $leads->links('pagination::tailwind') }}
     </div>
 
-    <div id="agenciaClienteLeadFormModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-auto bg-black/50 px-4 py-6">
-        <div class="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
+    <div id="agenciaClienteLeadFormModal" class="fixed inset-0 z-50 hidden flex items-start justify-center overflow-auto bg-black/50 px-4 py-6">
+        <div class="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
                 <h3 id="clienteLeadFormTitle" class="text-lg font-semibold text-slate-900">Adicionar lead</h3>
                 <button type="button" class="text-slate-500 hover:text-slate-700" data-form-close>x</button>
@@ -293,8 +315,7 @@
                         </div>
                     </div>
                     <div class="hidden" data-chip-inputs></div>
-                </div>
-
+                    </div>
                 <div class="flex justify-end gap-3">
                     <button type="button" data-form-close class="rounded-2xl border border-slate-200 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
                     <button type="submit" id="clienteLeadFormSubmit" class="rounded-2xl bg-blue-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-blue-700">Salvar</button>
@@ -304,6 +325,7 @@
             <form
                 id="clienteLeadImportForm"
                 method="POST"
+                data-preview-url="{{ route('agencia.conversas.preview') }}"
                 action="{{ route('agencia.conversas.import') }}"
                 enctype="multipart/form-data"
                 class="mt-4 hidden space-y-4"
@@ -386,25 +408,56 @@
                         </select>
                         <p class="text-[11px] text-slate-400">Em XLSX, as colunas são exibidas por posição.</p>
                     </div>
-                    <div class="space-y-2">
+                    <div data-chip-select="import-tags" data-input-name="tags[]" class="space-y-2">
                         <span class="text-[11px] uppercase tracking-wide text-slate-400">Tags para todos</span>
-                        <div class="flex flex-wrap gap-2">
-                            @foreach($tags as $tag)
-                                <label class="cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        class="sr-only"
-                                        name="tags[]"
-                                        value="{{ $tag->id }}"
+                        
+                        <div class="relative">
+                            <input
+                                type="search"
+                                data-chip-search
+                                placeholder="Buscar tags"
+                                class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                            >
+                            <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
+                                @forelse($tags as $tag)
+                                    <button
+                                        type="button"
+                                        data-chip-option
+                                        data-value="{{ $tag->id }}"
+                                        data-label="{{ $tag->name }}"
+                                        class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
                                     >
-                                    <span class="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[11px] text-slate-600 transition hover:border-slate-900 hover:bg-slate-900 hover:text-white">
-                                        {{ $tag->name }}
-                                    </span>
-                                </label>
+                                        <span>{{ $tag->name }}</span>
+                                        <span class="text-[10px] text-slate-400">Tag</span>
+                                    </button>
+                                @empty
+                                    <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
+                                @endforelse
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2" data-chip-list></div>
+                        <div class="hidden" data-chip-inputs>
+                            @foreach((array) old('tags', []) as $tagId)
+                                <input type="hidden" name="tags[]" value="{{ $tagId }}">
                             @endforeach
                         </div>
                     </div>
                 </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-700">Previa do arquivo (ate 3 linhas)</p>
+                            <p class="text-xs text-slate-500">Revise os dados antes de importar e confirme se o telefone esta correto.</p>
+                        </div>
+                        <span id="previewPhoneStatus" class="text-[11px] font-semibold text-slate-500">Telefone: -</span>
+                    </div>
+                    <div id="previewEmpty" class="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-500">
+                        Selecione um arquivo para visualizar a previa.
+                    </div>
+                    <div id="previewCards" class="mt-3 space-y-3 hidden"></div>
+                </div>
+
 
                 <div class="flex justify-end gap-3">
                     <button type="button" data-form-close class="rounded-2xl border border-slate-200 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
@@ -499,8 +552,27 @@
             const formTabs = document.querySelectorAll('[data-form-tab]');
             const csvFileInput = document.querySelector('[data-csv-file]');
             const csvDelimiterSelect = document.querySelector('[data-csv-delimiter]');
+            const exportToggle = document.getElementById('exportToggle');
+            const exportMenu = document.getElementById('exportMenu');
+            const previewEmpty = document.getElementById('previewEmpty');
+            const previewCards = document.getElementById('previewCards');
+            const previewPhoneStatus = document.getElementById('previewPhoneStatus');
+            const previewEmptyDefault = previewEmpty?.textContent || '';
+            let previewHeaders = [];
+            let previewRows = [];
             const mapSelects = document.querySelectorAll('[data-map-select]');
             const chipSelects = {};
+
+            if (exportToggle && exportMenu) {
+                exportToggle.addEventListener('click', () => {
+                    exportMenu.classList.toggle('hidden');
+                });
+                document.addEventListener('click', (event) => {
+                    if (!exportMenu.contains(event.target) && !exportToggle.contains(event.target)) {
+                        exportMenu.classList.add('hidden');
+                    }
+                });
+            }
 
             const closeModal = () => {
                 modal?.classList.add('hidden');
@@ -808,6 +880,107 @@
                 button.addEventListener('click', () => setActiveTab(button.dataset.formTab));
             });
 
+
+            const sanitizeValue = (value) => (value ?? '').toString().trim();
+
+            const isValidPhone = (value) => {
+                const digits = sanitizeValue(value).replace(/\D/g, '');
+                return digits.length >= 11;
+            };
+
+            const renderPreview = () => {
+                if (!previewCards || !previewEmpty) {
+                    return;
+                }
+
+                previewCards.innerHTML = '';
+
+                if (!previewRows.length) {
+                    previewCards.classList.add('hidden');
+                    previewEmpty.classList.remove('hidden');
+                    if (previewEmptyDefault && previewEmpty) {
+                        previewEmpty.textContent = previewEmptyDefault;
+                    }
+                    if (previewPhoneStatus) {
+                        previewPhoneStatus.textContent = 'Telefone: -';
+                        previewPhoneStatus.className = 'text-[11px] font-semibold text-slate-500';
+                    }
+                    return;
+                }
+
+                const phoneSelect = document.querySelector('[data-map-select="phone"]');
+                const phoneIndex = phoneSelect && phoneSelect.value !== '' ? Number(phoneSelect.value) : null;
+
+                let validCount = 0;
+                previewRows.forEach((row, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'rounded-xl border border-slate-200 bg-white px-4 py-3';
+
+                    const header = document.createElement('div');
+                    header.className = 'flex items-center justify-between mb-2';
+                    header.innerHTML = `<span class="text-xs font-semibold text-slate-500">Linha ${idx + 1}</span>`;
+
+                    const phoneValue = phoneIndex !== null ? sanitizeValue(row[phoneIndex]) : '';
+                    const phoneOk = phoneIndex !== null ? isValidPhone(phoneValue) : false;
+                    if (phoneOk) {
+                        validCount += 1;
+                    }
+
+                    const statusBadge = document.createElement('span');
+                    statusBadge.className = phoneIndex === null
+                        ? 'text-[11px] text-slate-400'
+                        : phoneOk
+                            ? 'text-[11px] font-semibold text-emerald-600'
+                            : 'text-[11px] font-semibold text-amber-600';
+                    statusBadge.textContent = phoneIndex === null
+                        ? 'Telefone: selecione a coluna'
+                        : phoneOk
+                            ? 'Telefone valido'
+                            : 'Telefone possivelmente invalido';
+                    header.appendChild(statusBadge);
+                    card.appendChild(header);
+
+                    const grid = document.createElement('div');
+                    grid.className = 'grid gap-2 sm:grid-cols-2';
+
+                    previewHeaders.forEach((label, colIndex) => {
+                        const value = sanitizeValue(row[colIndex]);
+                        if (value === '' && !label) {
+                            return;
+                        }
+                        const block = document.createElement('div');
+                        block.className = 'rounded-lg border border-slate-100 bg-slate-50 px-3 py-2';
+                        const title = document.createElement('p');
+                        title.className = 'text-[10px] uppercase tracking-wide text-slate-400';
+                        title.textContent = label || `Coluna ${colIndex + 1}`;
+                        const content = document.createElement('p');
+                        content.className = colIndex === phoneIndex
+                            ? 'text-xs font-semibold text-slate-800'
+                            : 'text-xs text-slate-700';
+                        content.textContent = value || '-';
+                        block.appendChild(title);
+                        block.appendChild(content);
+                        grid.appendChild(block);
+                    });
+
+                    card.appendChild(grid);
+                    previewCards.appendChild(card);
+                });
+
+                previewEmpty.classList.add('hidden');
+                previewCards.classList.remove('hidden');
+                if (previewPhoneStatus) {
+                    previewPhoneStatus.textContent = phoneIndex === null
+                        ? 'Telefone: coluna nao selecionada'
+                        : `Telefone: ${validCount}/${previewRows.length} linhas validas`;
+                    previewPhoneStatus.className = phoneIndex === null
+                        ? 'text-[11px] font-semibold text-slate-500'
+                        : validCount === previewRows.length
+                            ? 'text-[11px] font-semibold text-emerald-600'
+                            : 'text-[11px] font-semibold text-amber-600';
+                }
+            };
+
             const parseCsvLine = (line, delimiter) => {
                 const result = [];
                 let current = '';
@@ -849,12 +1022,37 @@
                 });
             };
 
-            const readCsvHeaders = () => {
+            const normalizeArray = (value) => {
+                if (Array.isArray(value)) {
+                    return value;
+                }
+                if (value && typeof value === 'object') {
+                    return Object.values(value);
+                }
+                return [];
+            };
+
+            const setPreviewMessage = (message) => {
+                if (previewEmpty) {
+                    previewEmpty.textContent = message;
+                    previewEmpty.classList.remove('hidden');
+                }
+                if (previewCards) {
+                    previewCards.classList.add('hidden');
+                }
+            };
+
+
+            const readCsvHeaders = async () => {
                 if (!csvFileInput || !csvFileInput.files || !csvFileInput.files[0]) {
+                    previewHeaders = [];
+                    previewRows = [];
+                    renderPreview();
                     return;
                 }
 
-                const filename = csvFileInput.files[0].name.toLowerCase();
+                const file = csvFileInput.files[0];
+                const filename = file.name.toLowerCase();
                 const isXlsx = filename.endsWith('.xlsx');
 
                 if (csvDelimiterSelect) {
@@ -862,35 +1060,62 @@
                     csvDelimiterSelect.classList.toggle('opacity-60', isXlsx);
                 }
 
-                if (isXlsx) {
-                    const headers = Array.from({ length: 30 }, (_, index) => `Coluna ${index + 1}`);
-                    populateMappingOptions(headers);
+                const delimiterKey = csvDelimiterSelect?.value ?? 'semicolon';
+                const formData = new FormData();
+                formData.append('csv_file', file);
+                formData.append('delimiter', delimiterKey);
+
+                const previewUrl = importForm?.dataset.previewUrl;
+                if (!previewUrl) {
                     return;
                 }
 
-                const delimiterKey = csvDelimiterSelect?.value ?? 'semicolon';
-                const delimiterChar = delimiterKey === 'comma' ? ',' : ';';
+                try {
+                    const response = await fetch(previewUrl, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        },
+                        body: formData,
+                    });
 
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const text = String(reader.result || '');
-                    const [firstLine] = text.split(/\r?\n/);
-                    if (!firstLine) {
+                    if (!response.ok) {
+                        previewHeaders = [];
+                        previewRows = [];
+                        populateMappingOptions([]);
+                        setPreviewMessage('Não foi possível ler o arquivo. Verifique o formato e tente novamente.');
                         return;
                     }
-                    let headers = parseCsvLine(firstLine, delimiterChar);
-                    if (headers.every(header => header === '')) {
-                        headers = headers.map((_, index) => `Coluna ${index + 1}`);
-                    } else {
-                        headers = headers.map((header, index) => header || `Coluna ${index + 1}`);
+
+                    const payload = await response.json();
+                    if (payload?.error) {
+                        previewHeaders = [];
+                        previewRows = [];
+                        populateMappingOptions([]);
+                        setPreviewMessage(payload.error);
+                        return;
                     }
-                    populateMappingOptions(headers);
-                };
-                reader.readAsText(csvFileInput.files[0]);
+
+                    previewHeaders = normalizeArray(payload?.headers);
+                    previewRows = normalizeArray(payload?.rows).map(row => normalizeArray(row));
+
+                    populateMappingOptions(previewHeaders);
+                    renderPreview();
+                } catch (error) {
+                    previewHeaders = [];
+                    previewRows = [];
+                    populateMappingOptions([]);
+                    setPreviewMessage('Não foi possível ler o arquivo. Verifique o formato e tente novamente.');
+                }
             };
 
             csvFileInput?.addEventListener('change', readCsvHeaders);
             csvDelimiterSelect?.addEventListener('change', readCsvHeaders);
+
+            mapSelects.forEach(select => {
+                select.addEventListener('change', renderPreview);
+            });
 
             // Chip filters are handled by initChipSelect above.
         })();

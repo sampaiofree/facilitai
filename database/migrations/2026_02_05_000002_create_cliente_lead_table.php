@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('cliente_id')->constrained()->cascadeOnDelete();
             $table->boolean('bot_enabled')->default(true);
             $table->string('phone');
-            $table->string('name');
+            $table->string('name')->nullable();
             $table->text('info')->nullable();
             $table->timestamps();
 

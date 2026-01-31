@@ -134,48 +134,16 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function slots(): int
     {
-        if ($this->is_admin) {return 20;}
-        if ($this->canManageCredentials()) {
-            if($this->hotmartWebhooks()){
-                
-                //PLANO 1 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='c8n7uxen'){return 1;}  
-                if($this->hotmartWebhooks()->offer_code=='a2ykgt3s'){return 1;} 
-                if($this->hotmartWebhooks()->offer_code=='6507rpho'){return 1;} 
-                if($this->hotmartWebhooks()->offer_code=='qgwj4ldg'){return 1;} 
-                if($this->hotmartWebhooks()->offer_code=='kemggz0j'){return 1;} 
-                if($this->hotmartWebhooks()->offer_code=='yqncr3mx'){return 1;} 
-
-                //PLANO 3 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='hkasortp'){return 3;} 
-                if($this->hotmartWebhooks()->offer_code=='ghpkyyuq'){return 3;} 
-                if($this->hotmartWebhooks()->offer_code=='bxgewgqh'){return 3;} 
-                if($this->hotmartWebhooks()->offer_code=='77v5yieb'){return 3;}
-                if($this->hotmartWebhooks()->offer_code=='bcocek3y'){return 3;}
-                
-                //PLANO 5 CONEXÔES
-                if($this->hotmartWebhooks()->offer_code=='kbejejiv'){return 5;} 
-                if($this->hotmartWebhooks()->offer_code=='x8jw71pc'){return 5;} 
-                if($this->hotmartWebhooks()->offer_code=='seesl6xb'){return 5;} 
-                if($this->hotmartWebhooks()->offer_code=='ca9g29lkJWT'){return 5;} 
-                if($this->hotmartWebhooks()->offer_code=='cyvxmia3'){return 5;} 
-
-                //PLANO 10 CONEXÔES
-                if($this->hotmartWebhooks()->offer_code=='r62eq6jh'){return 10;} 
-                if($this->hotmartWebhooks()->offer_code=='kaypzmv9'){return 10;} 
-
-                //PLANO 20 CONEXÔES
-                if($this->hotmartWebhooks()->offer_code=='2sr5xelfDRP'){return 20;} 
-                if($this->hotmartWebhooks()->offer_code=='2sr5xelf'){return 20;} 
-                
-                return 1;
-            }
-            return 1;
-        }else{
-            return 1;
+        if ($this->is_admin) {
+            return 20;
         }
 
+        $limit = $this->plan?->max_conexoes;
+        if ($limit && $limit > 0) {
+            return (int) $limit;
+        }
 
+        return 1;
     }
 
     /**
