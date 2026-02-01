@@ -34,12 +34,12 @@
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-slate-500">
                 <tr>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Cliente</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Credencial</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Status</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Phone</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Assistente</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Cliente</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Modelo</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
                 </tr>
@@ -47,9 +47,10 @@
             <tbody class="divide-y divide-slate-100">
                 @forelse($conexoes as $conexao)
                     <tr class="hover:bg-slate-50">
+                        <td class="px-5 py-4 text-slate-600">{{ optional($conexao->cliente)->nome ?? '-' }}</td>
                         <td class="px-5 py-4 font-medium text-slate-800">{{ $conexao->name ?? '-' }}</td>
                         <td class="px-5 py-4 font-medium text-slate-800">{{ optional($conexao->credential)->name ?? '-' }}</td>
-                        <td class="px-5 py-4 text-slate-600">
+                        <td class="px-5 py-4">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span
                                     class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold transition {{ $conexao->status === 'connected' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}"

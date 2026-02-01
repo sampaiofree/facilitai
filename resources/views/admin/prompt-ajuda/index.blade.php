@@ -13,176 +13,209 @@
     </div>
 
     <div class="grid gap-6">
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h3 class="text-lg font-semibold text-slate-900">Tipos</h3>
-                    <p class="text-xs text-slate-500">Categorias principais para os prompts.</p>
+        <div data-accordion class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="p-5">
+                <div class="flex items-center justify-between gap-4">
+                    <button
+                        type="button"
+                        data-accordion-trigger
+                        aria-expanded="false"
+                        class="flex flex-1 items-center justify-between text-left"
+                    >
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">Tipos</h3>
+                            <p class="text-xs text-slate-500">Categorias principais para os prompts.</p>
+                        </div>
+                        <span data-accordion-icon class="text-slate-400 transition duration-150">▾</span>
+                    </button>
+                    <button id="openPromptHelpTipoModal" type="button" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Novo</button>
                 </div>
-                <button id="openPromptHelpTipoModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Novo</button>
-            </div>
 
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-sm text-slate-600">
-                    <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
-                        <tr>
-                            <th class="px-3 py-2 text-left font-semibold">Nome</th>
-                            <th class="px-3 py-2 text-left font-semibold">Descri&ccedil;&atilde;o</th>
-                            <th class="px-3 py-2 text-left font-semibold">Criado em</th>
-                            <th class="px-3 py-2 text-left font-semibold">A&ccedil;&otilde;es</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        @forelse($tipos as $tipo)
-                            <tr>
-                                <td class="px-3 py-3 font-medium text-slate-900">{{ $tipo->name }}</td>
-                                <td class="px-3 py-3">{{ $tipo->descricao ? \Illuminate\Support\Str::limit($tipo->descricao, 80) : '-' }}</td>
-                                <td class="px-3 py-3">{{ $tipo->created_at?->format('d/m/Y H:i') }}</td>
-                                <td class="px-3 py-3">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <button
-                                            type="button"
-                                            class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
-                                            data-tipo-edit
-                                            data-id="{{ $tipo->id }}"
-                                            data-name="{{ $tipo->name }}"
-                                            data-descricao="{{ $tipo->descricao }}"
-                                        >Editar</button>
-                                        <form method="POST" action="{{ route('adm.prompt-ajuda.tipos.destroy', $tipo) }}" onsubmit="return confirm('Deseja excluir este tipo?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="4" class="px-3 py-6 text-center text-slate-400">Nenhum tipo cadastrado.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                <div class="mt-4 hidden" data-accordion-content>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm text-slate-600">
+                            <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                                <tr>
+                                    <th class="px-3 py-2 text-left font-semibold">Nome</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Descri&ccedil;&atilde;o</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Criado em</th>
+                                    <th class="px-3 py-2 text-left font-semibold">A&ccedil;&otilde;es</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                @forelse($tipos as $tipo)
+                                    <tr>
+                                        <td class="px-3 py-3 font-medium text-slate-900">{{ $tipo->name }}</td>
+                                        <td class="px-3 py-3">{{ $tipo->descricao ? \Illuminate\Support\Str::limit($tipo->descricao, 80) : '-' }}</td>
+                                        <td class="px-3 py-3">{{ $tipo->created_at?->format('d/m/Y H:i') }}</td>
+                                        <td class="px-3 py-3">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+                                                    data-tipo-edit
+                                                    data-id="{{ $tipo->id }}"
+                                                    data-name="{{ $tipo->name }}"
+                                                    data-descricao="{{ $tipo->descricao }}"
+                                                >Editar</button>
+                                                <form method="POST" action="{{ route('adm.prompt-ajuda.tipos.destroy', $tipo) }}" onsubmit="return confirm('Deseja excluir este tipo?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="4" class="px-3 py-6 text-center text-slate-400">Nenhum tipo cadastrado.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h3 class="text-lg font-semibold text-slate-900">Se&ccedil;&otilde;es</h3>
-                    <p class="text-xs text-slate-500">Organize os prompts por se&ccedil;&otilde;es.</p>
+        <div data-accordion class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="p-5">
+                <div class="flex items-center justify-between gap-4">
+                    <button
+                        type="button"
+                        data-accordion-trigger
+                        aria-expanded="false"
+                        class="flex flex-1 items-center justify-between text-left"
+                    >
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">Se&ccedil;&otilde;es</h3>
+                            <p class="text-xs text-slate-500">Organize os prompts por se&ccedil;&otilde;es.</p>
+                        </div>
+                        <span data-accordion-icon class="text-slate-400 transition duration-150">▾</span>
+                    </button>
+                    <button id="openPromptHelpSectionModal" type="button" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Novo</button>
                 </div>
-                <button id="openPromptHelpSectionModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Novo</button>
-            </div>
-
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-sm text-slate-600">
-                    <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
-                        <tr>
-                            <th class="px-3 py-2 text-left font-semibold">Tipo</th>
-                            <th class="px-3 py-2 text-left font-semibold">Nome</th>
-                            <th class="px-3 py-2 text-left font-semibold">Descri&ccedil;&atilde;o</th>
-                            <th class="px-3 py-2 text-left font-semibold">Criado em</th>
-                            <th class="px-3 py-2 text-left font-semibold">A&ccedil;&otilde;es</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        @forelse($sections as $section)
-                            <tr>
-                                <td class="px-3 py-3 text-slate-600">{{ $section->tipo->name ?? '-' }}</td>
-                                <td class="px-3 py-3 font-medium text-slate-900">{{ $section->name }}</td>
-                                <td class="px-3 py-3">{{ $section->descricao ? \Illuminate\Support\Str::limit($section->descricao, 80) : '-' }}</td>
-                                <td class="px-3 py-3">{{ $section->created_at?->format('d/m/Y H:i') }}</td>
-                                <td class="px-3 py-3">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <button
-                                            type="button"
-                                            class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
-                                            data-section-edit
-                                            data-id="{{ $section->id }}"
-                                            data-name="{{ $section->name }}"
-                                            data-descricao="{{ $section->descricao }}"
-                                            data-tipo-id="{{ $section->prompt_help_tipo_id }}"
-                                        >Editar</button>
-                                        <form method="POST" action="{{ route('adm.prompt-ajuda.sections.destroy', $section) }}" onsubmit="return confirm('Deseja excluir esta se&ccedil;&atilde;o?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="px-3 py-6 text-center text-slate-400">Nenhuma se&ccedil;&atilde;o cadastrada.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                <div class="mt-4 hidden" data-accordion-content>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm text-slate-600">
+                            <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                                <tr>
+                                    <th class="px-3 py-2 text-left font-semibold">Tipo</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Nome</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Descri&ccedil;&atilde;o</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Criado em</th>
+                                    <th class="px-3 py-2 text-left font-semibold">A&ccedil;&otilde;es</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                @forelse($sections as $section)
+                                    <tr>
+                                        <td class="px-3 py-3 text-slate-600">{{ $section->tipo->name ?? '-' }}</td>
+                                        <td class="px-3 py-3 font-medium text-slate-900">{{ $section->name }}</td>
+                                        <td class="px-3 py-3">{{ $section->descricao ? \Illuminate\Support\Str::limit($section->descricao, 80) : '-' }}</td>
+                                        <td class="px-3 py-3">{{ $section->created_at?->format('d/m/Y H:i') }}</td>
+                                        <td class="px-3 py-3">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+                                                    data-section-edit
+                                                    data-id="{{ $section->id }}"
+                                                    data-name="{{ $section->name }}"
+                                                    data-descricao="{{ $section->descricao }}"
+                                                    data-tipo-id="{{ $section->prompt_help_tipo_id }}"
+                                                >Editar</button>
+                                                <form method="POST" action="{{ route('adm.prompt-ajuda.sections.destroy', $section) }}" onsubmit="return confirm('Deseja excluir esta se&ccedil;&atilde;o?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="px-3 py-6 text-center text-slate-400">Nenhuma se&ccedil;&atilde;o cadastrada.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h3 class="text-lg font-semibold text-slate-900">Prompts</h3>
-                    <p class="text-xs text-slate-500">Prompts prontos para reutiliza&ccedil;&atilde;o.</p>
+        <div data-accordion class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="p-5">
+                <div class="flex items-center justify-between gap-4">
+                    <button
+                        type="button"
+                        data-accordion-trigger
+                        aria-expanded="false"
+                        class="flex flex-1 items-center justify-between text-left"
+                    >
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">Prompts</h3>
+                            <p class="text-xs text-slate-500">Prompts prontos para reutiliza&ccedil;&atilde;o.</p>
+                        </div>
+                        <span data-accordion-icon class="text-slate-400 transition duration-150">▾</span>
+                    </button>
+                    <button id="openPromptHelpPromptModal" type="button" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Novo</button>
                 </div>
-                <button id="openPromptHelpPromptModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Novo</button>
-            </div>
-
-            <div class="overflow-x-auto">
-                <table class="min-w-full text-sm text-slate-600">
-                    <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
-                        <tr>
-                            <th class="px-3 py-2 text-left font-semibold">Tipo</th>
-                            <th class="px-3 py-2 text-left font-semibold">Se&ccedil;&atilde;o</th>
-                            <th class="px-3 py-2 text-left font-semibold">Nome</th>
-                            <th class="px-3 py-2 text-left font-semibold">Descri&ccedil;&atilde;o</th>
-                            <th class="px-3 py-2 text-left font-semibold">Prompt</th>
-                            <th class="px-3 py-2 text-left font-semibold">Criado em</th>
-                            <th class="px-3 py-2 text-left font-semibold">A&ccedil;&otilde;es</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        @forelse($prompts as $prompt)
-                            <tr>
-                                <td class="px-3 py-3 text-slate-600">{{ $prompt->section->tipo->name ?? '-' }}</td>
-                                <td class="px-3 py-3 text-slate-600">{{ $prompt->section->name ?? '-' }}</td>
-                                <td class="px-3 py-3 font-medium text-slate-900">{{ $prompt->name }}</td>
-                                <td class="px-3 py-3">{{ $prompt->descricao ? \Illuminate\Support\Str::limit($prompt->descricao, 60) : '-' }}</td>
-                                <td class="px-3 py-3">{{ \Illuminate\Support\Str::limit($prompt->prompt, 80) }}</td>
-                                <td class="px-3 py-3">{{ $prompt->created_at?->format('d/m/Y H:i') }}</td>
-                                <td class="px-3 py-3">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <button
-                                            type="button"
-                                            class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
-                                            data-prompt-edit
-                                            data-id="{{ $prompt->id }}"
-                                            data-name="{{ $prompt->name }}"
-                                            data-descricao="{{ $prompt->descricao }}"
-                                            data-prompt="{{ $prompt->prompt }}"
-                                            data-section-id="{{ $prompt->prompt_help_section_id }}"
-                                        >Editar</button>
-                                        <form method="POST" action="{{ route('adm.prompt-ajuda.prompts.destroy', $prompt) }}" onsubmit="return confirm('Deseja excluir este prompt?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="px-3 py-6 text-center text-slate-400">Nenhum prompt cadastrado.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                <div class="mt-4 hidden" data-accordion-content>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm text-slate-600">
+                            <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                                <tr>
+                                    <th class="px-3 py-2 text-left font-semibold">Tipo</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Se&ccedil;&atilde;o</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Nome</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Descri&ccedil;&atilde;o</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Prompt</th>
+                                    <th class="px-3 py-2 text-left font-semibold">Criado em</th>
+                                    <th class="px-3 py-2 text-left font-semibold">A&ccedil;&otilde;es</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                @forelse($prompts as $prompt)
+                                    <tr>
+                                        <td class="px-3 py-3 text-slate-600">{{ $prompt->section->tipo->name ?? '-' }}</td>
+                                        <td class="px-3 py-3 text-slate-600">{{ $prompt->section->name ?? '-' }}</td>
+                                        <td class="px-3 py-3 font-medium text-slate-900">{{ $prompt->name }}</td>
+                                        <td class="px-3 py-3">{{ $prompt->descricao ? \Illuminate\Support\Str::limit($prompt->descricao, 60) : '-' }}</td>
+                                        <td class="px-3 py-3">{{ \Illuminate\Support\Str::limit($prompt->prompt, 80) }}</td>
+                                        <td class="px-3 py-3">{{ $prompt->created_at?->format('d/m/Y H:i') }}</td>
+                                        <td class="px-3 py-3">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+                                                    data-prompt-edit
+                                                    data-id="{{ $prompt->id }}"
+                                                    data-name="{{ $prompt->name }}"
+                                                    data-descricao="{{ $prompt->descricao }}"
+                                                    data-prompt="{{ $prompt->prompt }}"
+                                                    data-section-id="{{ $prompt->prompt_help_section_id }}"
+                                                >Editar</button>
+                                                <form method="POST" action="{{ route('adm.prompt-ajuda.prompts.destroy', $prompt) }}" onsubmit="return confirm('Deseja excluir este prompt?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="7" class="px-3 py-6 text-center text-slate-400">Nenhum prompt cadastrado.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
     <div id="promptHelpTipoModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 backdrop-blur">
         <div class="w-[520px] rounded-2xl bg-white p-6 shadow-2xl">
@@ -522,6 +555,33 @@
                 }
                 openModal();
             }
+        })();
+    </script>
+    <script>
+        (() => {
+            const accordions = document.querySelectorAll('[data-accordion]');
+            accordions.forEach(accordion => {
+                const trigger = accordion.querySelector('[data-accordion-trigger]');
+                const content = accordion.querySelector('[data-accordion-content]');
+                const icon = trigger?.querySelector('[data-accordion-icon]');
+
+                if (!trigger || !content) {
+                    return;
+                }
+
+                trigger.addEventListener('click', () => {
+                    const isOpen = !content.classList.contains('hidden');
+                    if (isOpen) {
+                        content.classList.add('hidden');
+                        trigger.setAttribute('aria-expanded', 'false');
+                        icon?.classList.remove('rotate-180');
+                    } else {
+                        content.classList.remove('hidden');
+                        trigger.setAttribute('aria-expanded', 'true');
+                        icon?.classList.add('rotate-180');
+                    }
+                });
+            });
         })();
     </script>
 @endpush
