@@ -13,8 +13,17 @@ class OpenAIController extends Controller
     public function convId(Request $request)
     {
         $convId = (string) $request->input('conv_id');
+        $after = (string) $request->input('after');
+        $limit = $request->integer('limit');
         $result = null;
         $error = null;
+        $items = [];
+        $hasMore = false;
+        $lastId = null;
+        $firstId = null;
+        $object = null;
+        $status = null;
+        $response = null;
 
         if ($request->filled('conv_id')) {
             $request->validate([
@@ -54,12 +63,32 @@ class OpenAIController extends Controller
                         } else {
                             try {
                                 $openAi = new OpenAIService($credential->token);
-                                $response = $openAi->getConversationItems($convId);
+                                $query = [];
+                                if ($after !== '') {
+                                    $query['after'] = $after;
+                                }
+                                if ($limit) {
+                                    $query['limit'] = $limit;
+                                }
+
+                                $response = $openAi->getConversationItems($convId, $query);
 
                                 if ($response === null) {
                                     $error = 'OpenAIService retornou resposta nula.';
                                 } else {
                                     $result = $response->json();
+                                    $status = $response->status();
+
+                                    if (!$response->successful()) {
+                                        $apiMessage = $response->json('error.message') ?? $response->body();
+                                        $error = 'OpenAI retornou erro (' . $status . '): ' . $apiMessage;
+                                    } else {
+                                        $items = is_array($result['data'] ?? null) ? $result['data'] : [];
+                                        $hasMore = (bool) ($result['has_more'] ?? false);
+                                        $lastId = $result['last_id'] ?? null;
+                                        $firstId = $result['first_id'] ?? null;
+                                        $object = $result['object'] ?? null;
+                                    }
                                 }
                             } catch (\Throwable $exception) {
                                 Log::channel('admin')->error('Erro ao buscar conversa no OpenAI', [
@@ -75,10 +104,35 @@ class OpenAIController extends Controller
             }
         }
 
+        if ($request->wantsJson()) {
+            $statusCode = $error ? ($status ?: 400) : 200;
+
+            return response()->json([
+                'conv_id' => $convId,
+                'data' => $items,
+                'has_more' => $hasMore,
+                'last_id' => $lastId,
+                'first_id' => $firstId,
+                'object' => $object,
+                'after' => $after !== '' ? $after : null,
+                'limit' => $limit,
+                'status' => $status,
+                'error' => $error,
+            ], $statusCode);
+        }
+
         return view('admin.openai.conv_id', [
             'convId' => $convId,
             'result' => $result,
             'error' => $error,
+            'items' => $items,
+            'hasMore' => $hasMore,
+            'lastId' => $lastId,
+            'firstId' => $firstId,
+            'object' => $object,
+            'status' => $status,
+            'after' => $after !== '' ? $after : null,
+            'limit' => $limit,
         ]);
     }
 }
