@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Agencia;
 
 use App\Http\Controllers\Controller;
 use App\Models\Assistant;
+use App\Models\PromptHelpTipo;
 use Illuminate\Http\Request;
 
 class AgenciaAssistantController extends Controller
@@ -16,8 +17,21 @@ class AgenciaAssistantController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
+        $promptHelpTipos = PromptHelpTipo::with([
+            'sections' => function ($query) {
+                $query->orderBy('name')->with([
+                    'prompts' => function ($promptQuery) {
+                        $promptQuery->orderBy('name');
+                    },
+                ]);
+            },
+        ])
+            ->orderBy('name')
+            ->get();
+
         return view('agencia.assistants.index', [
             'assistants' => $assistants,
+            'promptHelpTipos' => $promptHelpTipos,
         ]);
     }
 

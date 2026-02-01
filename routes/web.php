@@ -29,6 +29,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\AssistantLeadController;
 use App\Http\Controllers\UazapiController;
 use App\Http\Controllers\Admin\PlanController;
+use App\Http\Controllers\Admin\PromptHelpController;
 use App\Http\Controllers\Agencia\AgenciaAssistantController;
 use App\Http\Controllers\Agencia\AgenciaClienteController;
 use App\Http\Controllers\Agencia\AgenciaConexaoController;
@@ -167,6 +168,16 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::post('plano', [PlanController::class, 'store'])->name('plano.store');
     Route::put('plano/{plan}', [PlanController::class, 'update'])->name('plano.update');
     Route::delete('plano/{plan}', [PlanController::class, 'destroy'])->name('plano.destroy');
+    Route::get('prompt-ajuda', [PromptHelpController::class, 'index'])->name('prompt-ajuda.index');
+    Route::post('prompt-ajuda/tipos', [PromptHelpController::class, 'storeTipo'])->name('prompt-ajuda.tipos.store');
+    Route::patch('prompt-ajuda/tipos/{tipo}', [PromptHelpController::class, 'updateTipo'])->name('prompt-ajuda.tipos.update');
+    Route::delete('prompt-ajuda/tipos/{tipo}', [PromptHelpController::class, 'destroyTipo'])->name('prompt-ajuda.tipos.destroy');
+    Route::post('prompt-ajuda/sections', [PromptHelpController::class, 'storeSection'])->name('prompt-ajuda.sections.store');
+    Route::patch('prompt-ajuda/sections/{section}', [PromptHelpController::class, 'updateSection'])->name('prompt-ajuda.sections.update');
+    Route::delete('prompt-ajuda/sections/{section}', [PromptHelpController::class, 'destroySection'])->name('prompt-ajuda.sections.destroy');
+    Route::post('prompt-ajuda/prompts', [PromptHelpController::class, 'storePrompt'])->name('prompt-ajuda.prompts.store');
+    Route::patch('prompt-ajuda/prompts/{prompt}', [PromptHelpController::class, 'updatePrompt'])->name('prompt-ajuda.prompts.update');
+    Route::delete('prompt-ajuda/prompts/{prompt}', [PromptHelpController::class, 'destroyPrompt'])->name('prompt-ajuda.prompts.destroy');
 });
 
 Route::get('/dashboard', function () {
