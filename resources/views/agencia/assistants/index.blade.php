@@ -102,8 +102,7 @@
                                         id="promptHelpDropdownMenu"
                                         class="absolute right-0 z-10 mt-2 hidden w-[360px] max-h-96 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl"
                                     >
-                                        <div class="p-3 text-xs text-slate-400">Tipos &rarr; Seções &rarr; Prompts</div>
-                                        @foreach($promptHelpTipos as $tipo)
+                                         @foreach($promptHelpTipos as $tipo)
                                             <div class="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500" data-ph-type-block="{{ $tipo->id }}">{{ $tipo->name }}</div>
                                             @foreach($tipo->sections as $section)
                                                 <button
@@ -196,7 +195,7 @@
             const sectionToggles = Array.from(document.querySelectorAll('[data-ph-section-toggle]'));
             const sectionContents = Array.from(document.querySelectorAll('[data-ph-section-content]'));
             const promptItems = Array.from(document.querySelectorAll('[data-prompt-help-item]'));
-            const activeTypeClasses = ['border-blue-600', 'bg-blue-600', 'text-white'];
+            const activeTypeClasses = ['border-blue-600', 'bg-blue-600'];
             const activeSectionClasses = ['bg-slate-100', 'text-slate-900'];
             let activeTypeId = null;
 

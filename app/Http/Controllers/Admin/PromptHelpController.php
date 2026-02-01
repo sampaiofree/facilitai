@@ -25,7 +25,7 @@ class PromptHelpController extends Controller
     public function storeTipo(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255', Rule::unique('prompt_help_tipo', 'name')],
             'descricao' => ['nullable', 'string'],
         ]);
 
@@ -39,7 +39,12 @@ class PromptHelpController extends Controller
     public function updateTipo(Request $request, PromptHelpTipo $tipo): RedirectResponse
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('prompt_help_tipo', 'name')->ignore($tipo->id),
+            ],
             'descricao' => ['nullable', 'string'],
         ]);
 

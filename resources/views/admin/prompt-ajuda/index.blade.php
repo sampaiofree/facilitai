@@ -268,8 +268,8 @@
         </div>
     </div>
 
-    <div id="promptHelpPromptModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 backdrop-blur">
-        <div class="w-[600px] rounded-2xl bg-white p-6 shadow-2xl">
+    <div id="promptHelpPromptModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 backdrop-blur px-4 py-6">
+        <div class="w-full max-w-5xl rounded-2xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
                 <h3 id="promptHelpPromptModalTitle" class="text-lg font-semibold text-slate-900">Novo prompt</h3>
                 <button type="button" class="text-slate-500 hover:text-slate-700" data-close-modal>x</button>
