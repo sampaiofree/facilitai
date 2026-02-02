@@ -402,14 +402,6 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
     private function sendIAResponse(array $payload, Assistant $assistant, ClienteLead $lead, AssistantLead $assistantLead): void
     {
-        $idempotencyKey = $this->buildIdempotencyKey($payload);
-        if ($idempotencyKey && Cache::has($idempotencyKey)) {
-            $this->logSilentReturn('idempotency_hit', [
-                'idempotency_key' => $idempotencyKey,
-            ]);
-            return;
-        }
-
         $phone = (string) ($payload['phone'] ?? '');
         $token = $this->conexao?->whatsapp_api_key;
 
@@ -454,10 +446,6 @@ class ProcessIncomingMessageJob implements ShouldQueue
         }
 
         $this->sendText($token, $phone, $result->text, $logContext);
-
-        if ($idempotencyKey) {
-            Cache::put($idempotencyKey, true, now()->addSeconds($this->idempotencyTtlSeconds()));
-        }
     }
 
     private function persistAssistantLeadWebhookPayload(AssistantLead $assistantLead): void
@@ -528,56 +516,6 @@ class ProcessIncomingMessageJob implements ShouldQueue
             ])));
             $this->throwTransient('Falha ao enviar mensagem via Uazapi.', $logContext);
         }
-    }
-
-    private function buildIdempotencyKey(array $payload): ?string
-    {
-        $assistantLeadId = $payload['assistant_lead_id'] ?? null;
-        if (!$assistantLeadId) {
-            return null;
-        }
-
-        $aggregatedText = (string) ($payload['text'] ?? '');
-        $mediaSignature = $this->buildMediaSignature($payload['media'] ?? null);
-        $eventId = (string) ($payload['event_id'] ?? '');
-        $messageTimestamp = (string) ($payload['message_timestamp'] ?? '');
-
-        $payloadHash = hash('sha256', json_encode([
-            (int) $assistantLeadId,
-            $aggregatedText,
-            $mediaSignature,
-            $eventId !== '' ? $eventId : null,
-            $eventId === '' && $messageTimestamp !== '' ? $messageTimestamp : null,
-        ]));
-
-        return "resp:{$assistantLeadId}:{$payloadHash}";
-    }
-
-    private function buildMediaSignature($media): ?string
-    {
-        if (!is_array($media) || empty($media)) {
-            return null;
-        }
-
-        $base64Hash = null;
-        if (!empty($media['base64']) && is_string($media['base64'])) {
-            $base64Hash = hash('sha256', $media['base64']);
-        }
-
-        return json_encode([
-            'type' => $media['type'] ?? null,
-            'mimetype' => $media['mimetype'] ?? null,
-            'filename' => $media['filename'] ?? null,
-            'size_bytes' => $media['size_bytes'] ?? null,
-            'storage_key' => $media['storage_key'] ?? null,
-            'base64_hash' => $base64Hash,
-        ]);
-    }
-
-    private function idempotencyTtlSeconds(): int
-    {
-        $value = (int) env('IDEMPOTENCY_TTL_SECONDS', 300);
-        return $value > 0 ? $value : 300;
     }
 
     private function buildToolHandlers(array $payload, ?Conexao $conexao, ?ClienteLead $lead): array
