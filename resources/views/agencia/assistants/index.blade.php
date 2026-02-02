@@ -15,6 +15,7 @@
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-slate-500">
                 <tr>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">ID</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Versão</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Instruções</th>
@@ -25,6 +26,7 @@
             <tbody class="divide-y divide-slate-100">
                 @forelse($assistants as $assistant)
                     <tr class="hover:bg-slate-50">
+                        <td class="px-5 py-4 text-slate-600">{{ $assistant->id }}</td>
                         <td class="px-5 py-4 font-medium text-slate-800">{{ $assistant->name }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $assistant->version }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ \Illuminate\Support\Str::limit($assistant->instructions, 70) }}</td>
@@ -36,15 +38,15 @@
                                     class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
                                     data-open-edit
                                     data-id="{{ $assistant->id }}"
-                                    data-name="{{ e($assistant->name) }}"
-                                    data-instructions="{{ e($assistant->instructions) }}"
+                                    data-name='@json($assistant->name)'
+                                    data-instructions='@json($assistant->instructions)'
                                 >Editar</button>
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="px-5 py-6 text-center text-slate-500">Nenhum assistente cadastrado.</td>
+                        <td colspan="6" class="px-5 py-6 text-center text-slate-500">Nenhum assistente cadastrado.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -199,6 +201,17 @@
             const activeSectionClasses = ['bg-slate-100', 'text-slate-900'];
             let activeTypeId = null;
 
+            const parseDataValue = (value) => {
+                if (value === undefined || value === null || value === '') {
+                    return '';
+                }
+                try {
+                    return JSON.parse(value);
+                } catch (error) {
+                    return value;
+                }
+            };
+
             const openModal = () => {
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
@@ -284,8 +297,8 @@
                     methodInput.value = 'PATCH';
                     editingInput.value = id;
                     title.textContent = 'Editar assistente';
-                    nameInput.value = button.dataset.name || '';
-                    instructionsInput.value = button.dataset.instructions || '';
+                    nameInput.value = parseDataValue(button.dataset.name);
+                    instructionsInput.value = parseDataValue(button.dataset.instructions);
                     openModal();
                 });
             });
