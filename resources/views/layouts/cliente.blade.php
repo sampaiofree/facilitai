@@ -4,6 +4,20 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    @php
+        use App\Models\AgencySetting;
+        use Illuminate\Support\Facades\Storage;
+        $host = request()->getHost();
+        $appHost = parse_url(config('app.url'), PHP_URL_HOST);
+        $agencySettings = null;
+        if ($appHost && strcasecmp($host, $appHost) !== 0) {
+            $agencySettings = AgencySetting::where('custom_domain', $host)->first();
+        } elseif (auth('client')->check()) {
+            $agencySettings = AgencySetting::where('user_id', auth('client')->user()->user_id ?? null)->first();
+        }
+        $faviconUrl = $agencySettings?->favicon_path ? Storage::disk('public')->url($agencySettings->favicon_path) : asset('favicon.ico');
+    @endphp
+    <link rel="icon" type="image/png" href="{{ $faviconUrl }}">
     <title>@yield('title', 'Cliente')</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('head')

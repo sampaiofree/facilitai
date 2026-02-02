@@ -21,7 +21,7 @@ class LibraryEntryController extends Controller
             ->orderByDesc('created_at')
             ->paginate(20);
 
-        $clientes = $user->clientes()->orderBy('name')->get();
+        $clientes = $user->clientes()->orderBy('nome')->get();
 
         return view('agencia.library.index', [
             'entries' => $entries,
