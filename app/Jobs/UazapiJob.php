@@ -119,6 +119,12 @@ class UazapiJob implements ShouldQueue
                 ->first();
 
             $tipoNormalizado = $this->normalizeTipo($tipoMensagem, $message);
+            if ($tipoNormalizado === null) {
+                $status = 'ignored';
+                $reason = 'tipo_nao_suportado';
+                return;
+            }
+
             $media = $this->normalizeMediaPayload($message, $tipoNormalizado, $conexao);
 
             $normalized = [
@@ -200,7 +206,7 @@ class UazapiJob implements ShouldQueue
         return $digits;
     }
 
-    private function normalizeTipo(string $tipoMensagem, array $message): string
+    private function normalizeTipo(string $tipoMensagem, array $message): ?string
     {
         // Normaliza o tipo de mensagem recebido para valores canônicos (text/audio/image/video/document).
         $candidates = [
@@ -238,10 +244,10 @@ class UazapiJob implements ShouldQueue
                 return 'document';
             }
 
-            return $value;
+            return null;
         }
 
-        return 'unknown';
+        return null;
     }
 
     private function extractMediaPayload(array $message): array
