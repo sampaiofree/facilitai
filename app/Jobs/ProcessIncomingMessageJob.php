@@ -28,6 +28,8 @@ class ProcessIncomingMessageJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    private const DEBOUNCE_CACHE_TTL_SECONDS = 600;
+
     public int $tries = 1;
     public int $timeout = 300;
 
@@ -67,10 +69,12 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
         $phone = (string) ($this->payload['phone'] ?? '');
         if ($phone === '') {
+            $this->logSilentReturn('telefone_ausente');
             return;
         }
 
         if (($this->payload['is_group'] ?? false) === true) {
+            $this->logSilentReturn('mensagem_grupo');
             return;
         }
 
@@ -101,10 +105,14 @@ class ProcessIncomingMessageJob implements ShouldQueue
             $botEnabled = str_contains($text, '#');
             $lead->bot_enabled = $botEnabled;
             $lead->save();
+            $this->logSilentReturn('from_me', [
+                'bot_enabled' => $botEnabled,
+            ]);
             return;
         }
 
         if (!$lead->bot_enabled) {
+            $this->logSilentReturn('bot_desativado');
             return;
         }
 
@@ -172,10 +180,17 @@ class ProcessIncomingMessageJob implements ShouldQueue
             $buffer['data'] = $payload;
         }
 
-        Cache::put($cacheKey, $buffer, now()->addSeconds(120));
+        Cache::put($cacheKey, $buffer, now()->addSeconds(self::DEBOUNCE_CACHE_TTL_SECONDS));
 
         self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
             ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+
+        $this->logSilentReturn('debounce_buffered', [
+            'cache_key' => $cacheKey,
+            'messages_count' => count($buffer['messages']),
+            'debounce_seconds' => $this->debounceSeconds,
+            'max_wait_seconds' => $this->maxWaitSeconds,
+        ]);
     }
 
     private function handleDebounce(): void
@@ -187,6 +202,12 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
         $buffer = Cache::get($this->cacheKey);
         if (empty($buffer) || empty($buffer['messages'])) {
+            $this->logSilentReturn('debounce_buffer_empty', [
+                'cache_key' => $this->cacheKey,
+            ]);
+            $payload = $this->payload;
+            $payload['is_media'] = $this->isMedia;
+            $this->sendDebouncedPayload($conexao, $payload);
             return;
         }
 
@@ -197,6 +218,13 @@ class ProcessIncomingMessageJob implements ShouldQueue
         if ($lastAt->gt($now->subSeconds($this->debounceSeconds)) && $startedAt->gt($now->subSeconds($this->maxWaitSeconds))) {
             self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
                 ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+            $this->logSilentReturn('debounce_waiting', [
+                'cache_key' => $this->cacheKey,
+                'last_at' => $lastAt->toIso8601String(),
+                'started_at' => $startedAt->toIso8601String(),
+                'debounce_seconds' => $this->debounceSeconds,
+                'max_wait_seconds' => $this->maxWaitSeconds,
+            ]);
             return;
         }
 
@@ -207,22 +235,36 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
         Cache::forget($this->cacheKey);
 
+        $this->sendDebouncedPayload($conexao, $payload);
+    }
+
+    private function sendDebouncedPayload(Conexao $conexao, array $payload): void
+    {
         $assistant = $conexao->assistant;
         if (!$assistant) {
+            $this->logSilentReturn('assistente_nao_encontrado', [
+                'cache_key' => $this->cacheKey,
+            ]);
             return;
         }
 
         $lead = $this->loadLeadFromPayload($payload);
         if (!$lead) {
+            $this->logSilentReturn('lead_nao_encontrado', [
+                'cache_key' => $this->cacheKey,
+            ]);
             return;
         }
 
         $assistantLead = $this->ensureAssistantLead($lead, $assistant);
         if (!$assistantLead) {
+            $this->logSilentReturn('assistant_lead_nao_encontrado', [
+                'cache_key' => $this->cacheKey,
+            ]);
             return;
         }
-        $this->persistAssistantLeadWebhookPayload($assistantLead);
 
+        $this->persistAssistantLeadWebhookPayload($assistantLead);
         $this->sendIAResponse($payload, $assistant, $lead, $assistantLead);
     }
 
@@ -362,6 +404,9 @@ class ProcessIncomingMessageJob implements ShouldQueue
     {
         $idempotencyKey = $this->buildIdempotencyKey($payload);
         if ($idempotencyKey && Cache::has($idempotencyKey)) {
+            $this->logSilentReturn('idempotency_hit', [
+                'idempotency_key' => $idempotencyKey,
+            ]);
             return;
         }
 
@@ -411,7 +456,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
         $this->sendText($token, $phone, $result->text, $logContext);
 
         if ($idempotencyKey) {
-            Cache::put($idempotencyKey, true, now()->addHours($this->idempotencyTtlHours()));
+            Cache::put($idempotencyKey, true, now()->addSeconds($this->idempotencyTtlSeconds()));
         }
     }
 
@@ -494,11 +539,15 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
         $aggregatedText = (string) ($payload['text'] ?? '');
         $mediaSignature = $this->buildMediaSignature($payload['media'] ?? null);
+        $eventId = (string) ($payload['event_id'] ?? '');
+        $messageTimestamp = (string) ($payload['message_timestamp'] ?? '');
 
         $payloadHash = hash('sha256', json_encode([
             (int) $assistantLeadId,
             $aggregatedText,
             $mediaSignature,
+            $eventId !== '' ? $eventId : null,
+            $eventId === '' && $messageTimestamp !== '' ? $messageTimestamp : null,
         ]));
 
         return "resp:{$assistantLeadId}:{$payloadHash}";
@@ -525,10 +574,10 @@ class ProcessIncomingMessageJob implements ShouldQueue
         ]);
     }
 
-    private function idempotencyTtlHours(): int
+    private function idempotencyTtlSeconds(): int
     {
-        $value = (int) env('IDEMPOTENCY_TTL_HOURS', 6);
-        return $value > 0 ? $value : 6;
+        $value = (int) env('IDEMPOTENCY_TTL_SECONDS', 300);
+        return $value > 0 ? $value : 300;
     }
 
     private function buildToolHandlers(array $payload, ?Conexao $conexao, ?ClienteLead $lead): array
@@ -945,6 +994,13 @@ class ProcessIncomingMessageJob implements ShouldQueue
             LogContext::base($this->payload, $this->conexao),
             $extra
         );
+    }
+
+    private function logSilentReturn(string $reason, array $extra = []): void
+    {
+        Log::channel('process_job')->info('ProcessIncomingMessageJob concluido sem resposta ao usuario.', $this->logContext(array_merge([
+            'reason' => $reason,
+        ], $extra)));
     }
 
     public function failed(\Throwable $exception): void
