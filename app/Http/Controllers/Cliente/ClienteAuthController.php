@@ -3,16 +3,29 @@
 namespace App\Http\Controllers\Cliente;
 
 use App\Http\Controllers\Controller;
+use App\Models\AgencySetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class ClienteAuthController extends Controller
 {
-    public function create(): View
+    public function create(Request $request): View
     {
-        return view('cliente.login');
+        $host = $request->getHost();
+        $host = preg_replace('/:\\d+$/', '', $host);
+        $settings = AgencySetting::where('custom_domain', $host)->first();
+
+        $logoUrl = null;
+        if ($settings && $settings->logo_path) {
+            $logoUrl = Storage::disk('public')->url($settings->logo_path);
+        }
+
+        return view('cliente.login', [
+            'logoUrl' => $logoUrl,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -23,23 +36,34 @@ class ClienteAuthController extends Controller
         ]);
 
         $remember = (bool) $request->boolean('remember');
+        $credentials['is_active'] = true;
 
         if (!Auth::guard('client')->attempt($credentials, $remember)) {
             return back()->withErrors([
-                'email' => 'Credenciais inválidas.',
+                'email' => 'Credenciais invalidas.',
             ])->onlyInput('email');
         }
 
         $request->session()->regenerate();
 
         $cliente = Auth::guard('client')->user();
-        if ($cliente && $cliente->is_active === false) {
+        if (!$cliente) {
             Auth::guard('client')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
             return back()->withErrors([
-                'email' => 'Cliente inativo.',
+                'email' => 'Credenciais invalidas.',
+            ])->onlyInput('email');
+        }
+
+        if ($cliente->trashed()) {
+            Auth::guard('client')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return back()->withErrors([
+                'email' => 'Cliente excluido.',
             ])->onlyInput('email');
         }
 

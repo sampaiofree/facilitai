@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use App\Models\HotmarlWebhook;
+use App\Models\AgencySetting;
 use App\Models\User;
 
 class AuthenticatedSessionController extends Controller
@@ -18,7 +19,17 @@ class AuthenticatedSessionController extends Controller
      */
     public function create(): View
     {
-        return view('auth.login');
+        $host = request()->getHost();
+        $appUrlHost = parse_url(config('app.url'), PHP_URL_HOST);
+        $domainAllowed = true;
+
+        if ($appUrlHost && strcasecmp($host, $appUrlHost) !== 0) {
+            $domainAllowed = AgencySetting::where('custom_domain', $host)->exists();
+        }
+
+        return view('auth.login', [
+            'domainAllowed' => $domainAllowed,
+        ]);
     }
 
     /**

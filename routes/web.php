@@ -181,7 +181,7 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
 });
 
 Route::get('/dashboard', function () {
-    return view('dashboard');
+    return redirect()->route('agencia.dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth', 'verified')->group(function () {
@@ -294,6 +294,8 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('clientes', [AgenciaClienteController::class, 'index'])->name('clientes.index');
     Route::post('clientes', [AgenciaClienteController::class, 'store'])->name('clientes.store');
     Route::patch('clientes/{cliente}', [AgenciaClienteController::class, 'update'])->name('clientes.update');
+    Route::patch('clientes/{cliente}/restore', [AgenciaClienteController::class, 'restore'])->name('clientes.restore');
+    Route::delete('clientes/{cliente}/force', [AgenciaClienteController::class, 'forceDelete'])->name('clientes.forceDelete');
     Route::delete('clientes/{cliente}', [AgenciaClienteController::class, 'destroy'])->name('clientes.destroy');
     Route::get('credenciais', [AgenciaCredentialController::class, 'index'])->name('credentials.index');
     Route::post('credenciais', [AgenciaCredentialController::class, 'store'])->name('credentials.store');

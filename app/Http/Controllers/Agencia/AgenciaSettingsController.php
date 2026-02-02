@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AgenciaSettingsController extends Controller
@@ -38,13 +40,30 @@ class AgenciaSettingsController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $userId = Auth::id();
-
+        $rawDomain = $request->input('custom_domain');
         $request->merge([
-            'custom_domain' => $this->normalizeDomain($request->input('custom_domain')),
+            'custom_domain' => $this->normalizeDomain($rawDomain),
         ]);
 
-        $validated = $request->validate([
-            'custom_domain' => ['nullable', 'string', 'max:255', 'unique:agency_settings,custom_domain,' . $userId . ',user_id'],
+        $validator = Validator::make($request->all(), [
+            'custom_domain' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('agency_settings', 'custom_domain')->ignore($userId, 'user_id'),
+                function (string $attribute, $value, \Closure $fail) use ($rawDomain) {
+                    if (!is_string($rawDomain)) {
+                        return;
+                    }
+                    $rawDomain = trim($rawDomain);
+                    if ($rawDomain === '') {
+                        return;
+                    }
+                    if (preg_match('#^https?://#i', $rawDomain) || preg_match('/^www\./i', $rawDomain)) {
+                        $fail('Informe apenas o domínio, sem http/https e sem www.');
+                    }
+                },
+            ],
             'app_name' => ['nullable', 'string', 'max:255'],
             'support_email' => ['nullable', 'email', 'max:255'],
             'support_whatsapp' => ['nullable', 'string', 'max:50'],
@@ -59,6 +78,8 @@ class AgenciaSettingsController extends Controller
             'primary_color.regex' => 'Cor primária deve estar no formato HEX (ex: #1a2b3c).',
             'secondary_color.regex' => 'Cor secundária deve estar no formato HEX (ex: #1a2b3c).',
         ]);
+
+        $validated = $validator->validate();
 
         $payload = [
             'custom_domain' => $request->filled('custom_domain') ? $validated['custom_domain'] : null,

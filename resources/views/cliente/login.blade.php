@@ -5,6 +5,11 @@
 @section('content')
     <div class="min-h-[70vh] flex items-center justify-center">
         <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-md">
+            @if(!empty($logoUrl))
+                <div class="mb-4 flex justify-center">
+                    <img src="{{ $logoUrl }}" alt="Logo" class="h-14 w-auto">
+                </div>
+            @endif
             <h1 class="text-xl font-semibold mb-4">Area do Cliente</h1>
 
             <form method="POST" action="{{ route('cliente.login') }}" class="space-y-4">

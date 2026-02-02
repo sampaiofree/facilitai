@@ -11,6 +11,12 @@
         </button>
     </div>
 
+    <div class="flex items-center gap-2 mb-4">
+        <a href="{{ route('agencia.clientes.index') }}" class="rounded-full px-4 py-1.5 text-xs font-semibold {{ ($status ?? 'active') === 'active' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400' }}">Ativos</a>
+        <a href="{{ route('agencia.clientes.index', ['status' => 'trashed']) }}" class="rounded-full px-4 py-1.5 text-xs font-semibold {{ ($status ?? 'active') === 'trashed' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400' }}">Excluídos</a>
+        <a href="{{ route('agencia.clientes.index', ['status' => 'all']) }}" class="rounded-full px-4 py-1.5 text-xs font-semibold {{ ($status ?? 'active') === 'all' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400' }}">Todos</a>
+    </div>
+
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-slate-500">
@@ -41,21 +47,34 @@
                         </td>
                         <td class="px-5 py-4">
                             <div class="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
-                                    data-open-edit
-                                    data-id="{{ $cliente->id }}"
-                                    data-nome="{{ $cliente->nome }}"
-                                    data-email="{{ $cliente->email }}"
-                                    data-telefone="{{ $cliente->telefone }}"
-                                    data-active="{{ $cliente->is_active ? '1' : '0' }}"
-                                >Editar</button>
-                                <form method="POST" action="{{ route('agencia.clientes.destroy', $cliente) }}" onsubmit="return confirm('Deseja excluir este cliente?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
-                                </form>
+                                @if($cliente->trashed())
+                                    <form method="POST" action="{{ route('agencia.clientes.restore', $cliente->id) }}">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600">Restaurar</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('agencia.clientes.forceDelete', $cliente->id) }}" onsubmit="return confirm('Excluir definitivamente este cliente? Esta ação não pode ser desfeita.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700">Excluir definitivamente</button>
+                                    </form>
+                                @else
+                                    <button
+                                        type="button"
+                                        class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+                                        data-open-edit
+                                        data-id="{{ $cliente->id }}"
+                                        data-nome="{{ $cliente->nome }}"
+                                        data-email="{{ $cliente->email }}"
+                                        data-telefone="{{ $cliente->telefone }}"
+                                        data-active="{{ $cliente->is_active ? '1' : '0' }}"
+                                    >Editar</button>
+                                    <form method="POST" action="{{ route('agencia.clientes.destroy', $cliente) }}" onsubmit="return confirm('Deseja excluir este cliente?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
+                                    </form>
+                                @endif
                             </div>
                         </td>
                     </tr>

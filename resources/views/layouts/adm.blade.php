@@ -20,10 +20,10 @@
                 <p class="text-xs text-slate-400 mt-1">Área administrativa</p>
             </div>
             <nav class="px-4 py-6 space-y-2">
+                <a href="{{ route('adm.dashboard') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.dashboard') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Dashboard</a>
                 <a href="{{ route('adm.conexoes.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.conexoes.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Conexões</a>
                 <a href="{{ route('adm.users.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.users.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Usuários</a>
                 <a href="{{ route('adm.assistant-lead.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.assistant-lead.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Assistant Leads</a>
-                <a href="{{ route('adm.iaplataformas.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.iaplataformas.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">IA Plataformas</a>
                 <a href="{{ route('adm.openai.conv_id') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.openai.conv_id') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">OpenAI - conv_id</a>
                 <a href="{{ route('adm.iamodelos.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.iamodelos.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">IA Modelos</a>
                 <a href="{{ route('adm.whatsapp-api.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.whatsapp-api.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">WhatsApp API</a>

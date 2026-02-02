@@ -9,6 +9,56 @@
         <button id="openIamodeloModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Novo modelo</button>
     </div>
 
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h3 class="text-lg font-semibold text-slate-900">IA Plataformas</h3>
+            <p class="text-sm text-slate-500">Gerencie as plataformas de IA disponÃ­veis.</p>
+        </div>
+        <button id="openIaplataformaModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Nova plataforma</button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-10">
+        <table class="min-w-full text-sm">
+            <thead class="bg-slate-50 text-slate-500">
+                <tr>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Status</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Criado em</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">AÃ§Ãµes</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                @forelse($iaplataformas as $plataforma)
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-5 py-4 font-medium text-slate-800">{{ $plataforma->nome }}</td>
+                        <td class="px-5 py-4">
+                            @if($plataforma->ativo)
+                                <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Ativo</span>
+                            @else
+                                <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Inativo</span>
+                            @endif
+                        </td>
+                        <td class="px-5 py-4 text-slate-600">{{ $plataforma->created_at->format('d/m/Y H:i') }}</td>
+                        <td class="px-5 py-4">
+                            <div class="flex items-center gap-2">
+                                <button type="button" class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600" data-open-plataforma-edit data-id="{{ $plataforma->id }}" data-nome="{{ $plataforma->nome }}" data-ativo="{{ $plataforma->ativo ? '1' : '0' }}">Editar</button>
+                                <form method="POST" action="{{ route('adm.iaplataformas.destroy', $plataforma) }}" onsubmit="return confirm('Deseja excluir esta plataforma?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="4" class="px-5 py-6 text-center text-slate-500">Nenhuma plataforma cadastrada.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-slate-500">
@@ -91,8 +141,74 @@
         </div>
     </div>
 
+    <div id="iaplataformaModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 backdrop-blur">
+        <div class="w-[520px] rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 id="iaplataformaModalTitle" class="text-lg font-semibold text-slate-900">Nova plataforma</h3>
+                <button type="button" class="text-slate-500 hover:text-slate-700" data-close-plataforma-modal>x</button>
+            </div>
+            <form id="iaplataformaForm" method="POST" action="{{ route('adm.iaplataformas.store') }}" class="mt-5 space-y-4">
+                @csrf
+                <input type="hidden" name="_method" id="iaplataformaFormMethod" value="POST">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="iaplataformaNome">Nome</label>
+                    <input id="iaplataformaNome" name="nome" type="text" maxlength="50" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                </div>
+                <div class="flex items-center gap-2">
+                    <input id="iaplataformaAtivo" name="ativo" type="checkbox" value="1" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500" checked>
+                    <label for="iaplataformaAtivo" class="text-sm text-slate-600">Plataforma ativa</label>
+                </div>
+                <div class="flex items-center justify-end gap-3 pt-2">
+                    <button type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" data-close-plataforma-modal>Cancelar</button>
+                    <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         (function () {
+            const plataformaModal = document.getElementById('iaplataformaModal');
+            const openPlataformaBtn = document.getElementById('openIaplataformaModal');
+            const closePlataformaBtns = plataformaModal.querySelectorAll('[data-close-plataforma-modal]');
+            const plataformaForm = document.getElementById('iaplataformaForm');
+            const plataformaMethodInput = document.getElementById('iaplataformaFormMethod');
+            const plataformaTitle = document.getElementById('iaplataformaModalTitle');
+            const plataformaNome = document.getElementById('iaplataformaNome');
+            const plataformaAtivo = document.getElementById('iaplataformaAtivo');
+
+            const openPlataformaModal = () => {
+                plataformaModal.classList.remove('hidden');
+                plataformaModal.classList.add('flex');
+            };
+            const closePlataformaModal = () => {
+                plataformaModal.classList.add('hidden');
+                plataformaModal.classList.remove('flex');
+            };
+            const resetPlataformaForm = () => {
+                plataformaForm.action = "{{ route('adm.iaplataformas.store') }}";
+                plataformaMethodInput.value = 'POST';
+                plataformaTitle.textContent = 'Nova plataforma';
+                plataformaNome.value = '';
+                plataformaAtivo.checked = true;
+            };
+
+            openPlataformaBtn.addEventListener('click', () => { resetPlataformaForm(); openPlataformaModal(); });
+            closePlataformaBtns.forEach(btn => btn.addEventListener('click', closePlataformaModal));
+            plataformaModal.addEventListener('click', (event) => { if (event.target === plataformaModal) closePlataformaModal(); });
+            document.querySelectorAll('[data-open-plataforma-edit]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const id = button.dataset.id;
+                    resetPlataformaForm();
+                    plataformaForm.action = `{{ url('/adm/ia-plataformas') }}/${id}`;
+                    plataformaMethodInput.value = 'PATCH';
+                    plataformaTitle.textContent = 'Editar plataforma';
+                    plataformaNome.value = button.dataset.nome || '';
+                    plataformaAtivo.checked = button.dataset.ativo === '1';
+                    openPlataformaModal();
+                });
+            });
+
             const modal = document.getElementById('iamodeloModal');
             const openBtn = document.getElementById('openIamodeloModal');
             const closeBtns = modal.querySelectorAll('[data-close-modal]');

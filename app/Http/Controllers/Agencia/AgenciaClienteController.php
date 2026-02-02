@@ -12,12 +12,20 @@ class AgenciaClienteController extends Controller
 {
     public function index(Request $request)
     {
-        $clientes = Cliente::where('user_id', $request->user()->id)
-            ->latest()
-            ->get();
+        $status = $request->input('status', 'active');
+        $query = Cliente::query()->where('user_id', $request->user()->id);
+
+        if ($status === 'trashed') {
+            $query->onlyTrashed();
+        } elseif ($status === 'all') {
+            $query->withTrashed();
+        }
+
+        $clientes = $query->latest()->get();
 
         return view('agencia.clientes.index', [
             'clientes' => $clientes,
+            'status' => $status,
         ]);
     }
 
@@ -89,11 +97,47 @@ class AgenciaClienteController extends Controller
     {
         $this->ensureOwner($request, $cliente);
 
+        if ($cliente->conexoes()->exists()) {
+            return redirect()
+                ->route('agencia.clientes.index')
+                ->with('error', 'Nao e possivel excluir este cliente porque ha conexoes vinculadas.');
+        }
+
         $cliente->delete();
 
         return redirect()
             ->route('agencia.clientes.index')
             ->with('success', 'Cliente removido com sucesso.');
+    }
+
+    public function restore(Request $request, int $cliente)
+    {
+        $cliente = Cliente::withTrashed()->findOrFail($cliente);
+        $this->ensureOwner($request, $cliente);
+
+        $cliente->restore();
+
+        return redirect()
+            ->route('agencia.clientes.index', ['status' => 'trashed'])
+            ->with('success', 'Cliente restaurado com sucesso.');
+    }
+
+    public function forceDelete(Request $request, int $cliente)
+    {
+        $cliente = Cliente::withTrashed()->findOrFail($cliente);
+        $this->ensureOwner($request, $cliente);
+
+        if ($cliente->conexoes()->withTrashed()->exists()) {
+            return redirect()
+                ->route('agencia.clientes.index', ['status' => 'trashed'])
+                ->with('error', 'Nao e possivel excluir definitivamente este cliente porque ha conexoes vinculadas.');
+        }
+
+        $cliente->forceDelete();
+
+        return redirect()
+            ->route('agencia.clientes.index', ['status' => 'trashed'])
+            ->with('success', 'Cliente excluÃ­do definitivamente.');
     }
 
     private function ensureOwner(Request $request, Cliente $cliente): void
