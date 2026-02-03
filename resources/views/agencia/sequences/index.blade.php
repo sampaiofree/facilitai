@@ -122,6 +122,21 @@
                                                                 'active' => $step->active,
                                                             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
                                                         >Editar</button>
+                                                        {{--
+                                                        <form
+                                                            method="POST"
+                                                            action="{{ route('agencia.sequences.steps.destroy', ['sequence' => $sequence->id, 'step' => $step->id]) }}"
+                                                            class="inline"
+                                                            onsubmit="return confirm('Deseja excluir esta etapa?');"
+                                                        >
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button
+                                                                type="submit"
+                                                                class="rounded-lg bg-rose-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-rose-600"
+                                                            >Excluir</button>
+                                                        </form>
+                                                        --}}
                                                     </td>
                                                 </tr>
                                             @empty
@@ -136,6 +151,7 @@
                         </div>
                     </details>
                 </div>
+            {{--
             <div class="mt-4">
                 <details class="log-accordion rounded-2xl border border-slate-200 bg-slate-50">
                     <summary class="flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 cursor-pointer">
@@ -184,6 +200,7 @@
                     </div>
                 </details>
             </div>
+            --}}
             <div class="mt-4">
                 @php
                     $sequenceChatsPaginator = $sequenceChatsBySequence[$sequence->id] ?? null;

@@ -149,6 +149,18 @@ class AgenciaSequenceController extends Controller
         return redirect()->route('agencia.sequences.index')->with('success', 'Etapa atualizada com sucesso.');
     }
 
+    public function destroyStep(Request $request, Sequence $sequence, SequenceStep $step): RedirectResponse
+    {
+        $this->ensureSequenceOwnership($sequence, $request->user()->id);
+        abort_unless($step->sequence_id === $sequence->id, 404);
+
+        $step->delete();
+
+        return redirect()
+            ->route('agencia.sequences.index')
+            ->with('success', 'Etapa removida com sucesso.');
+    }
+
     public function conexoes(Cliente $cliente)
     {
         abort_unless($cliente->user_id === auth()->id(), 403);

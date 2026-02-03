@@ -34,6 +34,7 @@ use App\Http\Controllers\Agencia\AgenciaAssistantController;
 use App\Http\Controllers\Agencia\AgenciaClienteController;
 use App\Http\Controllers\Agencia\AgenciaConexaoController;
 use App\Http\Controllers\Agencia\AgenciaCredentialController;
+use App\Http\Controllers\Agencia\AgenciaProfileController;
 use App\Http\Controllers\Agencia\AgenciaSettingsController;
 use App\Http\Controllers\Agencia\AgenciaSequenceController;
 use App\Http\Controllers\Agencia\AgenciaTagController;
@@ -42,6 +43,7 @@ use App\Http\Controllers\Agencia\ImageController as AgenciaImageController;
 use App\Http\Controllers\Agencia\LibraryEntryController as AgenciaLibraryEntryController;
 use App\Http\Controllers\Cliente\ClienteAuthController;
 use App\Http\Controllers\Cliente\ClienteDashboardController;
+use App\Http\Controllers\Cliente\ClienteLeadController as ClienteClienteLeadController;
 use App\Http\Controllers\Cliente\ConexaoClienteController;
 use App\Http\Controllers\Cliente\LibraryClienteController;
 
@@ -310,6 +312,8 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('assistant', [AgenciaAssistantController::class, 'index'])->name('assistant.index');
     Route::post('assistant', [AgenciaAssistantController::class, 'store'])->name('assistant.store');
     Route::patch('assistant/{assistant}', [AgenciaAssistantController::class, 'update'])->name('assistant.update');
+    Route::get('profile', [AgenciaProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('profile', [AgenciaProfileController::class, 'update'])->name('profile.update');
     Route::get('agency-settings', [AgenciaSettingsController::class, 'edit'])->name('agency-settings.edit');
     Route::post('agency-settings', [AgenciaSettingsController::class, 'update'])->name('agency-settings.update');
     Route::get('sequence', [AgenciaSequenceController::class, 'index'])->name('sequences.index');
@@ -323,6 +327,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::post('sequences', [AgenciaSequenceController::class, 'store'])->name('sequences.store');
     Route::post('sequences/{sequence}/steps', [AgenciaSequenceController::class, 'storeStep'])->name('sequences.steps.store');
     Route::patch('sequences/{sequence}/steps/{step}', [AgenciaSequenceController::class, 'updateStep'])->name('sequences.steps.update');
+    Route::delete('sequences/{sequence}/steps/{step}', [AgenciaSequenceController::class, 'destroyStep'])->name('sequences.steps.destroy');
     Route::get('clientes/{cliente}/conexoes', [AgenciaSequenceController::class, 'conexoes'])->name('sequences.cliente.conexoes');
     Route::delete('sequence-chats/{sequenceChat}', [AgenciaSequenceController::class, 'destroySequenceChat'])->name('sequence-chats.destroy');
     Route::post('images/move', [AgenciaImageController::class, 'move'])->name('images.move');
@@ -350,6 +355,13 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::get('conexoes', [ConexaoClienteController::class, 'index'])->name('conexoes.index');
         Route::get('conexoes/{conexao}/status', [ConexaoClienteController::class, 'status'])->name('conexoes.status');
         Route::post('conexoes/{conexao}/connect', [ConexaoClienteController::class, 'connect'])->name('conexoes.connect');
+        Route::get('conversas', [ClienteClienteLeadController::class, 'index'])->name('conversas.index');
+        Route::post('conversas', [ClienteClienteLeadController::class, 'store'])->name('conversas.store');
+        Route::post('conversas/import', [ClienteClienteLeadController::class, 'import'])->name('conversas.import');
+        Route::post('conversas/preview', [ClienteClienteLeadController::class, 'preview'])->name('conversas.preview');
+        Route::get('conversas/export', [ClienteClienteLeadController::class, 'export'])->name('conversas.export');
+        Route::put('conversas/{clienteLead}', [ClienteClienteLeadController::class, 'update'])->name('conversas.update');
+        Route::delete('conversas/{clienteLead}', [ClienteClienteLeadController::class, 'destroy'])->name('conversas.destroy');
         Route::get('library', [LibraryClienteController::class, 'index'])->name('library.index');
         Route::post('library', [LibraryClienteController::class, 'store'])->name('library.store');
         Route::put('library/{libraryEntry}', [LibraryClienteController::class, 'update'])->name('library.update');

@@ -28,7 +28,7 @@ class IaplataformaController extends Controller
         ]);
 
         return redirect()
-            ->route('adm.iaplataformas.index')
+            ->to($request->input('redirect_to', route('adm.iaplataformas.index')))
             ->with('success', 'Plataforma criada com sucesso.');
     }
 
@@ -45,16 +45,16 @@ class IaplataformaController extends Controller
         ]);
 
         return redirect()
-            ->route('adm.iaplataformas.index')
+            ->to($request->input('redirect_to', route('adm.iaplataformas.index')))
             ->with('success', 'Plataforma atualizada com sucesso.');
     }
 
-    public function destroy(Iaplataforma $iaplataforma)
+    public function destroy(Request $request, Iaplataforma $iaplataforma)
     {
         $iaplataforma->delete();
 
         return redirect()
-            ->route('adm.iaplataformas.index')
+            ->to($request->input('redirect_to', route('adm.iaplataformas.index')))
             ->with('success', 'Plataforma removida com sucesso.');
     }
 }

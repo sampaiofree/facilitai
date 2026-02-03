@@ -169,6 +169,47 @@ class UazapiService
         }
     }
 
+    public function chat_check(array $numbers): array
+    {
+        $normalized = array_map(function ($value) {
+            return is_string($value) ? trim($value) : $value;
+        }, $numbers);
+        $normalized = array_values(array_filter($normalized, fn ($value) => $value !== null && $value !== ''));
+
+        $validator = Validator::make(['numbers' => $normalized], [
+            'numbers' => ['required', 'array', 'min:1'],
+            'numbers.*' => ['required', 'string', 'max:50'],
+        ]);
+
+        if ($validator->fails()) {
+            $errors = $validator->errors()->toArray();
+            Log::channel('uazapi')->error('UazapiService::chat_check validation failed', ['errors' => $errors]);
+
+            return [
+                'error' => true,
+                'status' => 422,
+                'body' => $errors,
+            ];
+        }
+
+        $endpoint = rtrim($this->baseUrl ?: 'https://free.uazapi.com', '/') . '/chat/check';
+
+        try {
+            $response = $this->client->post($endpoint, [
+                'json' => $validator->validated(),
+            ]);
+
+            $payload = $this->successResponse($response);
+            $payload['status'] = $response->getStatusCode();
+
+            return $payload;
+        } catch (RequestException $exception) {
+            return $this->handleRequestException('chat_check', $exception);
+        } catch (\Throwable $exception) {
+            return $this->handleUnexpectedError('chat_check', $exception);
+        }
+    }
+
     public function sendText(string $token, string $number, string $text): array
     {
         try {

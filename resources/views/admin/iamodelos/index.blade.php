@@ -1,18 +1,15 @@
 @extends('layouts.adm')
 
 @section('content')
-    <div class="flex items-center justify-between mb-6">
-        <div>
-            <h2 class="text-2xl font-semibold text-slate-900">IA Modelos</h2>
-            <p class="text-sm text-slate-500">Gestão dos modelos vinculados às plataformas de IA.</p>
-        </div>
-        <button id="openIamodeloModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Novo modelo</button>
+    <div class="mb-6">
+        <h2 class="text-2xl font-semibold text-slate-900">IA Modelos</h2>
+        <p class="text-sm text-slate-500">Gestão dos modelos vinculados às plataformas de IA.</p>
     </div>
 
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-4">
         <div>
             <h3 class="text-lg font-semibold text-slate-900">IA Plataformas</h3>
-            <p class="text-sm text-slate-500">Gerencie as plataformas de IA disponÃ­veis.</p>
+            <p class="text-sm text-slate-500">Gerencie as plataformas de IA disponíveis.</p>
         </div>
         <button id="openIaplataformaModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Nova plataforma</button>
     </div>
@@ -45,6 +42,7 @@
                                 <form method="POST" action="{{ route('adm.iaplataformas.destroy', $plataforma) }}" onsubmit="return confirm('Deseja excluir esta plataforma?');">
                                     @csrf
                                     @method('DELETE')
+                                    <input type="hidden" name="redirect_to" value="{{ route('adm.iamodelos.index') }}">
                                     <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
                                 </form>
                             </div>
@@ -57,6 +55,14 @@
                 @endforelse
             </tbody>
         </table>
+    </div>
+
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h3 class="text-lg font-semibold text-slate-900">IA Modelos</h3>
+            <p class="text-sm text-slate-500">Modelos disponíveis para uso.</p>
+        </div>
+        <button id="openIamodeloModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">Novo modelo</button>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -112,6 +118,7 @@
             <form id="iamodeloForm" method="POST" action="{{ route('adm.iamodelos.store') }}" class="mt-5 space-y-4">
                 @csrf
                 <input type="hidden" name="_method" id="iamodeloFormMethod" value="POST">
+                <input type="hidden" name="form_context" value="modelo">
 
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="iamodeloPlataforma">Plataforma</label>
@@ -150,6 +157,8 @@
             <form id="iaplataformaForm" method="POST" action="{{ route('adm.iaplataformas.store') }}" class="mt-5 space-y-4">
                 @csrf
                 <input type="hidden" name="_method" id="iaplataformaFormMethod" value="POST">
+                <input type="hidden" name="form_context" value="plataforma">
+                <input type="hidden" name="redirect_to" value="{{ route('adm.iamodelos.index') }}">
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="iaplataformaNome">Nome</label>
                     <input id="iaplataformaNome" name="nome" type="text" maxlength="50" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
@@ -176,6 +185,7 @@
             const plataformaTitle = document.getElementById('iaplataformaModalTitle');
             const plataformaNome = document.getElementById('iaplataformaNome');
             const plataformaAtivo = document.getElementById('iaplataformaAtivo');
+            const oldContext = @json(old('form_context'));
 
             const openPlataformaModal = () => {
                 plataformaModal.classList.remove('hidden');
@@ -257,7 +267,9 @@
                 });
             });
 
-            if (@json($errors->any())) {
+            if (oldContext === 'plataforma') {
+                openPlataformaModal();
+            } else if (oldContext === 'modelo') {
                 openModal();
             }
         })();

@@ -47,7 +47,7 @@ TXT,
                 'type' => 'function',
                 'name' => 'enviar_media',
                 'description' => <<<TXT
-Use para enviar áudio/imagem/vídeo hospedado publicamente em qualquer momento do atendimento, quando a estratégia pedir envio de mídia.
+Use para enviar áudio/imagem/vídeo hospedado publicamente em qualquer momento do atendimento, quando a estratégia pedir envio de mídia. Não use essa tool para links do youtube.
 TXT,
                 'parameters' => [
                     'type' => 'object',

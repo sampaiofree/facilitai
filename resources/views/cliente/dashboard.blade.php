@@ -16,7 +16,16 @@
 @endsection
 
 @section('content')
-    <div class="rounded-xl bg-white p-6 shadow-md">
-        <p class="text-sm text-slate-600">Dashboard do cliente pronta para receber novos modulos.</p>
+    <div class="grid gap-4 md:grid-cols-2">
+        <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Conexões</div>
+            <div class="mt-2 text-3xl font-semibold text-slate-900">{{ $conexoesCount ?? 0 }}</div>
+            <p class="mt-1 text-sm text-slate-500">Conexões ativas registradas.</p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="text-xs font-semibold uppercase tracking-wide text-slate-400">Conversas</div>
+            <div class="mt-2 text-3xl font-semibold text-slate-900">{{ $conversasCount ?? 0 }}</div>
+            <p class="mt-1 text-sm text-slate-500">Leads cadastrados no seu painel.</p>
+        </div>
     </div>
 @endsection

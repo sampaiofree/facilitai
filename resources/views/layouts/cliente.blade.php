@@ -23,26 +23,38 @@
     @stack('head')
 </head>
 <body class="bg-slate-100 text-slate-900">
+    @php
+        $menuBg = $agencySettings?->primary_color ?: '#0f172a';
+        $logoUrl = $agencySettings?->logo_path
+            ? Storage::disk('public')->url($agencySettings->logo_path)
+            : null;
+    @endphp
     <div class="min-h-screen">
         @if(auth('client')->check())
-            <header class="bg-white border-b border-slate-200">
+            <header class="border-b border-white/10 text-white" style="background-color: {{ $menuBg }};">
                 <div class="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between gap-4">
-                    <div class="flex items-center gap-4 text-sm font-semibold text-slate-800">
-                        <a href="{{ route('cliente.dashboard') }}" class="{{ request()->routeIs('cliente.dashboard') ? 'text-blue-600' : 'hover:text-blue-600' }}">
+                    <div class="flex items-center gap-4 text-sm font-semibold text-white/80">
+                        @if($logoUrl)
+                            <img src="{{ $logoUrl }}" alt="Logo" class="h-8 w-8 rounded-lg bg-white/10 object-contain p-1">
+                        @endif
+                        <a href="{{ route('cliente.dashboard') }}" class="{{ request()->routeIs('cliente.dashboard') ? 'text-white' : 'hover:text-white' }}">
                             Dashboard
                         </a>
-                        <a href="{{ route('cliente.conexoes.index') }}" class="{{ request()->routeIs('cliente.conexoes.*') ? 'text-blue-600' : 'hover:text-blue-600' }}">
+                        <a href="{{ route('cliente.conexoes.index') }}" class="{{ request()->routeIs('cliente.conexoes.*') ? 'text-white' : 'hover:text-white' }}">
                             Conexões
                         </a>
-                        <a href="{{ route('cliente.library.index') }}" class="{{ request()->routeIs('cliente.library.*') ? 'text-blue-600' : 'hover:text-blue-600' }}">
+                        <a href="{{ route('cliente.conversas.index') }}" class="{{ request()->routeIs('cliente.conversas.*') ? 'text-white' : 'hover:text-white' }}">
+                            Conversas
+                        </a>
+                        <a href="{{ route('cliente.library.index') }}" class="{{ request()->routeIs('cliente.library.*') ? 'text-white' : 'hover:text-white' }}">
                             Library
                         </a>
                     </div>
-                    <div class="flex items-center gap-3 text-sm text-slate-700">
+                    <div class="flex items-center gap-3 text-sm text-white/80">
                         <span>{{ auth('client')->user()->nome ?? 'Cliente' }}</span>
                         <form method="POST" action="{{ route('cliente.logout') }}">
                             @csrf
-                            <button type="submit" class="rounded-lg border border-slate-200 px-3 py-1 font-semibold text-slate-700 hover:bg-slate-50">
+                            <button type="submit" class="rounded-lg border border-white/20 px-3 py-1 font-semibold text-white hover:bg-white/10">
                                 Sair
                             </button>
                         </form>
@@ -60,6 +72,7 @@
         @endif
 
         <main class="px-6 py-8">
+            <div class="mx-auto max-w-6xl">
             @if (session('success'))
                 <div class="mb-6 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                     {{ session('success') }}
@@ -81,6 +94,7 @@
             @endif
 
             @yield('content')
+            </div>
         </main>
     </div>
     @stack('scripts')
