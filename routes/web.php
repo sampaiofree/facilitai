@@ -41,6 +41,7 @@ use App\Http\Controllers\Agencia\AgenciaTagController;
 use App\Http\Controllers\Agencia\ClienteLeadController as AgenciaClienteLeadController;
 use App\Http\Controllers\Agencia\ImageController as AgenciaImageController;
 use App\Http\Controllers\Agencia\LibraryEntryController as AgenciaLibraryEntryController;
+use App\Http\Controllers\Agencia\OpenAIController as AgenciaOpenAIController;
 use App\Http\Controllers\Cliente\ClienteAuthController;
 use App\Http\Controllers\Cliente\ClienteDashboardController;
 use App\Http\Controllers\Cliente\ClienteLeadController as ClienteClienteLeadController;
@@ -322,6 +323,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::post('conversas/import', [AgenciaClienteLeadController::class, 'import'])->name('conversas.import');
     Route::post('conversas/preview', [AgenciaClienteLeadController::class, 'preview'])->name('conversas.preview');
     Route::get('conversas/export', [AgenciaClienteLeadController::class, 'export'])->name('conversas.export');
+    Route::get('openai/conv_id', [AgenciaOpenAIController::class, 'convId'])->name('openai.conv_id');
     Route::put('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'update'])->name('conversas.update');
     Route::delete('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'destroy'])->name('conversas.destroy');
     Route::post('sequences', [AgenciaSequenceController::class, 'store'])->name('sequences.store');

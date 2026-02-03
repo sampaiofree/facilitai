@@ -19,6 +19,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Carbon;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -163,31 +164,63 @@ class ProcessIncomingMessageJob implements ShouldQueue
         }
 
         $cacheKey = "debounce:{$lead->id}:{$assistant->id}";
-        $buffer = Cache::get($cacheKey, []);
-        $agora = Carbon::now()->timestamp;
+        $pendingKey = "debounce-pending:{$lead->id}:{$assistant->id}";
+        $lockKey = "debounce-lock:{$lead->id}:{$assistant->id}";
+        $bufferMessagesCount = 0;
+        $createdPending = false;
 
-        if (empty($buffer)) {
-            $buffer = [
-                'started_at' => $agora,
-                'last_at' => $agora,
-                'messages' => [$text],
-                'data' => $payload,
-            ];
-        } else {
-            $buffer['last_at'] = $agora;
-            $buffer['messages'][] = $text;
-            $buffer['messages'] = array_slice($buffer['messages'], -10);
-            $buffer['data'] = $payload;
+        try {
+            Cache::lock($lockKey, 3)->block(2, function () use (
+                $cacheKey,
+                $pendingKey,
+                $payload,
+                $text,
+                &$bufferMessagesCount,
+                &$createdPending
+            ) {
+                $buffer = Cache::get($cacheKey, []);
+                $agora = Carbon::now()->timestamp;
+
+                if (empty($buffer)) {
+                    $buffer = [
+                        'started_at' => $agora,
+                        'last_at' => $agora,
+                        'messages' => [$text],
+                        'data' => $payload,
+                    ];
+                } else {
+                    $buffer['last_at'] = $agora;
+                    $buffer['messages'][] = $text;
+                    $buffer['messages'] = array_slice($buffer['messages'], -10);
+                    $buffer['data'] = $payload;
+                }
+
+                $buffer['pending_key'] = $pendingKey;
+
+                Cache::put($cacheKey, $buffer, now()->addSeconds(self::DEBOUNCE_CACHE_TTL_SECONDS));
+
+                $pendingTtl = now()->addSeconds($this->maxWaitSeconds + $this->debounceSeconds + 30);
+                $createdPending = Cache::add($pendingKey, true, $pendingTtl);
+                $bufferMessagesCount = count($buffer['messages'] ?? []);
+            });
+        } catch (LockTimeoutException $exception) {
+            Log::channel('process_job')->warning('Debounce lock timeout.', $this->logContext([
+                'cache_key' => $cacheKey,
+            ]));
+
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, null, false, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds(1))->onQueue('processarconversa');
+            return;
         }
 
-        Cache::put($cacheKey, $buffer, now()->addSeconds(self::DEBOUNCE_CACHE_TTL_SECONDS));
-
-        self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
-            ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+        if ($createdPending) {
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+        }
 
         $this->logSilentReturn('debounce_buffered', [
             'cache_key' => $cacheKey,
-            'messages_count' => count($buffer['messages']),
+            'messages_count' => $bufferMessagesCount,
             'debounce_seconds' => $this->debounceSeconds,
             'max_wait_seconds' => $this->maxWaitSeconds,
         ]);
@@ -200,22 +233,37 @@ class ProcessIncomingMessageJob implements ShouldQueue
             return;
         }
 
-        $buffer = Cache::get($this->cacheKey);
+        $pendingKey = $this->pendingKeyFromCacheKey($this->cacheKey);
+        $lockKey = $this->lockKeyFromCacheKey($this->cacheKey);
+        $buffer = null;
+
+        try {
+            Cache::lock($lockKey, 3)->block(2, function () use (&$buffer) {
+                $buffer = Cache::get($this->cacheKey);
+            });
+        } catch (LockTimeoutException $exception) {
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+            return;
+        }
+
         if (empty($buffer) || empty($buffer['messages'])) {
             $this->logSilentReturn('debounce_buffer_empty', [
                 'cache_key' => $this->cacheKey,
             ]);
-            $payload = $this->payload;
-            $payload['is_media'] = $this->isMedia;
-            //$this->sendDebouncedPayload($conexao, $payload);
+            if ($pendingKey) {
+                Cache::forget($pendingKey);
+            }
             return;
         }
 
         $now = Carbon::now();
         $lastAt = Carbon::createFromTimestamp($buffer['last_at'] ?? $now->timestamp);
         $startedAt = Carbon::createFromTimestamp($buffer['started_at'] ?? $now->timestamp);
+        $debounceThreshold = $now->copy()->subSeconds($this->debounceSeconds);
+        $maxWaitThreshold = $now->copy()->subSeconds($this->maxWaitSeconds);
 
-        if ($lastAt->gt($now->subSeconds($this->debounceSeconds)) && $startedAt->gt($now->subSeconds($this->maxWaitSeconds))) {
+        if ($lastAt->gt($debounceThreshold) && $startedAt->gt($maxWaitThreshold)) {
             self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
                 ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
             $this->logSilentReturn('debounce_waiting', [
@@ -232,10 +280,65 @@ class ProcessIncomingMessageJob implements ShouldQueue
         $payload = is_array($buffer['data'] ?? null) ? $buffer['data'] : $this->payload;
         $payload['is_media'] = $this->isMedia;
         $payload['text'] = $combined;
+        $lastAtSent = (int) ($buffer['last_at'] ?? $now->timestamp);
 
-        Cache::forget($this->cacheKey);
+        try {
+            $this->sendDebouncedPayload($conexao, $payload);
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->warning('Falha ao enviar payload debounced.', $this->logContext([
+                'cache_key' => $this->cacheKey,
+                'error' => $exception->getMessage(),
+            ]));
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+            return;
+        }
 
-        $this->sendDebouncedPayload($conexao, $payload);
+        try {
+            Cache::lock($lockKey, 3)->block(2, function () use ($lastAtSent, $pendingKey) {
+                $current = Cache::get($this->cacheKey);
+                if (empty($current)) {
+                    if ($pendingKey) {
+                        Cache::forget($pendingKey);
+                    }
+                    return;
+                }
+
+                $currentLastAt = (int) ($current['last_at'] ?? 0);
+                if ($currentLastAt > $lastAtSent) {
+                    self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+                        ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+                    return;
+                }
+
+                Cache::forget($this->cacheKey);
+                if ($pendingKey) {
+                    Cache::forget($pendingKey);
+                }
+            });
+        } catch (LockTimeoutException $exception) {
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+            return;
+        }
+    }
+
+    private function pendingKeyFromCacheKey(?string $cacheKey): ?string
+    {
+        if (!$cacheKey) {
+            return null;
+        }
+
+        return preg_replace('/^debounce:/', 'debounce-pending:', $cacheKey);
+    }
+
+    private function lockKeyFromCacheKey(?string $cacheKey): ?string
+    {
+        if (!$cacheKey) {
+            return null;
+        }
+
+        return preg_replace('/^debounce:/', 'debounce-lock:', $cacheKey);
     }
 
     private function sendDebouncedPayload(Conexao $conexao, array $payload): void

@@ -503,6 +503,7 @@
             const leadSearchClear = document.getElementById('leadSearchClear');
             const leadTableContainer = document.getElementById('leadTableContainer');
             const filtersQueryInput = filtersMenu?.querySelector('input[name="q"]');
+            const convIdBaseUrl = @json(route('agencia.openai.conv_id'));
             const previewEmpty = document.getElementById('previewEmpty');
             const previewCards = document.getElementById('previewCards');
             const previewPhoneStatus = document.getElementById('previewPhoneStatus');
@@ -661,14 +662,21 @@
                     </tr>`;
                 }
 
-                return list.map(item => `
+                return list.map(item => {
+                    const convId = item.conv_id || '-';
+                    const convLink = convId && convId !== '-'
+                        ? `<a class="text-blue-600 hover:underline" href="${convIdBaseUrl}?conv_id=${encodeURIComponent(convId)}">${convId}</a>`
+                        : convId;
+
+                    return `
                     <tr>
                         <td class="px-3 py-2 font-medium text-slate-800">${item.assistant}</td>
                         <td class="px-3 py-2">${item.version}</td>
-                        <td class="px-3 py-2 font-mono text-[11px]">${item.conv_id}</td>
+                        <td class="px-3 py-2 font-mono text-[11px]">${convLink}</td>
                         <td class="px-3 py-2">${item.created_at}</td>
                     </tr>
-                `).join('');
+                `;
+                }).join('');
             };
 
             const parseLeadData = (button) => {
