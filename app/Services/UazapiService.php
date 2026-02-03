@@ -169,7 +169,7 @@ class UazapiService
         }
     }
 
-    public function chat_check(array $numbers): array
+    public function chat_check(array $numbers, ?string $token = null): array
     {
         $normalized = array_map(function ($value) {
             return is_string($value) ? trim($value) : $value;
@@ -195,9 +195,14 @@ class UazapiService
         $endpoint = rtrim($this->baseUrl ?: 'https://free.uazapi.com', '/') . '/chat/check';
 
         try {
-            $response = $this->client->post($endpoint, [
+            $options = [
                 'json' => $validator->validated(),
-            ]);
+            ];
+            if ($token !== null && $token !== '') {
+                $options['headers'] = $this->instanceHeaders($token);
+            }
+
+            $response = $this->client->post($endpoint, $options);
 
             $payload = $this->successResponse($response);
             $payload['status'] = $response->getStatusCode();

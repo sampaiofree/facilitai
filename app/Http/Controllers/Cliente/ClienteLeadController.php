@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Cliente;
 
 use App\Http\Controllers\Controller;
 use App\Models\ClienteLead;
+use App\Models\Conexao;
 use App\Models\Tag;
 use App\Services\UazapiService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -83,7 +84,21 @@ class ClienteLeadController extends Controller
                     ->with('error', 'Número inválido. Informe o telefone com DDI (ex: 55).');
             }
 
-            $chatCheck = $this->uazapiService->chat_check([$normalizedPhone]);
+            $conexao = Conexao::query()
+                ->where('cliente_id', $cliente->id)
+                ->whereNotNull('whatsapp_api_key')
+                ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'uazapi'))
+                ->orderByRaw("status = 'connected' desc")
+                ->latest('updated_at')
+                ->first();
+
+            if (!$conexao?->whatsapp_api_key) {
+                return redirect()
+                    ->route('cliente.conversas.index')
+                    ->with('error', 'Conexao Uazapi nao configurada.');
+            }
+
+            $chatCheck = $this->uazapiService->chat_check([$normalizedPhone], $conexao->whatsapp_api_key);
             $status = $chatCheck['status'] ?? null;
             if (!empty($chatCheck['error']) || $status !== 200) {
                 return redirect()
