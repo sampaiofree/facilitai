@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\ClienteLead;
 
 class SequenceChat extends Model
 {
@@ -11,7 +12,7 @@ class SequenceChat extends Model
 
     protected $fillable = [
         'sequence_id',
-        'chat_id',
+        'cliente_lead_id',
         'passo_atual_id',
         'status',
         'iniciado_em',
@@ -29,9 +30,9 @@ class SequenceChat extends Model
         return $this->belongsTo(Sequence::class);
     }
 
-    public function chat()
+    public function clienteLead()
     {
-        return $this->belongsTo(Chat::class);
+        return $this->belongsTo(ClienteLead::class);
     }
 
     public function step()

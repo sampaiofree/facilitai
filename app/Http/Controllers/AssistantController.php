@@ -3,14 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Credential;
-use App\Services\OpenAIService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Services\PromptBuilderService;
 use App\Models\Payment;
 use App\Models\Assistant;
-use App\Models\Chat;
 use Illuminate\Support\Str;
 
 class AssistantController extends Controller
@@ -43,93 +41,6 @@ class AssistantController extends Controller
     // Busca a lista de assistentes de uma credencial específica
     
 
-
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'instructions' => 'required|string',
-            'credential_id' => 'nullable',
-        ]);
-
-        // Busca a credencial para garantir que ela pertence ao usuário e para obter o token
-        $credential = Credential::where('id', $validated['credential_id'])
-                                ->where('user_id', Auth::id())
-                                ->firstOrFail();
-        try {
-            $openaiService = new OpenAIService($credential->token);
-
-            // Define as ferramentas padrão que todo assistente terá
-            $tools = [
-            [
-                'type' => 'function',
-                'function' => [ // <-- O valor é um único objeto
-                    'name' => 'buscar_get',
-                    'description' => 'Busca informações via GET em tempo real de uma URL para responder perguntas que exigem dados atuais.',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'url' => [
-                                'type' => 'string',
-                                'description' => 'A URL completa da fonte da informação.'
-                            ],
-                        ],
-                        'required' => ['url'],
-                    ],
-                ]
-            ],
-            [
-                'type' => 'function',
-                'function' => [ // <-- O valor é um único objeto
-                    'name' => 'enviar_imagem',
-                    'description' => 'Envia imagem usando uma url. Sempre que for necessário enviar uma imagem para um usuário use esta ferramenta.',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'url' => [
-                                'type' => 'string',
-                                'description' => 'A URL da imagem que será enviada.'
-                            ],
-                        ],
-                        'required' => ['url'],
-                    ],
-                ]
-            ],
-            [
-                'type' => 'function',
-                'function' => [ // <-- O valor é um único objeto
-                    'name' => 'notificar_adm',
-                    'description' => 'Notifica um administrador humano quando a conversa precisa de intervenção ou escalonamento.',
-                    'parameters' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'numeros_telefone' => [
-                                'type' => 'array',
-                                'items' => ['type' => 'string'],
-                                'description' => 'Lista de números de telefone dos administradores com o codigo do api, apenas número sem espaços.'
-                            ],
-                            'mensagem' => [
-                                'type' => 'string',
-                                'description' => 'A mensagem a ser enviada para os administradores.'
-                            ],
-                        ],
-                        'required' => ['numeros_telefone', 'mensagem'],
-                    ],
-                ]
-            ],
-        ];
-
-            $openaiAssistant = $openaiService->createAssistant($validated['name'], $validated['instructions'], $tools);
-
-            // Retorna o assistente recém-criado como JSON
-            return response()->json($openaiAssistant);
-
-        } catch (\Exception $e) {
-            //dd($e);
-            Log::error("Falha ao criar assistente via API para o usuário " . Auth::id() . ": " . $e->getMessage());
-            return response()->json(['error' => 'Falha ao criar assistente na OpenAI.'], 500);
-        }
-    }
 
     /**
      * Wizard simples - exibe a página de criação rápida de assistente.

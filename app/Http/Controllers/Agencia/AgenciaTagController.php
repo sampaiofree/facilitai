@@ -1,0 +1,54 @@
+<?php
+
+namespace App\Http\Controllers\Agencia;
+
+use App\Http\Controllers\Controller;
+use App\Models\Tag;
+use Illuminate\Http\Request;
+
+class AgenciaTagController extends Controller
+{
+    public function index(Request $request)
+    {
+        $tags = Tag::where('user_id', $request->user()->id)
+            ->orderBy('name')
+            ->get();
+
+        return view('agencia.tags.index', compact('tags'));
+    }
+
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'tag_id' => ['nullable', 'integer'],
+            'name' => ['required', 'string', 'max:50'],
+            'color' => ['nullable', 'string', 'max:50'],
+            'description' => ['nullable', 'string'],
+        ]);
+
+        $payload = [
+            'user_id' => $request->user()->id,
+            'name' => $data['name'],
+            'color' => $data['color'] ?? null,
+            'description' => $data['description'] ?? null,
+        ];
+
+        if (!empty($data['tag_id'])) {
+            $tag = Tag::where('user_id', $request->user()->id)->findOrFail($data['tag_id']);
+            $tag->update($payload);
+            $message = 'Tag atualizada com sucesso.';
+        } else {
+            Tag::create($payload);
+            $message = 'Tag criada com sucesso.';
+        }
+
+        return redirect()->route('agencia.tags.index')->with('success', $message);
+    }
+
+    public function destroy(Request $request, Tag $tag)
+    {
+        abort_unless($tag->user_id === $request->user()->id, 403);
+        $tag->delete();
+        return redirect()->route('agencia.tags.index')->with('success', 'Tag removida com sucesso.');
+    }
+}

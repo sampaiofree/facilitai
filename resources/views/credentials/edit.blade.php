@@ -21,6 +21,16 @@
                                 {{-- <option value="Gemini" @selected(old('name', $credential->name) == 'Gemini')>Gemini</option> --}}
                             </select>
                         </div>
+
+                        <div class="mt-4">
+                            <x-input-label for="iaplataforma_id" value="Plataforma de IA" />
+                            <select id="iaplataforma_id" name="iaplataforma_id" class="block mt-1 w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm" required>
+                                <option value="">Selecione uma plataforma</option>
+                                @foreach ($iaplataformas as $iaplataforma)
+                                    <option value="{{ $iaplataforma->id }}" @selected(old('iaplataforma_id', $credential->iaplataforma_id) == $iaplataforma->id)>{{ $iaplataforma->nome }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                         {{-- CAMPO RÓTULO NA EDIÇÃO --}}
                         <div class="mt-4">
                             <x-input-label for="label" value="Rótulo (Ex: Chave do Projeto X, Token Pessoal)" />

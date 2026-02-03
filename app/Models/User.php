@@ -9,6 +9,8 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Auth\Notifications\ResetPassword as ResetPasswordNotification;
 use Illuminate\Auth\Notifications\VerifyEmail as VerifyEmailNotification;
+use App\Models\Conexao;
+use App\Models\Plan;
 use App\Models\Sequence;
 
 class User extends Authenticatable implements MustVerifyEmail 
@@ -25,10 +27,12 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
-        'is_admin' => 'boolean',
-        'cpf_cnpj', 
-        'customer_asaas_id', 
+        'is_admin',
+        'cpf_cnpj',
+        'customer_asaas_id',
         'mobile_phone',
+        'plan_id',
+        'storage_used_mb',
     ];
 
     /**
@@ -51,6 +55,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'storage_used_mb' => 'integer',
         ];
     }
 
@@ -59,6 +64,16 @@ class User extends Authenticatable implements MustVerifyEmail
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
+    public function clientes()
+    {
+        return $this->hasMany(\App\Models\Cliente::class);
+    }
+
+    public function conexoesCount(): int
+    {
+        return Conexao::whereHas('cliente', fn ($q) => $q->where('user_id', $this->id))->count();
+    }
+
     public function instances()
     {
         return $this->hasMany(Instance::class);
@@ -119,48 +134,16 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function slots(): int
     {
-        if ($this->is_admin) {return 20;}
-        if ($this->canManageCredentials()) {
-            if($this->hotmartWebhooks()){
-                
-                //PLANO 1 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='c8n7uxen'){return 1;}  
-                if($this->hotmartWebhooks()->offer_code=='a2ykgt3s'){return 1;} 
-                if($this->hotmartWebhooks()->offer_code=='6507rpho'){return 1;} 
-                if($this->hotmartWebhooks()->offer_code=='qgwj4ldg'){return 1;} 
-                if($this->hotmartWebhooks()->offer_code=='kemggz0j'){return 1;} 
-                if($this->hotmartWebhooks()->offer_code=='yqncr3mx'){return 1;} 
-
-                //PLANO 3 CONEXÃO
-                if($this->hotmartWebhooks()->offer_code=='hkasortp'){return 3;} 
-                if($this->hotmartWebhooks()->offer_code=='ghpkyyuq'){return 3;} 
-                if($this->hotmartWebhooks()->offer_code=='bxgewgqh'){return 3;} 
-                if($this->hotmartWebhooks()->offer_code=='77v5yieb'){return 3;}
-                if($this->hotmartWebhooks()->offer_code=='bcocek3y'){return 3;}
-                
-                //PLANO 5 CONEXÔES
-                if($this->hotmartWebhooks()->offer_code=='kbejejiv'){return 5;} 
-                if($this->hotmartWebhooks()->offer_code=='x8jw71pc'){return 5;} 
-                if($this->hotmartWebhooks()->offer_code=='seesl6xb'){return 5;} 
-                if($this->hotmartWebhooks()->offer_code=='ca9g29lkJWT'){return 5;} 
-                if($this->hotmartWebhooks()->offer_code=='cyvxmia3'){return 5;} 
-
-                //PLANO 10 CONEXÔES
-                if($this->hotmartWebhooks()->offer_code=='r62eq6jh'){return 10;} 
-                if($this->hotmartWebhooks()->offer_code=='kaypzmv9'){return 10;} 
-
-                //PLANO 20 CONEXÔES
-                if($this->hotmartWebhooks()->offer_code=='2sr5xelfDRP'){return 20;} 
-                if($this->hotmartWebhooks()->offer_code=='2sr5xelf'){return 20;} 
-                
-                return 1;
-            }
-            return 1;
-        }else{
-            return 1;
+        if ($this->is_admin) {
+            return 20;
         }
 
+        $limit = $this->plan?->max_conexoes;
+        if ($limit && $limit > 0) {
+            return (int) $limit;
+        }
 
+        return 1;
     }
 
     /**
@@ -168,9 +151,10 @@ class User extends Authenticatable implements MustVerifyEmail
      *
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
-    public function chats() // <-- O MÉTODO QUE FALTAVA
+    public function chats() // <-- Chat removido
     {
-        return $this->hasMany(Chat::class);
+        // Relacionamento suspenso.
+        return null;
     }
 
     public function images()
@@ -196,6 +180,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function folders()
     {
         return $this->hasMany(\App\Models\Folder::class);
+    }
+
+    public function plan()
+    {
+        return $this->belongsTo(Plan::class);
     }
 
     public function hotmartWebhooks()

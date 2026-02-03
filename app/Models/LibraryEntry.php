@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use App\Models\Cliente;
 
 class LibraryEntry extends Model
 {
@@ -12,6 +13,7 @@ class LibraryEntry extends Model
 
     protected $fillable = [
         'user_id',
+        'cliente_id',
         'title',
         'slug',
         'content',
@@ -40,5 +42,10 @@ class LibraryEntry extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class);
     }
 }

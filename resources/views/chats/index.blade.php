@@ -221,39 +221,6 @@
                                         </div>
                                     </div>
 
-                                    <div class="rounded-lg border border-gray-100 bg-white p-3">
-                                        <div class="flex items-center justify-between">
-                                            <h4 class="text-sm font-semibold text-gray-800">Sequências</h4>
-                                        </div>
-        <div class="mt-3 grid grid-cols-2 gap-3">
-            <div>
-                <p class="text-xs font-semibold text-gray-500 uppercase mb-2">É</p>
-                <div class="space-y-1 max-h-32 overflow-auto pr-1">
-                    @foreach ($sequences as $sequence)
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" name="sequences_in[]" value="{{ $sequence->id }}"
-                                {{ in_array($sequence->id, $filters['sequences_in']) ? 'checked' : '' }}
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                            {{ $sequence->name }}
-                        </label>
-                    @endforeach
-                </div>
-            </div>
-            <div>
-                <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Não é</p>
-                <div class="space-y-1 max-h-32 overflow-auto pr-1">
-                    @foreach ($sequences as $sequence)
-                        <label class="flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" name="sequences_out[]" value="{{ $sequence->id }}"
-                                {{ in_array($sequence->id, $filters['sequences_out']) ? 'checked' : '' }}
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                            {{ $sequence->name }}
-                        </label>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-                                    </div>
                                 </div>
                             </div>
                         </form>
@@ -281,15 +248,6 @@
                         </svg>
                         Exportar CSV
                     </a>
-                        <form id="sequence-form" method="POST" action="{{ route('chats.sequence.subscribe') }}" class="hidden">
-                            @csrf
-                            <input type="hidden" name="sequence_id" id="sequence_id">
-                        </form>
-                        <button type="button" id="open-sequence-modal" class="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-purple-500">
-                            <!-- Sinal de mais simples, talvez aumentando um pouco o tamanho -->
-                            <span class="text-lg leading-none">+</span> 
-                            Inscrever em sequência
-                        </button>
                     </div>
 
                     <div class="overflow-x-auto">
@@ -307,9 +265,6 @@
                                     </th>
                                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Aguardando
-                                    </th>
-                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Sequencias
                                     </th>
                                     <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Bot
@@ -364,28 +319,6 @@
                                                 {{ $chat->aguardando_atendimento ? 'Sim' : 'Não' }}
                                             </button>
                                         </td>
-                                        <td class="px-4 py-3 text-xs text-gray-600 text-center">
-                                            @php
-                                                $sequencias = $chat->sequenceChats()->where('status', 'em_andamento')->with('sequence')->get();
-                                            @endphp
-                                            @if ($sequencias->isEmpty())
-                                                <span class="text-gray-400">Nenhuma</span>
-                                            @else
-                                                <div class="flex justify-center flex-wrap gap-1">
-                                                    @foreach ($sequencias as $seqChat)
-                                                        <button type="button"
-                                                            id="seq-chip-{{ $seqChat->id }}"
-                                                            class="sequence-remove px-2 py-1 rounded-full bg-purple-50 text-purple-700 font-semibold hover:bg-purple-100 inline-flex items-center gap-1"
-                                                            data-url="{{ route('sequences.chats.destroy', [$seqChat->sequence_id, $seqChat->id]) }}">
-                                                            <span>{{ $seqChat->sequence?->name ?? 'Sequência' }}</span>
-                                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                                            </svg>
-                                                        </button>
-                                                    @endforeach
-                                                </div>
-                                            @endif
-                                        </td>
                                         <td class="px-4 py-3 text-center">
                                             <button type="button"
                                                 class="toggle-bot-btn inline-flex items-center rounded-full px-4 py-1 text-xs font-semibold shadow transition {{ $chat->bot_enabled ? 'bg-emerald-500 text-white hover:bg-emerald-400' : 'bg-gray-200 text-gray-700 hover:bg-gray-300' }}"
@@ -405,7 +338,7 @@
                                                     data-chat-conv="{{ $chat->conv_id }}"
                                                     data-chat-assistente="{{ $chat->assistant?->name ?? $chat->assistente?->name ?? '—' }}"
                                                     data-chat-instancia="{{ $chat->instance?->name ?? '—' }}"
-                                                    data-chat-sequencias='@json($chat->sequenceChats->where('status','em_andamento')->pluck('sequence.name')->filter()->values())'>
+                                                    >
                                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.577 3.01 9.964 7.183.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.577-3.01-9.964-7.178z" />
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -657,36 +590,6 @@
                 <button type="button" id="closeViewModalFooter"
                     class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                     Fechar
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div id="sequenceModal" class="fixed inset-0 hidden z-50 items-center justify-center bg-black/40 backdrop-blur">
-        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-            <div class="flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-gray-800">Inscrever em sequência</h3>
-                <button type="button" id="closeSequenceModal" class="text-gray-500 hover:text-gray-700">
-                    ✕
-                </button>
-            </div>
-            <div class="mt-4 space-y-3">
-                <p class="text-sm text-gray-600">Escolha a sequência para inscrever os chats selecionados.</p>
-                <select id="sequenceSelect" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">Selecione uma sequência</option>
-                    @foreach ($sequences as $sequence)
-                        <option value="{{ $sequence->id }}">{{ $sequence->name }} {{ $sequence->active ? '' : '(inativa)' }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="mt-6 flex justify-end gap-3">
-                <button type="button" id="cancelSequence"
-                    class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
-                    Cancelar
-                </button>
-                <button type="button" id="confirmSequence"
-                    class="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-purple-500">
-                    Inscrever
                 </button>
             </div>
         </div>
@@ -981,60 +884,6 @@
 
             const getSelectedChats = () => Array.from(document.querySelectorAll('input.bulk-checkbox:checked')).map(box => box.value);
 
-            const seqForm = document.getElementById('sequence-form');
-            const openSeqBtn = document.getElementById('open-sequence-modal');
-            const sequenceModal = document.getElementById('sequenceModal');
-            const closeSequenceModal = document.getElementById('closeSequenceModal');
-            const cancelSequence = document.getElementById('cancelSequence');
-            const confirmSequence = document.getElementById('confirmSequence');
-            const sequenceSelect = document.getElementById('sequenceSelect');
-
-            const openSequenceModal = () => {
-                const selected = getSelectedChats();
-                if (!selected.length) {
-                    Swal.fire('Selecione ao menos um chat.');
-                    return;
-                }
-                sequenceModal.classList.remove('hidden');
-                sequenceModal.classList.add('flex');
-            };
-
-            const closeSequence = () => {
-                sequenceModal.classList.add('hidden');
-                sequenceModal.classList.remove('flex');
-            };
-
-            openSeqBtn?.addEventListener('click', openSequenceModal);
-            closeSequenceModal?.addEventListener('click', closeSequence);
-            cancelSequence?.addEventListener('click', closeSequence);
-            sequenceModal?.addEventListener('click', (event) => {
-                if (event.target === sequenceModal) {
-                    closeSequence();
-                }
-            });
-
-            confirmSequence?.addEventListener('click', () => {
-                const selected = getSelectedChats();
-                if (!selected.length) {
-                    Swal.fire('Selecione ao menos um chat.');
-                    return;
-                }
-                if (!sequenceSelect.value) {
-                    Swal.fire('Selecione a sequência.');
-                    return;
-                }
-                document.getElementById('sequence_id').value = sequenceSelect.value;
-                seqForm.querySelectorAll('input[name=\"selected[]\"]').forEach(node => node.remove());
-                selected.forEach(value => {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = 'selected[]';
-                    input.value = value;
-                    seqForm.appendChild(input);
-                });
-                seqForm.submit();
-            });
-
             // Toggle aguardando_atendimento inline
             const awaitingButtons = document.querySelectorAll('.awaiting-toggle');
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -1125,42 +974,6 @@
                     } catch (error) {
                         Swal.fire('Erro ao atualizar o bot. Tente novamente.');
                     } finally {
-                        button.disabled = false;
-                        button.classList.remove('opacity-70');
-                    }
-                });
-            });
-
-            // Remover chat da sequência inline
-            const seqRemoveButtons = document.querySelectorAll('.sequence-remove');
-            seqRemoveButtons.forEach(button => {
-                button.addEventListener('click', async () => {
-                    const url = button.dataset.url;
-                    if (!url) return;
-
-                    button.disabled = true;
-                    button.classList.add('opacity-70');
-
-                    const formData = new FormData();
-                    formData.append('_method', 'DELETE');
-                    formData.append('_token', csrfToken || '');
-
-                    try {
-                        const response = await fetch(url, {
-                            method: 'POST',
-                            body: formData,
-                            headers: {
-                                'Accept': 'application/json',
-                            },
-                        });
-
-                        if (!response.ok) {
-                            throw new Error('Falha ao remover.');
-                        }
-
-                        button.remove();
-                    } catch (error) {
-                        Swal.fire('Erro ao remover da sequência. Tente novamente.');
                         button.disabled = false;
                         button.classList.remove('opacity-70');
                     }

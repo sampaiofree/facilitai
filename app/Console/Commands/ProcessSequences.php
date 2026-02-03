@@ -4,10 +4,10 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\ProcessIncomingMessageJob;
 use App\Models\SequenceChat;
 use App\Models\SequenceLog;
 use App\Models\SequenceStep;
-use App\Services\ConversationsService;
 use Illuminate\Support\Carbon;
 
 class ProcessSequences extends Command
@@ -20,7 +20,7 @@ class ProcessSequences extends Command
         $intervaloMinutos = 2;
         $ultimoEnvioLocal = null;
 
-        SequenceChat::with(['sequence', 'chat.tags', 'chat.instance'])
+        SequenceChat::with(['sequence', 'clienteLead', 'clienteLead.tags'])
             ->where('status', 'em_andamento')
             ->where(function ($q) {
                 $agoraLocal = Carbon::now('America/Sao_Paulo');
@@ -36,7 +36,7 @@ class ProcessSequences extends Command
                         continue;
                     }
 
-                    $tagsChat = $inscricao->chat?->tags?->pluck('name')->map(fn ($t) => mb_strtolower($t))->unique() ?? collect();
+                    $tagsChat = $inscricao->clienteLead?->tags?->pluck('name')->map(fn ($t) => mb_strtolower($t))->unique() ?? collect();
                     $incluir = collect($seq->tags_incluir ?? [])->map(fn ($t) => mb_strtolower($t))->filter();
                     $excluir = collect($seq->tags_excluir ?? [])->map(fn ($t) => mb_strtolower($t))->filter();
 
@@ -75,26 +75,41 @@ class ProcessSequences extends Command
                         continue;
                     }
 
-                    if (!$inscricao->chat || !$inscricao->chat->bot_enabled) {
-                        $this->cancelarInscricao($inscricao, $step, 'Bot desativado ou chat ausente.');
+                    $lead = $inscricao->clienteLead;
+                    if (!$lead || !$lead->bot_enabled) {
+                        $this->cancelarInscricao($inscricao, $step, 'Bot desativado ou lead ausente.');
                         continue;
                     }
 
                     // Disparo
                     try {
                         $mensagem = $step->prompt;
-                        $telefone = $inscricao->chat->contact;
-                        $instancia = $inscricao->chat->instance_id;
+                        $agoraUtc = Carbon::now('UTC');
+                        $eventId = sprintf(
+                            'sequence:%d:chat:%d:step:%d:ts:%d',
+                            $seq->id,
+                            $inscricao->id,
+                            $step->ordem,
+                            $agoraUtc->valueOf()
+                        );
 
-                        $service = new ConversationsService($mensagem, $telefone, $instancia);
-                        
-                        $result = $service->enviarMSG();
-                        if ($result === false) {
-                            
-                            continue;
-                        }
+                        $payload = [
+                            'phone' => $lead->phone,
+                            'text' => $mensagem,
+                            'tipo' => 'text',
+                            'from_me' => false,
+                            'is_group' => false,
+                            'lead_name' => $lead->name ?? $lead->phone,
+                            'event_id' => $eventId,
+                            'message_timestamp' => $agoraUtc->valueOf(),
+                            'message_type' => 'conversation',
+                        ];
 
-                        $this->log($inscricao, $step, 'sucesso', 'Passo enviado.');
+                        $conexaoId = $seq->conexao?->id ?? $seq->conexao_id;
+                        ProcessIncomingMessageJob::dispatch($conexaoId, $lead->id, $payload)
+                            ->onQueue('processarconversa');
+
+                        $this->log($inscricao, $step, 'sucesso', 'Passo enfileirado para ProcessIncomingMessageJob.');
                         $momentoEnvio = Carbon::now('America/Sao_Paulo');
                         $ultimoEnvioLocal = $momentoEnvio;
                         $this->avancarPasso($inscricao, $step, $momentoEnvio);

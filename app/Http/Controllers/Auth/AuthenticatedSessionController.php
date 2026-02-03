@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use App\Models\HotmarlWebhook;
+use App\Models\AgencySetting;
 use App\Models\User;
 
 class AuthenticatedSessionController extends Controller
@@ -18,7 +19,17 @@ class AuthenticatedSessionController extends Controller
      */
     public function create(): View
     {
-        return view('auth.login');
+        $host = request()->getHost();
+        $appUrlHost = parse_url(config('app.url'), PHP_URL_HOST);
+        $domainAllowed = true;
+
+        if ($appUrlHost && strcasecmp($host, $appUrlHost) !== 0) {
+            $domainAllowed = AgencySetting::where('custom_domain', $host)->exists();
+        }
+
+        return view('auth.login', [
+            'domainAllowed' => $domainAllowed,
+        ]);
     }
 
     /**
@@ -32,16 +43,20 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
         // Verifica se o usuário é admin ou tem uma compra registrada
-        if (!$user->is_admin && !$user->hotmartWebhooks()) {
+        /*if (!$user->is_admin && !$user->hotmartWebhooks()) {
             Auth::logout(); // Desloga o usuário
 
             // Retorna para a tela de login com mensagem de erro
             return back()->withErrors([
                 'email' => 'Você precisa ter uma assinatura ativa para acessar o sistema.',
             ]);
-        }
+        }*/
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $targetPath = $user->is_admin
+            ? route('adm.dashboard', absolute: false)
+            : route('agencia.dashboard', absolute: false);
+
+        return redirect()->intended($targetPath);
     }
 
     /**

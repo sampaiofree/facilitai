@@ -11,7 +11,6 @@ class MassContact extends Model
 
     protected $fillable = [
         'campaign_id',
-        'chat_id',
         'numero',
         'status',
         'tentativa',
@@ -25,6 +24,7 @@ class MassContact extends Model
 
     public function chat()
     {
-        return $this->belongsTo(Chat::class);
+        // Relacionamento com chats removido.
+        return null;
     }
 }

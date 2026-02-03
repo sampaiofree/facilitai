@@ -4,23 +4,26 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\EvolutionWebhookController;
-use App\Http\Controllers\Api\HotmartWebhookController; 
+use App\Http\Controllers\Api\HotmartWebhookController;
+use App\Http\Controllers\Api\UazapiWebhookController;
 
 
 
-Route::post('/conversation-test', function (Request $request) {
+/*Route::post('/conversation-test', function (Request $request) {
     return response()->json([
         'status' => 'ok',
         'received' => $request->all()
     ]);
-});
+});*/
 
 Route::post('/webhook/asaas', [PaymentWebhookController::class, 'asaas']);
 
-Route::post('/evolution', [EvolutionWebhookController::class, 'handle']);
+//Route::post('/evolution', [EvolutionWebhookController::class, 'handle']);
 
-Route::post('/conversation', [EvolutionWebhookController::class, 'conversation']);
+//Route::post('/conversation', [EvolutionWebhookController::class, 'conversation']);
 
-Route::post('/hotmart', [HotmartWebhookController::class, 'handleWebhook']);
+//Route::post('/hotmart', [HotmartWebhookController::class, 'handleWebhook']);
 
-Route::post('/hotmart-test-simple', [HotmartWebhookController::class, 'testHotmart']);
+//Route::post('/hotmart-test-simple', [HotmartWebhookController::class, 'testHotmart']);
+
+Route::post('/uazapi/{evento}/{tipodemensagem}', [UazapiWebhookController::class, 'handle'])->name('api.uazapi.handle');

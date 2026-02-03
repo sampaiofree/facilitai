@@ -11,7 +11,6 @@ class Disponibilidade extends Model
     
     protected $fillable = [
         'agenda_id',
-        'chat_id',
         'data',
         'inicio',
         'fim',
@@ -27,7 +26,8 @@ class Disponibilidade extends Model
     }
 
     public function chat()
-{
-    return $this->belongsTo(Chat::class, 'chat_id');
-}
+    {
+        // Relacionamento com chats removido.
+        return null;
+    }
 }
