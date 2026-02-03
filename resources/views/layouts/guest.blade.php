@@ -48,13 +48,10 @@
             <div class="text-center">
                 <a href="/">
                     <!--<x-application-logo class="w-20 h-20 fill-current text-gray-500" /> -->
-                    <img src="{{ $agencyBranding['logo_url'] ?? asset('storage/homepage/facilitAI.png') }}" alt="Logo" style="max-height: 80px;">
+                    <img src="{{ $agencyBranding['logo_url'] ?? asset('storage/homepage/facilitAI.png') }}" alt="Logo" class="mx-auto block h-auto max-h-[80px]">
                 </a>
                 @if (!empty($agencyBranding['name']))
                     <p class="mt-2 text-sm font-semibold text-gray-700">{{ $agencyBranding['name'] }}</p>
-                @endif
-                @if (!empty($agencyBranding['whatsapp']))
-                    <p class="text-xs text-gray-500">WhatsApp: {{ $agencyBranding['whatsapp'] }}</p>
                 @endif
             </div>
 

@@ -52,12 +52,11 @@
                     <tr class="hover:bg-slate-50">
                         <td class="px-5 py-4 font-medium text-slate-800">{{ $conexao->name }}</td>
                         <td class="px-5 py-4 text-slate-600">
-                            <div class="font-medium text-slate-800">{{ optional($conexao->cliente)->user_id ?? '-' }}</div>
-                            <div class="text-xs text-slate-400">{{ optional($conexao->cliente->user)->name ?? '-' }}</div>
+                            
+                            <div class="text-xs text-slate-400">{{ optional($conexao->cliente)->user_id ?? '-' }} {{ optional($conexao->cliente->user)->name ?? '-' }}</div>
                         </td>
                         <td class="px-5 py-4 text-slate-600">
-                            <div class="font-medium text-slate-800">{{ $conexao->cliente_id ?? '-' }}</div>
-                            <div class="text-xs text-slate-400">{{ optional($conexao->cliente)->nome ?? '-' }}</div>
+                            <div class="text-xs text-slate-400">{{ $conexao->cliente_id ?? '-' }} {{ optional($conexao->cliente)->nome ?? '-' }}</div>
                         </td>
                         <td class="px-5 py-4 text-slate-600">{{ $conexao->phone ?? '-' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ optional($conexao->assistant)->name ?? '-' }}</td>

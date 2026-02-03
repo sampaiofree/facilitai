@@ -69,6 +69,18 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(\App\Models\Cliente::class);
     }
 
+    public function conexoes()
+    {
+        return $this->hasManyThrough(
+            \App\Models\Conexao::class,
+            \App\Models\Cliente::class,
+            'user_id',
+            'cliente_id',
+            'id',
+            'id'
+        );
+    }
+
     public function conexoesCount(): int
     {
         return Conexao::whereHas('cliente', fn ($q) => $q->where('user_id', $this->id))->count();

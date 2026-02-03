@@ -16,6 +16,7 @@
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">E-mail</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Telefone</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conexões</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Admin</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Criado em</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
@@ -27,6 +28,7 @@
                         <td class="px-5 py-4 font-medium text-slate-800">{{ $user->name }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $user->email }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $user->mobile_phone ?? '—' }}</td>
+                        <td class="px-5 py-4 text-slate-600">{{ $user->conexoes_count ?? 0 }}</td>
                         <td class="px-5 py-4">
                             @if($user->is_admin)
                                 <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Sim</span>
@@ -53,7 +55,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-6 text-center text-slate-500">Nenhum usuário encontrado.</td>
+                        <td colspan="7" class="px-5 py-6 text-center text-slate-500">Nenhum usuário encontrado.</td>
                     </tr>
                 @endforelse
             </tbody>
