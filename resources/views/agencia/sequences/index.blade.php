@@ -237,6 +237,9 @@
                                                 @if($chat->clienteLead?->name)
                                                     ({{ $chat->clienteLead->name }})
                                                 @endif
+                                                @if($chat->clienteLead?->phone)
+                                                    ({{ $chat->clienteLead->phone }})
+                                                @endif
                                             </td>
                                                 <td class="px-3 py-2">{{ $chat->passo_atual_id ?? '—' }}</td>
                                                 <td class="px-3 py-2">{{ $chat->status ? ucfirst($chat->status) : '—' }}</td>
