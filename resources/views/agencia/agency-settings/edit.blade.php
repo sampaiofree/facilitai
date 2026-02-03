@@ -23,6 +23,12 @@
                         placeholder="minhaempresa.com.br"
                         class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     >
+                    <p class="mt-2 text-xs text-slate-500">
+                        Para usar subdominio (ex: agencia.seudominio.com), crie no Cloudflare um registro A com:
+                        Nome: <span class="font-semibold text-slate-700">agencia</span>,
+                        Valor: <span class="font-semibold text-slate-700">5.78.82.56</span>,
+                        Proxy: <span class="font-semibold text-slate-700">ligado (laranja)</span>.
+                    </p>
                 </div>
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="plan_id">Plano</label>
@@ -38,6 +44,19 @@
                             </option>
                         @endforeach
                     </select>
+                    @if($user?->plan)
+                        <div class="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+                            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-700">
+                                Conexões: {{ $user->plan->max_conexoes ?? '-' }}
+                            </span>
+                            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-700">
+                                Armazenamento: {{ $user->plan->storage_limit_mb ? number_format($user->plan->storage_limit_mb / 1024, 1, ',', '') . ' GB' : '-' }}
+                            </span>
+                            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-700">
+                                Preço: {{ $user->plan->price_cents ? 'R$ ' . number_format($user->plan->price_cents / 100, 2, ',', '.') . '/mês' : '-' }}
+                            </span>
+                        </div>
+                    @endif
                 </div>
             </div>
 
