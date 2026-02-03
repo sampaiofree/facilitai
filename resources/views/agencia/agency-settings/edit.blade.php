@@ -40,7 +40,9 @@
                         <option value="">Selecione um plano</option>
                         @foreach ($plans as $plan)
                             <option value="{{ $plan->id }}" @selected((string) old('plan_id', $user?->plan_id) === (string) $plan->id)>
-                                {{ $plan->name }}
+                                {{ $plan->name }} · {{ $plan->max_conexoes ?? '-' }} conexões ·
+                                {{ $plan->storage_limit_mb ? number_format($plan->storage_limit_mb / 1024, 1, ',', '') . ' GB' : '-' }} ·
+                                {{ $plan->price_cents ? 'R$ ' . number_format($plan->price_cents, 2, ',', '.') . '/mês' : '-' }}
                             </option>
                         @endforeach
                     </select>
@@ -53,7 +55,7 @@
                                 Armazenamento: {{ $user->plan->storage_limit_mb ? number_format($user->plan->storage_limit_mb / 1024, 1, ',', '') . ' GB' : '-' }}
                             </span>
                             <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-700">
-                                Preço: {{ $user->plan->price_cents ? 'R$ ' . number_format($user->plan->price_cents / 100, 2, ',', '.') . '/mês' : '-' }}
+                                Preço: {{ $user->plan->price_cents ? 'R$ ' . number_format($user->plan->price_cents, 2, ',', '.') . '/mês' : '-' }}
                             </span>
                         </div>
                     @endif
