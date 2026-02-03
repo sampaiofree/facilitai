@@ -28,6 +28,12 @@
         $logoUrl = $agencySettings?->logo_path
             ? Storage::disk('public')->url($agencySettings->logo_path)
             : null;
+        $hasLibraryEntries = false;
+        $hasAssistants = false;
+        if (auth('client')->check()) {
+            $hasLibraryEntries = \App\Models\LibraryEntry::where('cliente_id', auth('client')->id())->exists();
+            $hasAssistants = \App\Models\Assistant::where('cliente_id', auth('client')->id())->exists();
+        }
     @endphp
     <div class="min-h-screen">
         @if(auth('client')->check())
@@ -46,9 +52,16 @@
                         <a href="{{ route('cliente.conversas.index') }}" class="{{ request()->routeIs('cliente.conversas.*') ? 'text-white' : 'hover:text-white' }}">
                             Conversas
                         </a>
-                        <a href="{{ route('cliente.library.index') }}" class="{{ request()->routeIs('cliente.library.*') ? 'text-white' : 'hover:text-white' }}">
-                            Library
-                        </a>
+                        @if($hasAssistants)
+                            <a href="{{ route('cliente.assistant.index') }}" class="{{ request()->routeIs('cliente.assistant.*') ? 'text-white' : 'hover:text-white' }}">
+                                Assistentes
+                            </a>
+                        @endif
+                        @if($hasLibraryEntries)
+                            <a href="{{ route('cliente.library.index') }}" class="{{ request()->routeIs('cliente.library.*') ? 'text-white' : 'hover:text-white' }}">
+                                Library
+                            </a>
+                        @endif
                     </div>
                     <div class="flex items-center gap-3 text-sm text-white/80">
                         <span>{{ auth('client')->user()->nome ?? 'Cliente' }}</span>

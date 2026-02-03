@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Cliente;
 
 class Assistant extends Model
 {
@@ -11,6 +12,7 @@ class Assistant extends Model
 
     protected $fillable = [
         'user_id',
+        'cliente_id',
         'payment_id',
         'credential_id',
         'openai_assistant_id',
@@ -34,6 +36,11 @@ class Assistant extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class);
     }
 
     // Relacionamento: Um assistente foi criado por um pagamento

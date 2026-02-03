@@ -46,6 +46,7 @@ use App\Http\Controllers\Cliente\ClienteAuthController;
 use App\Http\Controllers\Cliente\ClienteDashboardController;
 use App\Http\Controllers\Cliente\ClienteLeadController as ClienteClienteLeadController;
 use App\Http\Controllers\Cliente\ConexaoClienteController;
+use App\Http\Controllers\Cliente\ClienteAssistantController;
 use App\Http\Controllers\Cliente\LibraryClienteController;
 
 
@@ -355,6 +356,8 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
     Route::middleware('auth:client')->group(function () {
         Route::get('dashboard', [ClienteDashboardController::class, 'index'])->name('dashboard');
         Route::post('logout', [ClienteAuthController::class, 'destroy'])->name('logout');
+        Route::get('assistant', [ClienteAssistantController::class, 'index'])->name('assistant.index');
+        Route::patch('assistant/{assistant}', [ClienteAssistantController::class, 'update'])->name('assistant.update');
         Route::get('conexoes', [ConexaoClienteController::class, 'index'])->name('conexoes.index');
         Route::get('conexoes/{conexao}/status', [ConexaoClienteController::class, 'status'])->name('conexoes.status');
         Route::post('conexoes/{conexao}/connect', [ConexaoClienteController::class, 'connect'])->name('conexoes.connect');

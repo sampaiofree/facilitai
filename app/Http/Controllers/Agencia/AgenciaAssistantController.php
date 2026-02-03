@@ -16,6 +16,7 @@ class AgenciaAssistantController extends Controller
         $assistants = Assistant::where('user_id', $user->id)
             ->orderByDesc('updated_at')
             ->get();
+        $clients = \App\Models\Cliente::where('user_id', $user->id)->orderBy('nome')->get();
 
         $promptHelpTipos = PromptHelpTipo::with([
             'sections' => function ($query) {
@@ -32,6 +33,7 @@ class AgenciaAssistantController extends Controller
         return view('agencia.assistants.index', [
             'assistants' => $assistants,
             'promptHelpTipos' => $promptHelpTipos,
+            'clients' => $clients,
         ]);
     }
 
@@ -42,10 +44,12 @@ class AgenciaAssistantController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string'],
+            'cliente_id' => ['nullable', 'integer', 'exists:clientes,id'],
         ]);
 
         Assistant::create([
             'user_id' => $user->id,
+            'cliente_id' => $data['cliente_id'] ?? null,
             'name' => $data['name'],
             'instructions' => $data['instructions'],
             'version' => 1,
@@ -63,10 +67,12 @@ class AgenciaAssistantController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string'],
+            'cliente_id' => ['nullable', 'integer', 'exists:clientes,id'],
         ]);
 
         $assistant->name = $data['name'];
         $assistant->instructions = $data['instructions'];
+        $assistant->cliente_id = $data['cliente_id'] ?? null;
         $assistant->version = ($assistant->version ?? 0) + 1;
         $assistant->save();
 

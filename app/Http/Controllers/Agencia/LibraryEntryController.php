@@ -91,7 +91,7 @@ class LibraryEntryController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'content' => ['required', 'string', 'max:1500'],
             'cliente_id' => [
-                'required',
+                'nullable',
                 'integer',
                 Rule::exists('clientes', 'id')->where('user_id', $user->id),
             ],

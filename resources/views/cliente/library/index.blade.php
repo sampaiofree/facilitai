@@ -8,11 +8,13 @@
             <h2 class="text-2xl font-semibold text-slate-900">Biblioteca</h2>
             <p class="text-sm text-slate-500">Gerencie seus templates de conteúdo.</p>
         </div>
+        {{--
         <button
             type="button"
             id="open-library-modal"
             class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
         >Novo registro</button>
+        --}}
     </div>
 
     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

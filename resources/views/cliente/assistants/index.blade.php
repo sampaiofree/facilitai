@@ -1,14 +1,13 @@
-@extends('layouts.agencia')
+@extends('layouts.cliente')
+
+@section('title', 'Assistentes')
 
 @section('content')
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Assistentes</h2>
-            <p class="text-sm text-slate-500">Gerencie os assistentes vinculados ao seu usuário.</p>
+            <p class="text-sm text-slate-500">Edite os assistentes vinculados ao seu cliente.</p>
         </div>
-        <button id="openAssistantModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
-            Novo assistente
-        </button>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -40,7 +39,6 @@
                                     data-id="{{ $assistant->id }}"
                                     data-name='@json($assistant->name)'
                                     data-instructions='@json($assistant->instructions)'
-                                    data-cliente-id="{{ $assistant->cliente_id ?? '' }}"
                                 >Editar</button>
                             </div>
                         </td>
@@ -58,13 +56,13 @@
         <div class="h-full w-full overflow-y-auto bg-white shadow-2xl">
             <div class="mx-auto flex min-h-full w-full max-w-6xl flex-col px-6 py-6">
                 <div class="flex items-center justify-between">
-                    <h3 id="assistantModalTitle" class="text-xl font-semibold text-slate-900">Novo assistente</h3>
+                    <h3 id="assistantModalTitle" class="text-xl font-semibold text-slate-900">Editar assistente</h3>
                     <button type="button" class="text-slate-500 hover:text-slate-700" data-close-modal>x</button>
                 </div>
 
-                <form id="assistantForm" method="POST" action="{{ route('agencia.assistant.store') }}" class="mt-6 flex-1 space-y-5">
+                <form id="assistantForm" method="POST" class="mt-6 flex-1 space-y-5">
                     @csrf
-                    <input type="hidden" name="_method" id="assistantFormMethod" value="POST">
+                    <input type="hidden" name="_method" id="assistantFormMethod" value="PATCH">
                     <input type="hidden" name="editing_id" id="assistantEditingId" value="{{ old('editing_id') }}">
 
                     <div>
@@ -78,19 +76,6 @@
                             value="{{ old('name') }}"
                             class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         >
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="assistantCliente">Cliente (opcional)</label>
-                        <select
-                            id="assistantCliente"
-                            name="cliente_id"
-                            class="mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                        >
-                            <option value="">Sem cliente</option>
-                            @foreach($clients as $client)
-                                <option value="{{ $client->id }}">{{ $client->nome }}</option>
-                            @endforeach
-                        </select>
                     </div>
 
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -190,7 +175,6 @@
     <script>
         (function () {
             const modal = document.getElementById('assistantModal');
-            const openBtn = document.getElementById('openAssistantModal');
             const closeBtns = modal.querySelectorAll('[data-close-modal]');
             const form = document.getElementById('assistantForm');
             const methodInput = document.getElementById('assistantFormMethod');
@@ -198,14 +182,11 @@
             const title = document.getElementById('assistantModalTitle');
             const nameInput = document.getElementById('assistantName');
             const instructionsInput = document.getElementById('assistantInstructions');
-            const clienteInput = document.getElementById('assistantCliente');
-            const storeRoute = "{{ route('agencia.assistant.store') }}";
-            const baseUrl = "{{ url('/agencia/assistant') }}";
+            const baseUrl = "{{ url('/cliente/assistant') }}";
             const hasErrors = @json($errors->any());
             const sessionEditingId = @json(old('editing_id'));
             const oldName = @json(old('name'));
             const oldInstructions = @json(old('instructions'));
-            const oldClienteId = @json(old('cliente_id'));
             const dropdown = document.getElementById('promptHelpDropdown');
             const dropdownMenu = document.getElementById('promptHelpDropdownMenu');
             const typeButtons = Array.from(document.querySelectorAll('[data-ph-type-btn]'));
@@ -239,15 +220,11 @@
             };
 
             const resetForm = () => {
-                form.action = storeRoute;
-                methodInput.value = 'POST';
-                title.textContent = 'Novo assistente';
+                methodInput.value = 'PATCH';
+                title.textContent = 'Editar assistente';
                 editingInput.value = '';
                 nameInput.value = '';
                 instructionsInput.value = '';
-                if (clienteInput) {
-                    clienteInput.value = '';
-                }
             };
 
             const insertAtCursor = (field, text) => {
@@ -296,11 +273,6 @@
                 });
             };
 
-            openBtn.addEventListener('click', () => {
-                resetForm();
-                openModal();
-            });
-
             closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
             modal.addEventListener('click', (event) => {
                 if (event.target === modal) {
@@ -313,14 +285,9 @@
                     const id = button.dataset.id;
                     resetForm();
                     form.action = `${baseUrl}/${id}`;
-                    methodInput.value = 'PATCH';
                     editingInput.value = id;
-                    title.textContent = 'Editar assistente';
                     nameInput.value = parseDataValue(button.dataset.name);
                     instructionsInput.value = parseDataValue(button.dataset.instructions);
-                    if (clienteInput) {
-                        clienteInput.value = button.dataset.clienteId || '';
-                    }
                     openModal();
                 });
             });
@@ -328,22 +295,14 @@
             if (sessionEditingId) {
                 resetForm();
                 form.action = `${baseUrl}/${sessionEditingId}`;
-                methodInput.value = 'PATCH';
                 editingInput.value = sessionEditingId;
-                title.textContent = 'Editar assistente';
                 nameInput.value = oldName ?? '';
                 instructionsInput.value = oldInstructions ?? '';
-                if (clienteInput) {
-                    clienteInput.value = oldClienteId ?? '';
-                }
                 openModal();
             } else if (hasErrors) {
                 resetForm();
                 nameInput.value = oldName ?? '';
                 instructionsInput.value = oldInstructions ?? '';
-                if (clienteInput) {
-                    clienteInput.value = oldClienteId ?? '';
-                }
                 openModal();
             }
 

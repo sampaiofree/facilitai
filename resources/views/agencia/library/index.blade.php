@@ -99,7 +99,6 @@
                     <select
                         id="libraryCliente"
                         name="cliente_id"
-                        required
                         class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
                     >
                         <option value="">Selecione um cliente</option>
