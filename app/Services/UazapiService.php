@@ -217,6 +217,46 @@ class UazapiService
 
     public function sendText(string $token, string $number, string $text): array
     {
+        $textOriginal = (string) $text;
+        $textLength = mb_strlen($textOriginal);
+
+        if ($textLength > 800) {
+            $paragraphs = $this->splitParagrafos($textOriginal);
+
+            if (count($paragraphs) > 1) {
+                $total = count($paragraphs);
+                $lastResponse = null;
+
+                foreach ($paragraphs as $index => $paragraph) {
+                    $lastResponse = $this->sendTextSingle($token, $number, $paragraph);
+
+                    if (!empty($lastResponse['error'])) {
+                        Log::channel('uazapi')->error('UazapiService::send_text split failed', [
+                            'part' => $index + 1,
+                            'total_parts' => $total,
+                            'number' => $number,
+                        ]);
+                        return $lastResponse;
+                    }
+
+                    if ($index < $total - 1) {
+                        sleep(1);
+                    }
+                }
+
+                return $lastResponse ?? [
+                    'error' => true,
+                    'status' => 0,
+                    'body' => 'Nenhuma parte enviada.',
+                ];
+            }
+        }
+
+        return $this->sendTextSingle($token, $number, $textOriginal);
+    }
+
+    private function sendTextSingle(string $token, string $number, string $text): array
+    {
         try {
             $response = $this->client->post('/send/text', [
                 'headers' => $this->instanceHeaders($token),
@@ -232,6 +272,28 @@ class UazapiService
         } catch (\Throwable $exception) {
             return $this->handleUnexpectedError('send_text', $exception);
         }
+    }
+
+    private function splitParagrafos(string $mensagem): array
+    {
+        $mensagem = str_replace(["\\r\\n", "\\r", "\\n"], "\n", $mensagem);
+        $mensagem = trim(str_replace(["\r\n", "\r"], "\n", $mensagem));
+
+        if ($mensagem === '') {
+            return [''];
+        }
+
+        $paragrafos = preg_split('/\n\s*\n/', $mensagem) ?: [$mensagem];
+        $resultados = [];
+
+        foreach ($paragrafos as $paragrafo) {
+            $paragrafo = trim($paragrafo);
+            if ($paragrafo !== '') {
+                $resultados[] = $paragrafo;
+            }
+        }
+
+        return $resultados ?: [$mensagem];
     }
 
     public function sendMedia(string $token, string $number, string $type, string $file, array $options = []): array

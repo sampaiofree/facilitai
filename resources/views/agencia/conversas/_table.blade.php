@@ -6,6 +6,7 @@
                 <th class="px-5 py-3 text-left font-semibold">Bot</th>
                 <th class="px-5 py-3 text-left font-semibold">Telefone</th>
                 <th class="px-5 py-3 text-left font-semibold">Lead</th>
+                <th class="px-5 py-3 text-left font-semibold">Sequencias</th>
                 <th class="px-5 py-3 text-left font-semibold">Criado em</th>
                 <th class="px-5 py-3 text-right font-semibold">Acoes</th>
             </tr>
@@ -13,6 +14,11 @@
         <tbody class="divide-y divide-slate-100">
             @forelse($leads as $lead)
                 @php
+                    $sequenceNames = $lead->sequenceChats
+                        ->map(fn ($sequenceChat) => $sequenceChat->sequence?->name)
+                        ->filter()
+                        ->unique()
+                        ->values();
                     $viewData = [
                         'id' => $lead->id,
                         'cliente' => [
@@ -53,6 +59,17 @@
                     </td>
                     <td class="px-5 py-4 text-slate-600">{{ $lead->phone ?? '-' }}</td>
                     <td class="px-5 py-4 text-slate-600">{{ $lead->name ?? '-' }}</td>
+                    <td class="px-5 py-4 text-slate-600">
+                        @if($sequenceNames->isEmpty())
+                            -
+                        @else
+                            <div class="flex flex-wrap gap-1">
+                                @foreach($sequenceNames as $sequenceName)
+                                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">{{ $sequenceName }}</span>
+                                @endforeach
+                            </div>
+                        @endif
+                    </td>
                     <td class="px-5 py-4 text-slate-600">{{ $lead->created_at?->format('d/m/Y') ?? '-' }}</td>
                     <td class="px-5 py-4 text-right">
                         <div class="flex flex-wrap justify-end gap-2">
@@ -78,7 +95,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" class="px-5 py-6 text-center text-xs text-slate-400">Nenhum lead encontrado.</td>
+                    <td colspan="7" class="px-5 py-6 text-center text-xs text-slate-400">Nenhum lead encontrado.</td>
                 </tr>
             @endforelse
         </tbody>

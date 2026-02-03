@@ -100,6 +100,7 @@ class ProcessSequences extends Command
                             'from_me' => false,
                             'is_group' => false,
                             'lead_name' => $lead->name ?? $lead->phone,
+                            'openai_role' => 'system',
                             'event_id' => $eventId,
                             'message_timestamp' => $agoraUtc->valueOf(),
                             'message_type' => 'conversation',

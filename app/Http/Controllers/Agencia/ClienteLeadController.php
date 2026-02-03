@@ -424,7 +424,7 @@ class ClienteLeadController extends Controller
         if ($eager) {
             $base->with(['cliente', 'tags']);
         } else {
-            $base->with(['cliente', 'assistantLeads.assistant', 'tags']);
+            $base->with(['cliente', 'assistantLeads.assistant', 'tags', 'sequenceChats.sequence']);
         }
 
         $query = $base->whereHas('cliente', fn ($q) => $q->where('user_id', $user->id));

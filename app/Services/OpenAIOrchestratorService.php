@@ -209,6 +209,7 @@ class OpenAIOrchestratorService
     {
         $tipo = Str::lower((string) ($payload['tipo'] ?? 'text'));
         $text = (string) ($payload['text'] ?? '');
+        $role = ($payload['openai_role'] ?? null) === 'system' ? 'system' : 'user';
 
         if (str_contains($tipo, 'audio')) {
             $media = $this->resolveMediaFromPayload($payload);
@@ -236,7 +237,7 @@ class OpenAIOrchestratorService
 
             return [
                 [
-                    'role' => 'user',
+                    'role' => $role,
                     'content' => $transcription,
                 ],
             ];
@@ -254,7 +255,7 @@ class OpenAIOrchestratorService
 
             return [
                 [
-                    'role' => 'user',
+                    'role' => $role,
                     'content' => [
                         [
                             'type' => 'input_text',
@@ -271,13 +272,13 @@ class OpenAIOrchestratorService
 
         if (str_contains($tipo, 'video')) {
             if ($text !== '') {
-                return [
-                    [
-                        'role' => 'user',
-                        'content' => $text,
-                    ],
-                ];
-            }
+            return [
+                [
+                    'role' => $role,
+                    'content' => $text,
+                ],
+            ];
+        }
 
             Log::channel('ia_orchestrator')->warning('Video sem legenda não suportado.', $this->logContext($payload, $conexao, $logContext));
             return [];
@@ -296,7 +297,7 @@ class OpenAIOrchestratorService
 
             return [
                 [
-                    'role' => 'user',
+                    'role' => $role,
                     'content' => [
                         [
                             'type' => 'input_text',
@@ -318,7 +319,7 @@ class OpenAIOrchestratorService
 
         return [
             [
-                'role' => 'user',
+                'role' => $role,
                 'content' => $text,
             ],
         ];

@@ -9,6 +9,7 @@ use App\Models\Conexao;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\Tag;
+use App\Models\User;
 use App\Services\IAOrchestratorService;
 use App\Services\UazapiService;
 use App\DTOs\IAResult;
@@ -30,6 +31,8 @@ class ProcessIncomingMessageJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     private const DEBOUNCE_CACHE_TTL_SECONDS = 600;
+    private const OPENAI_ERROR_NOTIFY_TTL_SECONDS = 86400;
+    private const OPENAI_FALLBACK_MESSAGE = 'Peço desculpas, mas não consegui processar a sua última mensagem, poderia enviar novamente por favor?';
 
     public int $tries = 1;
     public int $timeout = 300;
@@ -545,6 +548,9 @@ class ProcessIncomingMessageJob implements ShouldQueue
                 'provider' => $result->provider,
                 'error' => $result->error,
             ])));
+            if ($result->provider === 'openai') {
+                $this->handleOpenAIErrorFallback($result, $payload, $lead, $logContext);
+            }
             return;
         }
 
@@ -619,6 +625,134 @@ class ProcessIncomingMessageJob implements ShouldQueue
             ])));
             $this->throwTransient('Falha ao enviar mensagem via Uazapi.', $logContext);
         }
+    }
+
+    private function handleOpenAIErrorFallback(IAResult $result, array $payload, ClienteLead $lead, array $logContext): void
+    {
+        $token = $this->conexao?->whatsapp_api_key;
+        $phone = (string) ($payload['phone'] ?? '');
+
+        $this->sendOpenAIFallbackMessage($token, $phone, $logContext);
+        $this->notifyAdminOpenAIError($result, $lead, $payload, $logContext);
+    }
+
+    private function sendOpenAIFallbackMessage(?string $token, string $phone, array $logContext): void
+    {
+        try {
+            $this->sendText($token, $phone, self::OPENAI_FALLBACK_MESSAGE, $logContext);
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->warning('Falha ao enviar mensagem de fallback OpenAI.', $this->logContext(array_merge($logContext, [
+                'error' => $exception->getMessage(),
+            ])));
+        }
+    }
+
+    private function notifyAdminOpenAIError(IAResult $result, ClienteLead $lead, array $payload, array $logContext): void
+    {
+        $token = $this->conexao?->whatsapp_api_key;
+        if (!$token) {
+            Log::channel('process_job')->warning('Token ausente para notificar admin.', $this->logContext($logContext));
+            return;
+        }
+
+        $payloadString = $this->buildOpenAIErrorPayloadString($result);
+        $clienteId = $lead->cliente_id ?? $this->conexao?->cliente_id;
+        $userId = $lead->cliente?->user_id ?? $this->conexao?->cliente?->user_id;
+        $notifyKey = $this->openAIErrorNotifyKey($payloadString, $lead->id ?? null, $clienteId, $userId);
+
+        $created = Cache::add($notifyKey, true, now()->addSeconds(self::OPENAI_ERROR_NOTIFY_TTL_SECONDS));
+        if (!$created) {
+            return;
+        }
+
+        $message = "OpenAI erro\nlead_id: " . ($lead->id ?? '-') .
+            "\ncliente_id: " . ($clienteId ?? '-') .
+            "\nuser_id: " . ($userId ?? '-') .
+            "\nuser_email: " . ($lead->cliente?->user?->email ?? $this->conexao?->cliente?->user?->email ?? '-') .
+            "\nassistant_id: " . ($payload['assistant_id'] ?? '-') .
+            "\nconexao_id: " . ($payload['conexao_id'] ?? '-') .
+            "\nconv_id: " . ($payload['conversation_id'] ?? '-') .
+            "\nphone: " . ($payload['phone'] ?? '-') .
+            "\npayload: " . $payloadString;
+
+        $notified = $this->notifyOpenAIErrorUser($token, $lead, $message, $logContext);
+
+        if (!$notified) {
+            $this->notifyOpenAIErrorAdmin($token, $message, $logContext);
+        }
+    }
+
+    private function notifyOpenAIErrorUser(?string $token, ClienteLead $lead, string $message, array $logContext): bool
+    {
+        $user = $lead->cliente?->user ?? $this->conexao?->cliente?->user;
+        if (!$user || !is_string($user->mobile_phone) || trim($user->mobile_phone) === '') {
+            return false;
+        }
+
+        $userPhone = preg_replace('/\D/', '', $user->mobile_phone);
+        if ($userPhone === '') {
+            return false;
+        }
+
+        try {
+            $this->sendText($token, $userPhone, $message, array_merge($logContext, [
+                'user_id' => $user->id,
+            ]));
+            return true;
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->warning('Falha ao notificar usuÃ¡rio sobre erro OpenAI.', $this->logContext(array_merge($logContext, [
+                'error' => $exception->getMessage(),
+                'user_id' => $user->id,
+            ])));
+            return false;
+        }
+    }
+
+    private function notifyOpenAIErrorAdmin(?string $token, string $message, array $logContext): void
+    {
+        $admin = User::where('is_admin', true)->orderBy('id')->first();
+        if (!$admin || !is_string($admin->mobile_phone) || trim($admin->mobile_phone) === '') {
+            Log::channel('process_job')->warning('Admin nÃ£o encontrado ou sem telefone para notificaÃ§Ã£o.', $this->logContext($logContext));
+            return;
+        }
+
+        $adminPhone = preg_replace('/\D/', '', $admin->mobile_phone);
+        if ($adminPhone === '') {
+            Log::channel('process_job')->warning('Telefone do admin invÃ¡lido para notificaÃ§Ã£o.', $this->logContext($logContext));
+            return;
+        }
+
+        try {
+            $this->sendText($token, $adminPhone, $message, array_merge($logContext, [
+                'admin_id' => $admin->id,
+            ]));
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->warning('Falha ao notificar admin sobre erro OpenAI.', $this->logContext(array_merge($logContext, [
+                'error' => $exception->getMessage(),
+                'admin_id' => $admin->id,
+            ])));
+        }
+    }
+
+    private function buildOpenAIErrorPayloadString(IAResult $result): string
+    {
+        $payload = [
+            'error' => $result->error,
+            'raw' => $result->raw,
+        ];
+
+        $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return $encoded !== false ? $encoded : (string) ($result->error ?? 'erro');
+    }
+
+    private function openAIErrorNotifyKey(string $payload, ?int $leadId, ?int $clienteId, ?int $userId): string
+    {
+        $hash = sha1($payload);
+        $leadPart = $leadId !== null ? (string) $leadId : '0';
+        $clientePart = $clienteId !== null ? (string) $clienteId : '0';
+        $userPart = $userId !== null ? (string) $userId : '0';
+
+        return "openai-error-notify:{$leadPart}:{$clientePart}:{$userPart}:{$hash}";
     }
 
     private function buildToolHandlers(array $payload, ?Conexao $conexao, ?ClienteLead $lead): array
