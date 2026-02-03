@@ -198,6 +198,21 @@
                     </select>
                 </div>
 
+                <div data-chip-select="lead-sequences" data-input-name="sequence_ids[]">
+                    <span class="text-[11px] uppercase tracking-wide text-slate-400">Sequências</span>
+                    <div class="mt-2 flex flex-wrap gap-2" data-chip-list></div>
+                    <div class="relative mt-2">
+                        <input
+                            type="search"
+                            data-chip-search
+                            placeholder="Buscar sequência"
+                            class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                        >
+                        <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options></div>
+                    </div>
+                    <div class="hidden" data-chip-inputs></div>
+                </div>
+
                 <div class="flex items-center gap-3">
                     <input type="checkbox" id="clienteLeadFormBot" name="bot_enabled" value="1" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
                     <label for="clienteLeadFormBot" class="text-sm text-slate-600">Bot habilitado</label>
@@ -508,6 +523,7 @@
             const previewCards = document.getElementById('previewCards');
             const previewPhoneStatus = document.getElementById('previewPhoneStatus');
             const previewEmptyDefault = previewEmpty?.textContent || '';
+            const sequencesUrlTemplate = @json(route('agencia.sequences.cliente.sequences', ['cliente' => '__CLIENT__']));
             let previewHeaders = [];
             let previewRows = [];
             const mapSelects = document.querySelectorAll('[data-map-select]');
@@ -896,7 +912,46 @@ document.querySelectorAll('[data-view-close]').forEach(button => {
                 if (clientLeadFormBot) {
                     clientLeadFormBot.checked = false;
                 }
+                chipSelects['lead-sequences']?.setSelected([]);
                 chipSelects['lead-tags']?.setSelected([]);
+            };
+
+            const populateSequences = async (clienteId, selected = []) => {
+                const root = document.querySelector('[data-chip-select="lead-sequences"]');
+                if (!root) {
+                    return;
+                }
+
+                const optionsWrap = root.querySelector('[data-chip-options]');
+                if (!optionsWrap) {
+                    return;
+                }
+
+                if (!clienteId) {
+                    optionsWrap.innerHTML = '';
+                    chipSelects['lead-sequences'] = initChipSelect(root);
+                    chipSelects['lead-sequences']?.setSelected([]);
+                    return;
+                }
+
+                const url = sequencesUrlTemplate.replace('__CLIENT__', clienteId);
+                const response = await fetch(url);
+                if (!response.ok) {
+                    optionsWrap.innerHTML = '';
+                    chipSelects['lead-sequences'] = initChipSelect(root);
+                    chipSelects['lead-sequences']?.setSelected([]);
+                    return;
+                }
+
+                const json = await response.json();
+                optionsWrap.innerHTML = json.map(item => {
+                    const label = item.conexao_name ? `${item.name} (${item.conexao_name})` : item.name;
+                    return `<button type="button" data-chip-option data-value="${item.id}" data-label="${label}" class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">${label}</button>`;
+                }).join('');
+
+                chipSelects['lead-sequences'] = initChipSelect(root);
+                const normalized = Array.isArray(selected) ? selected.map(value => String(value)) : [];
+                chipSelects['lead-sequences']?.setSelected(normalized);
             };
 
             const fillForm = (data) => {
@@ -917,6 +972,9 @@ document.querySelectorAll('[data-view-close]').forEach(button => {
                 }
                 if (Array.isArray(data?.tag_ids)) {
                     chipSelects['lead-tags']?.setSelected(data.tag_ids);
+                }
+                if (clientLeadFormSelect) {
+                    populateSequences(clientLeadFormSelect.value, data?.sequence_ids ?? []);
                 }
             };
 
@@ -945,6 +1003,10 @@ document.querySelectorAll('[data-view-close]').forEach(button => {
             };
 
             addLeadBtn?.addEventListener('click', () => openForm('create'));
+
+            clientLeadFormSelect?.addEventListener('change', () => {
+                populateSequences(clientLeadFormSelect.value);
+            });
 
             const isModifiedClick = (event) => event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
 

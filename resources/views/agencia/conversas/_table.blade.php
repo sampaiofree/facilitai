@@ -43,6 +43,11 @@
                                 'created_at' => $assistantLead->created_at?->format('d/m/Y H:i') ?? '-',
                             ];
                         })->toArray(),
+                        'sequence_ids' => $lead->sequenceChats
+                            ->pluck('sequence_id')
+                            ->unique()
+                            ->values()
+                            ->all(),
                         'tags' => $lead->tags->pluck('name')->all(),
                         'tag_ids' => $lead->tags->pluck('id')->all(),
                         'bot_enabled' => $lead->bot_enabled,

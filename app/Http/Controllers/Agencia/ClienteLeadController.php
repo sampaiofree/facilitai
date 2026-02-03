@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Agencia;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\ClienteLead;
+use App\Models\Sequence;
+use App\Models\SequenceChat;
 use App\Models\Tag;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -74,6 +76,8 @@ class ClienteLeadController extends Controller
             'info' => ['nullable', 'string'],
             'tags' => ['sometimes', 'array'],
             'tags.*' => ['integer'],
+            'sequence_ids' => ['nullable', 'array'],
+            'sequence_ids.*' => ['integer'],
         ]);
 
         if (!empty($data['phone'])) {
@@ -96,6 +100,7 @@ class ClienteLeadController extends Controller
         ]);
 
         $lead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $user->id));
+        $this->attachLeadToSequence($lead, $data['sequence_ids'] ?? [], $user->id, $request->has('sequence_ids'));
 
         return redirect()
             ->route('agencia.conversas.index')
@@ -118,6 +123,8 @@ class ClienteLeadController extends Controller
             'info' => ['nullable', 'string'],
             'tags' => ['sometimes', 'array'],
             'tags.*' => ['integer'],
+            'sequence_ids' => ['nullable', 'array'],
+            'sequence_ids.*' => ['integer'],
         ]);
 
         $clienteLead->update([
@@ -129,6 +136,7 @@ class ClienteLeadController extends Controller
         ]);
 
         $clienteLead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $user->id));
+        $this->attachLeadToSequence($clienteLead, $data['sequence_ids'] ?? [], $user->id, $request->has('sequence_ids'));
 
         return redirect()
             ->route('agencia.conversas.index')
@@ -463,6 +471,62 @@ class ClienteLeadController extends Controller
         }
 
         return [$clientFilter, $tagFilter, $dateStart, $dateEnd, $query];
+    }
+
+    private function attachLeadToSequence(ClienteLead $lead, array $sequenceIds, int $userId, bool $sync = false): void
+    {
+        $sequenceIds = array_values(array_filter($sequenceIds, fn ($value) => $value !== '' && $value !== null));
+        if (empty($sequenceIds) && !$sync) {
+            return;
+        }
+
+        $ownedSequenceIds = Sequence::where('user_id', $userId)
+            ->where('cliente_id', $lead->cliente_id)
+            ->pluck('id')
+            ->all();
+
+        if ($sync && !empty($ownedSequenceIds)) {
+            $removeIds = array_values(array_diff($ownedSequenceIds, $sequenceIds));
+            if (!empty($removeIds)) {
+                SequenceChat::where('cliente_lead_id', $lead->id)
+                    ->whereIn('sequence_id', $removeIds)
+                    ->delete();
+            }
+        }
+
+        if (empty($sequenceIds)) {
+            return;
+        }
+
+        $sequences = Sequence::where('user_id', $userId)
+            ->where('cliente_id', $lead->cliente_id)
+            ->where('active', true)
+            ->whereIn('id', $sequenceIds)
+            ->get();
+
+        if ($sequences->isEmpty()) {
+            return;
+        }
+
+        foreach ($sequences as $sequence) {
+            $existing = SequenceChat::where('sequence_id', $sequence->id)
+                ->where('cliente_lead_id', $lead->id)
+                ->whereIn('status', ['em_andamento', 'concluida', 'pausada'])
+                ->first();
+
+            if ($existing) {
+                continue;
+            }
+
+            SequenceChat::create([
+                'sequence_id' => $sequence->id,
+                'cliente_lead_id' => $lead->id,
+                'status' => 'em_andamento',
+                'iniciado_em' => now('America/Sao_Paulo'),
+                'proximo_envio_em' => null,
+                'criado_por' => 'manual',
+            ]);
+        }
     }
 
     private function normalizedColumnSql(string $column): string

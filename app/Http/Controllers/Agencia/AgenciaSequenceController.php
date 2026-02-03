@@ -167,6 +167,24 @@ class AgenciaSequenceController extends Controller
         return $cliente->conexoes()->select('id', 'name')->orderBy('name')->get();
     }
 
+    public function sequences(Cliente $cliente)
+    {
+        abort_unless($cliente->user_id === auth()->id(), 403);
+
+        return Sequence::with('conexao')
+            ->where('user_id', auth()->id())
+            ->where('cliente_id', $cliente->id)
+            ->where('active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($sequence) => [
+                'id' => $sequence->id,
+                'name' => $sequence->name,
+                'conexao_id' => $sequence->conexao_id,
+                'conexao_name' => $sequence->conexao?->name,
+            ]);
+    }
+
     private function normalizeTags(array $tags): array
     {
         return collect($tags)
