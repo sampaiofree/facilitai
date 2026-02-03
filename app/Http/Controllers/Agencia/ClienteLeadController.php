@@ -10,6 +10,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -28,6 +29,10 @@ class ClienteLeadController extends Controller
         [$clientFilter, $tagFilter, $dateStart, $dateEnd, $query] = $this->buildFilteredQuery($request, $user);
 
         $leads = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
+
+        if ($request->ajax()) {
+            return view('agencia.conversas._table', compact('leads'));
+        }
 
         return view('agencia.conversas.index', compact(
             'clients',
@@ -413,6 +418,7 @@ class ClienteLeadController extends Controller
         $tagFilter = array_values(array_filter((array) $request->input('tags', []), fn ($value) => $value !== '' && $value !== null));
         $dateStart = $request->input('date_start');
         $dateEnd = $request->input('date_end');
+        $searchTerm = trim((string) $request->input('q', ''));
 
         $base = ClienteLead::query();
         if ($eager) {
@@ -439,7 +445,60 @@ class ClienteLeadController extends Controller
             $query->whereDate('created_at', '<=', $dateEnd);
         }
 
+        if ($searchTerm !== '' && mb_strlen($searchTerm) >= 3) {
+            $normalizedTerm = Str::ascii($searchTerm);
+            $normalizedTerm = mb_strtolower($normalizedTerm);
+            $termLower = mb_strtolower($searchTerm);
+            $digits = preg_replace('/\D/', '', $searchTerm);
+            $normalizedNameExpr = $this->normalizedColumnSql('name');
+
+            $query->where(function ($subQuery) use ($termLower, $normalizedTerm, $digits, $normalizedNameExpr) {
+                $subQuery->whereRaw('LOWER(name) LIKE ?', ["%{$termLower}%"])
+                    ->orWhereRaw("{$normalizedNameExpr} LIKE ?", ["%{$normalizedTerm}%"]);
+
+                if ($digits !== '') {
+                    $subQuery->orWhere('phone', 'like', "%{$digits}%");
+                }
+            });
+        }
+
         return [$clientFilter, $tagFilter, $dateStart, $dateEnd, $query];
+    }
+
+    private function normalizedColumnSql(string $column): string
+    {
+        $expression = "LOWER({$column})";
+        $replacements = [
+            'á' => 'a',
+            'à' => 'a',
+            'â' => 'a',
+            'ã' => 'a',
+            'ä' => 'a',
+            'é' => 'e',
+            'è' => 'e',
+            'ê' => 'e',
+            'ë' => 'e',
+            'í' => 'i',
+            'ì' => 'i',
+            'î' => 'i',
+            'ï' => 'i',
+            'ó' => 'o',
+            'ò' => 'o',
+            'ô' => 'o',
+            'õ' => 'o',
+            'ö' => 'o',
+            'ú' => 'u',
+            'ù' => 'u',
+            'û' => 'u',
+            'ü' => 'u',
+            'ç' => 'c',
+        ];
+
+        foreach ($replacements as $from => $to) {
+            $expression = "REPLACE({$expression}, '{$from}', '{$to}')";
+        }
+
+        return $expression;
     }
 
     private function columnValue(array $row, ?int $index): ?string

@@ -207,7 +207,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
             ]);
             $payload = $this->payload;
             $payload['is_media'] = $this->isMedia;
-            $this->sendDebouncedPayload($conexao, $payload);
+            //$this->sendDebouncedPayload($conexao, $payload);
             return;
         }
 
