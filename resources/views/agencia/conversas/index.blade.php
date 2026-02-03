@@ -176,8 +176,7 @@
                     @endphp
                     <tr class="hover:bg-slate-50">
                         <td class="px-5 py-4">
-                            <div class="font-medium text-slate-800">{{ $lead->cliente_id ?? '-' }}</div>
-                            <div class="text-xs text-slate-400">{{ $lead->cliente?->nome ?? '—' }}</div>
+                            <div class="text-xs text-slate-400">{{ $lead->cliente_id ?? '' }} {{ $lead->cliente?->nome ?? '—' }}</div>
                         </td>
                         <td class="px-5 py-4 text-slate-600">{{ $lead->bot_enabled ? 'Ativado' : 'Desativado' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $lead->phone ?? '-' }}</td>

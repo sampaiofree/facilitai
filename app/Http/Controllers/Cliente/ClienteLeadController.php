@@ -84,21 +84,14 @@ class ClienteLeadController extends Controller
                     ->with('error', 'Número inválido. Informe o telefone com DDI (ex: 55).');
             }
 
-            $conexao = Conexao::query()
-                ->where('cliente_id', $cliente->id)
-                ->whereNotNull('whatsapp_api_key')
-                ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'uazapi'))
-                ->orderByRaw("status = 'connected' desc")
-                ->latest('updated_at')
-                ->first();
-
-            if (!$conexao?->whatsapp_api_key) {
+            $uazapiToken = $this->resolveUazapiToken($cliente);
+            if (!$uazapiToken) {
                 return redirect()
                     ->route('cliente.conversas.index')
                     ->with('error', 'Conexao Uazapi nao configurada.');
             }
 
-            $chatCheck = $this->uazapiService->chat_check([$normalizedPhone], $conexao->whatsapp_api_key);
+            $chatCheck = $this->uazapiService->chat_check([$normalizedPhone], $uazapiToken);
             $status = $chatCheck['status'] ?? null;
             if (!empty($chatCheck['error']) || $status !== 200) {
                 return redirect()
@@ -183,9 +176,92 @@ class ClienteLeadController extends Controller
         $mapName = is_numeric($validated['map_name'] ?? null) ? (int) $validated['map_name'] : null;
         $mapInfo = is_numeric($validated['map_info'] ?? null) ? (int) $validated['map_info'] : null;
 
+        $uazapiToken = $this->resolveUazapiToken($cliente);
+        $missingUazapiConnection = $uazapiToken === null;
+        $chatCheckChunkSize = 50;
+        $pendingRows = [];
+        $pendingPhones = [];
+        $importError = null;
+
         $created = 0;
         $skippedDuplicate = 0;
         $skippedInvalid = 0;
+
+        $flushPending = function () use (
+            &$pendingRows,
+            &$pendingPhones,
+            $uazapiToken,
+            &$created,
+            &$skippedDuplicate,
+            &$skippedInvalid,
+            $tagIds,
+            &$importError
+        ): bool {
+            if (empty($pendingRows)) {
+                return true;
+            }
+
+            $validMap = null;
+            if ($uazapiToken) {
+                $chatCheck = $this->uazapiService->chat_check(array_values($pendingPhones), $uazapiToken);
+                $status = $chatCheck['status'] ?? null;
+                if (!empty($chatCheck['error']) || $status !== 200) {
+                    $importError = 'NÃ£o foi possÃ­vel validar os telefones na Uazapi. Tente novamente.';
+                    return false;
+                }
+                $validMap = $this->buildChatCheckMap($chatCheck);
+            }
+
+            foreach ($pendingRows as $rowData) {
+                $phone = $rowData['phone'];
+                if ($uazapiToken && $validMap !== null && array_key_exists($phone, $validMap) && !$validMap[$phone]) {
+                    $skippedInvalid++;
+                    continue;
+                }
+
+                $exists = ClienteLead::where('cliente_id', $rowData['cliente_id'])
+                    ->where('phone', $phone)
+                    ->exists();
+                if ($exists) {
+                    $skippedDuplicate++;
+                    continue;
+                }
+
+                $lead = ClienteLead::create([
+                    'cliente_id' => $rowData['cliente_id'],
+                    'bot_enabled' => false,
+                    'phone' => $phone,
+                    'name' => $rowData['name'],
+                    'info' => $rowData['info'],
+                ]);
+
+                if (!empty($tagIds)) {
+                    $lead->tags()->sync($tagIds);
+                }
+
+                $created++;
+            }
+
+            $pendingRows = [];
+            $pendingPhones = [];
+            return true;
+        };
+
+        $queueRow = function (array $rowData) use (
+            &$pendingRows,
+            &$pendingPhones,
+            $chatCheckChunkSize,
+            $flushPending
+        ): bool {
+            $pendingRows[] = $rowData;
+            $pendingPhones[$rowData['phone']] = $rowData['phone'];
+
+            if (count($pendingRows) < $chatCheckChunkSize) {
+                return true;
+            }
+
+            return $flushPending();
+        };
 
         if ($extension === 'xlsx') {
             $rows = $this->readXlsxRows($file->getRealPath());
@@ -215,33 +291,31 @@ class ClienteLeadController extends Controller
                 }
 
                 $row = array_values($row);
-                $phone = $this->columnValue($row, $mapPhone);
-                if (!$phone) {
+                $rawPhone = $this->columnValue($row, $mapPhone);
+                if (!$rawPhone) {
                     $skippedInvalid++;
                     continue;
                 }
 
-                $exists = ClienteLead::where('cliente_id', $cliente->id)
-                    ->where('phone', $phone)
-                    ->exists();
-                if ($exists) {
-                    $skippedDuplicate++;
+                $normalizedPhone = $this->normalizePhone($rawPhone);
+                if (!$normalizedPhone || !preg_match('/^\d{11,15}$/', $normalizedPhone)) {
+                    $skippedInvalid++;
                     continue;
                 }
 
-                $lead = ClienteLead::create([
+                $rowData = [
                     'cliente_id' => $cliente->id,
-                    'bot_enabled' => false,
-                    'phone' => $phone,
+                    'phone' => $normalizedPhone,
                     'name' => $mapName !== null ? $this->columnValue($row, $mapName) : null,
                     'info' => $mapInfo !== null ? $this->columnValue($row, $mapInfo) : null,
-                ]);
+                ];
 
-                if (!empty($tagIds)) {
-                    $lead->tags()->sync($tagIds);
+                if (!$queueRow($rowData)) {
+                    break;
                 }
-
-                $created++;
+            }
+            if ($importError === null) {
+                $flushPending();
             }
         } else {
             $handle = fopen($file->getRealPath(), 'r');
@@ -264,36 +338,40 @@ class ClienteLeadController extends Controller
                     continue;
                 }
 
-                $phone = $this->columnValue($row, $mapPhone);
-                if (!$phone) {
+                $rawPhone = $this->columnValue($row, $mapPhone);
+                if (!$rawPhone) {
                     $skippedInvalid++;
                     continue;
                 }
 
-                $exists = ClienteLead::where('cliente_id', $cliente->id)
-                    ->where('phone', $phone)
-                    ->exists();
-                if ($exists) {
-                    $skippedDuplicate++;
+                $normalizedPhone = $this->normalizePhone($rawPhone);
+                if (!$normalizedPhone || !preg_match('/^\d{11,15}$/', $normalizedPhone)) {
+                    $skippedInvalid++;
                     continue;
                 }
 
-                $lead = ClienteLead::create([
+                $rowData = [
                     'cliente_id' => $cliente->id,
-                    'bot_enabled' => false,
-                    'phone' => $phone,
+                    'phone' => $normalizedPhone,
                     'name' => $mapName !== null ? $this->columnValue($row, $mapName) : null,
                     'info' => $mapInfo !== null ? $this->columnValue($row, $mapInfo) : null,
-                ]);
+                ];
 
-                if (!empty($tagIds)) {
-                    $lead->tags()->sync($tagIds);
+                if (!$queueRow($rowData)) {
+                    break;
                 }
-
-                $created++;
             }
 
             fclose($handle);
+            if ($importError === null) {
+                $flushPending();
+            }
+        }
+
+        if ($importError !== null) {
+            return redirect()
+                ->route('cliente.conversas.index')
+                ->with('error', $importError);
         }
 
         $skipped = $skippedDuplicate + $skippedInvalid;
@@ -307,15 +385,25 @@ class ClienteLeadController extends Controller
             ->route('cliente.conversas.index')
             ->with('success', $successMessage);
 
+        $errorMessages = [];
+
         if ($skippedDuplicate > 0 || $skippedInvalid > 0) {
             $details = [];
             if ($skippedDuplicate > 0) {
                 $details[] = "{$skippedDuplicate} duplicado(s)";
             }
             if ($skippedInvalid > 0) {
-                $details[] = "{$skippedInvalid} inválido(s)";
+                $details[] = "{$skippedInvalid} inv?lido(s)";
             }
-            $response->with('error', 'Alguns registros foram ignorados (' . implode(', ', $details) . ').');
+            $errorMessages[] = 'Alguns registros foram ignorados (' . implode(', ', $details) . ').';
+        }
+
+        if ($missingUazapiConnection) {
+            $errorMessages[] = 'Cliente n?o possui conex?o Uazapi configurada. Importa??o feita sem valida??o de WhatsApp.';
+        }
+
+        if (!empty($errorMessages)) {
+            $response->with('error', implode(' ', $errorMessages));
         }
 
         return $response;
@@ -445,6 +533,109 @@ class ClienteLeadController extends Controller
         }
 
         return $digits;
+    }
+
+    private function resolveUazapiToken($cliente): ?string
+    {
+        $conexao = Conexao::query()
+            ->where('cliente_id', $cliente->id)
+            ->whereNotNull('whatsapp_api_key')
+            ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'uazapi'))
+            ->orderByRaw("status = 'connected' desc")
+            ->latest('updated_at')
+            ->first();
+
+        return $conexao?->whatsapp_api_key ?: null;
+    }
+
+    private function buildChatCheckMap(array $payload): ?array
+    {
+        $items = null;
+        foreach (['data', 'result', 'results', 'body', 'numbers'] as $key) {
+            if (isset($payload[$key]) && is_array($payload[$key])) {
+                $items = $payload[$key];
+                break;
+            }
+        }
+
+        if ($items === null && isset($payload[0]) && is_array($payload)) {
+            $items = $payload;
+        }
+
+        if ($items === null) {
+            return null;
+        }
+
+        $map = [];
+        foreach ($items as $item) {
+            if (is_string($item) || is_numeric($item)) {
+                $normalized = $this->normalizePhone((string) $item);
+                if ($normalized) {
+                    $map[$normalized] = true;
+                }
+                continue;
+            }
+
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $number = $item['number'] ?? $item['phone'] ?? $item['jid'] ?? $item['id'] ?? null;
+            if ($number === null) {
+                continue;
+            }
+
+            $normalized = $this->normalizePhone((string) $number);
+            if (!$normalized) {
+                continue;
+            }
+
+            $flag = $item['exists']
+                ?? $item['valid']
+                ?? $item['is_valid']
+                ?? $item['has_whatsapp']
+                ?? $item['isWhatsApp']
+                ?? $item['status']
+                ?? null;
+
+            $isValid = $this->coerceChatCheckFlag($flag);
+            if ($isValid === null) {
+                continue;
+            }
+
+            $map[$normalized] = $isValid;
+        }
+
+        return $map ?: null;
+    }
+
+    private function coerceChatCheckFlag(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($value));
+        $trueValues = ['true', '1', 'yes', 'sim', 'ok', 'valid', 'exists', 'existe'];
+        $falseValues = ['false', '0', 'no', 'nao', 'não', 'invalid', 'invalido', 'inválido', 'not_found', 'notfound'];
+
+        if (in_array($normalized, $trueValues, true)) {
+            return true;
+        }
+
+        if (in_array($normalized, $falseValues, true)) {
+            return false;
+        }
+
+        return null;
     }
 
     private function buildFilteredQuery(Request $request, $cliente, bool $eager = false): array

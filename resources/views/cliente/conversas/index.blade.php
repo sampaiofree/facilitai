@@ -178,7 +178,7 @@
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <input type="checkbox" id="clienteLeadFormBot" name="bot_enabled" value="1" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <input type="checkbox" id="clienteLeadFormBot" name="bot_enabled" value="1" checked class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
                     <label for="clienteLeadFormBot" class="text-sm text-slate-600">Bot habilitado</label>
                 </div>
 
@@ -209,7 +209,7 @@
                     ></textarea>
                 </div>
 
-                <div data-chip-select="lead-tags" data-input-name="tags[]">
+                <div data-chip-select="lead-tags" data-input-name="tags[]" class="hidden">
                     <span class="text-[11px] uppercase tracking-wide text-slate-400">Tags</span>
                     <div class="mt-2 flex flex-wrap gap-2" data-chip-list></div>
                     <div class="relative mt-2">
@@ -324,7 +324,7 @@
                         </select>
                         <p class="text-[11px] text-slate-400">Em XLSX, as colunas são exibidas por posição.</p>
                     </div>
-                    <div data-chip-select="import-tags" data-input-name="tags[]" class="space-y-2">
+                    <div data-chip-select="import-tags" data-input-name="tags[]" class="space-y-2 hidden">
                         <span class="text-[11px] uppercase tracking-wide text-slate-400">Tags para todos</span>
                         
                         <div class="relative">
@@ -718,7 +718,7 @@
                     clientLeadFormSubmit.textContent = 'Salvar';
                 }
                 if (clientLeadFormBot) {
-                    clientLeadFormBot.checked = false;
+                    clientLeadFormBot.checked = true;
                 }
                 chipSelects['lead-tags']?.setSelected([]);
             };
