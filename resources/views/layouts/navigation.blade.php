@@ -145,7 +145,7 @@
                 <div class="font-medium text-sm text-gray-500 max-w-full truncate">{{ Auth::user()->email }}</div>
             </div>
 
-            <div class="mt-3 space-y-1">
+            <div class="mt-3 space-y-1" style="position: sticky; bottom: 0; left: 1px;">
                 <x-responsive-nav-link :href="route('profile.edit')">
                     {{ __('Perfil') }}
                 </x-responsive-nav-link>
