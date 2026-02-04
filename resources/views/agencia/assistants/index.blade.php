@@ -41,6 +41,7 @@
                                     data-name='@json($assistant->name)'
                                     data-instructions='@json($assistant->instructions)'
                                     data-cliente-id="{{ $assistant->cliente_id ?? '' }}"
+                                    data-delay="{{ $assistant->delay ?? 0 }}"
                                 >Editar</button>
                             </div>
                         </td>
@@ -91,6 +92,18 @@
                                 <option value="{{ $client->id }}">{{ $client->nome }}</option>
                             @endforeach
                         </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="assistantDelay">Delay (segundos)</label>
+                        <input
+                            id="assistantDelay"
+                            name="delay"
+                            type="number"
+                            min="0"
+                            step="1"
+                            value="{{ old('delay') }}"
+                            class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
                     </div>
 
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -199,6 +212,7 @@
             const nameInput = document.getElementById('assistantName');
             const instructionsInput = document.getElementById('assistantInstructions');
             const clienteInput = document.getElementById('assistantCliente');
+            const delayInput = document.getElementById('assistantDelay');
             const storeRoute = "{{ route('agencia.assistant.store') }}";
             const baseUrl = "{{ url('/agencia/assistant') }}";
             const hasErrors = @json($errors->any());
@@ -206,6 +220,7 @@
             const oldName = @json(old('name'));
             const oldInstructions = @json(old('instructions'));
             const oldClienteId = @json(old('cliente_id'));
+            const oldDelay = @json(old('delay'));
             const dropdown = document.getElementById('promptHelpDropdown');
             const dropdownMenu = document.getElementById('promptHelpDropdownMenu');
             const typeButtons = Array.from(document.querySelectorAll('[data-ph-type-btn]'));
@@ -247,6 +262,9 @@
                 instructionsInput.value = '';
                 if (clienteInput) {
                     clienteInput.value = '';
+                }
+                if (delayInput) {
+                    delayInput.value = '';
                 }
             };
 
@@ -321,6 +339,9 @@
                     if (clienteInput) {
                         clienteInput.value = button.dataset.clienteId || '';
                     }
+                    if (delayInput) {
+                        delayInput.value = button.dataset.delay ?? '';
+                    }
                     openModal();
                 });
             });
@@ -336,6 +357,9 @@
                 if (clienteInput) {
                     clienteInput.value = oldClienteId ?? '';
                 }
+                if (delayInput) {
+                    delayInput.value = oldDelay ?? '';
+                }
                 openModal();
             } else if (hasErrors) {
                 resetForm();
@@ -343,6 +367,9 @@
                 instructionsInput.value = oldInstructions ?? '';
                 if (clienteInput) {
                     clienteInput.value = oldClienteId ?? '';
+                }
+                if (delayInput) {
+                    delayInput.value = oldDelay ?? '';
                 }
                 openModal();
             }

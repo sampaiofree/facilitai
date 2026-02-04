@@ -90,6 +90,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             ]));
             return;
         }
+        $this->maxWaitSeconds = $this->resolveMaxWaitSeconds($assistant);
 
         $leadName = (string) ($this->payload['lead_name'] ?? $phone);
         $lead = $this->resolveClienteLead($phone, $leadName);
@@ -261,6 +262,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         if (!$conexao) {
             return;
         }
+        $this->maxWaitSeconds = $this->resolveMaxWaitSeconds($conexao->assistant);
 
         $lockKey = $this->lockKeyFromCacheKey($this->cacheKey);
         $scheduledKey = $this->scheduledKeyFromCacheKey($this->cacheKey);
@@ -422,6 +424,12 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         }
 
         return "{$cacheKey}:scheduled";
+    }
+
+    private function resolveMaxWaitSeconds(?Assistant $assistant): int
+    {
+        $delay = (int) ($assistant?->delay ?? 0);
+        return $delay > 0 ? $delay : 25;
     }
 
     private function sendDebouncedPayload(Conexao $conexao, array $payload): void

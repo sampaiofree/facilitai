@@ -37,6 +37,7 @@
                         'created_at' => $lead->created_at?->format('d/m/Y H:i') ?? '-',
                         'assistant_leads' => $lead->assistantLeads->map(function ($assistantLead) {
                             return [
+                                'assistant_id' => $assistantLead->assistant_id,
                                 'assistant' => optional($assistantLead->assistant)->name ?? '-',
                                 'version' => $assistantLead->version,
                                 'conv_id' => $assistantLead->conv_id ?? '-',

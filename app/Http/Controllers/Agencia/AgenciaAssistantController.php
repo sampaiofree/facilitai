@@ -45,6 +45,7 @@ class AgenciaAssistantController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string'],
             'cliente_id' => ['nullable', 'integer', 'exists:clientes,id'],
+            'delay' => ['nullable', 'integer', 'min:0'],
         ]);
 
         Assistant::create([
@@ -52,6 +53,7 @@ class AgenciaAssistantController extends Controller
             'cliente_id' => $data['cliente_id'] ?? null,
             'name' => $data['name'],
             'instructions' => $data['instructions'],
+            'delay' => $data['delay'] ?? 0,
             'version' => 1,
         ]);
 
@@ -68,11 +70,13 @@ class AgenciaAssistantController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string'],
             'cliente_id' => ['nullable', 'integer', 'exists:clientes,id'],
+            'delay' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $assistant->name = $data['name'];
         $assistant->instructions = $data['instructions'];
         $assistant->cliente_id = $data['cliente_id'] ?? null;
+        $assistant->delay = $data['delay'] ?? 0;
         $assistant->version = ($assistant->version ?? 0) + 1;
         $assistant->save();
 

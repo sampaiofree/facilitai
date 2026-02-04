@@ -327,6 +327,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('sequence', [AgenciaSequenceController::class, 'index'])->name('sequences.index');
     Route::get('conversas', [AgenciaClienteLeadController::class, 'index'])->name('conversas.index');
     Route::post('conversas', [AgenciaClienteLeadController::class, 'store'])->name('conversas.store');
+    Route::post('conversas/{clienteLead}/send-message', [AgenciaClienteLeadController::class, 'sendMessage'])->name('conversas.send-message');
     Route::post('conversas/import', [AgenciaClienteLeadController::class, 'import'])->name('conversas.import');
     Route::post('conversas/preview', [AgenciaClienteLeadController::class, 'preview'])->name('conversas.preview');
     Route::get('conversas/export', [AgenciaClienteLeadController::class, 'export'])->name('conversas.export');

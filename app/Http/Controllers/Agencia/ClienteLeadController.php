@@ -5,13 +5,16 @@ namespace App\Http\Controllers\Agencia;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\ClienteLead;
+use App\Models\Conexao;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\Tag;
+use App\Jobs\ProcessIncomingMessageJob;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -141,6 +144,87 @@ class ClienteLeadController extends Controller
         return redirect()
             ->route('agencia.conversas.index')
             ->with('success', 'Lead atualizado com sucesso.');
+    }
+
+    public function sendMessage(Request $request, ClienteLead $clienteLead): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($clienteLead->cliente && $clienteLead->cliente->user_id === $user->id, 403);
+
+        $data = $request->validate([
+            'assistant_id' => ['required', 'integer'],
+            'mensagem' => ['required', 'string', 'max:2000'],
+        ]);
+
+        if (!$clienteLead->bot_enabled) {
+            return response()->json([
+                'message' => 'Bot desativado para este lead.',
+            ], 422);
+        }
+
+        $phone = trim((string) ($clienteLead->phone ?? ''));
+        if ($phone === '') {
+            return response()->json([
+                'message' => 'Lead sem telefone valido.',
+            ], 422);
+        }
+
+        $assistantId = (int) $data['assistant_id'];
+        $hasAssistant = $clienteLead->assistantLeads()
+            ->where('assistant_id', $assistantId)
+            ->exists();
+        if (!$hasAssistant) {
+            return response()->json([
+                'message' => 'Assistente nao associado ao lead.',
+            ], 422);
+        }
+
+        $conexao = Conexao::where('cliente_id', $clienteLead->cliente_id)
+            ->where('assistant_id', $assistantId)
+            ->whereHas('cliente', fn ($query) => $query->where('user_id', $user->id))
+            ->latest('id')
+            ->first();
+
+        if (!$conexao) {
+            return response()->json([
+                'message' => 'Conexao nao encontrada para este assistente.',
+            ], 422);
+        }
+
+        $mensagem = trim((string) $data['mensagem']);
+        if ($mensagem === '') {
+            return response()->json([
+                'message' => 'Mensagem vazia.',
+            ], 422);
+        }
+
+        $agoraUtc = Carbon::now('UTC');
+        $eventId = sprintf(
+            'manual:lead:%d:assistant:%d:ts:%d',
+            $clienteLead->id,
+            $assistantId,
+            $agoraUtc->valueOf()
+        );
+
+        $payload = [
+            'phone' => $phone,
+            'text' => $mensagem,
+            'tipo' => 'text',
+            'from_me' => false,
+            'is_group' => false,
+            'lead_name' => $clienteLead->name ?? $phone,
+            'openai_role' => 'system',
+            'event_id' => $eventId,
+            'message_timestamp' => $agoraUtc->valueOf(),
+            'message_type' => 'conversation',
+        ];
+
+        ProcessIncomingMessageJob::dispatch($conexao->id, $clienteLead->id, $payload)
+            ->onQueue('processarconversa');
+
+        return response()->json([
+            'message' => 'Mensagem enviada para a fila.',
+        ]);
     }
 
     public function import(Request $request): RedirectResponse
