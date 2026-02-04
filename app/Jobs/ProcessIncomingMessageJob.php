@@ -16,6 +16,7 @@ use App\DTOs\IAResult;
 use App\Support\LogContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
@@ -26,7 +27,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-class ProcessIncomingMessageJob implements ShouldQueue
+class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -167,19 +168,15 @@ class ProcessIncomingMessageJob implements ShouldQueue
         }
 
         $cacheKey = "debounce:{$lead->id}:{$assistant->id}";
-        $pendingKey = "debounce-pending:{$lead->id}:{$assistant->id}";
         $lockKey = "debounce-lock:{$lead->id}:{$assistant->id}";
         $bufferMessagesCount = 0;
-        $createdPending = false;
 
         try {
             Cache::lock($lockKey, 3)->block(2, function () use (
                 $cacheKey,
-                $pendingKey,
                 $payload,
                 $text,
-                &$bufferMessagesCount,
-                &$createdPending
+                &$bufferMessagesCount
             ) {
                 $buffer = Cache::get($cacheKey, []);
                 $agora = Carbon::now()->timestamp;
@@ -198,31 +195,21 @@ class ProcessIncomingMessageJob implements ShouldQueue
                     $buffer['data'] = $payload;
                 }
 
-                $buffer['pending_key'] = $pendingKey;
-
                 Cache::put($cacheKey, $buffer, now()->addSeconds(self::DEBOUNCE_CACHE_TTL_SECONDS));
 
-        $pendingTtl = now()->addSeconds($this->maxWaitSeconds + 30);
-        $createdPending = Cache::add($pendingKey, true, $pendingTtl);
-        if (!$createdPending) {
-            Cache::put($pendingKey, true, $pendingTtl);
-        }
-        $bufferMessagesCount = count($buffer['messages'] ?? []);
-    });
+                $bufferMessagesCount = count($buffer['messages'] ?? []);
+            });
         } catch (LockTimeoutException $exception) {
             Log::channel('process_job')->warning('Debounce lock timeout.', $this->logContext([
                 'cache_key' => $cacheKey,
             ]));
 
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, null, false, $this->debounceSeconds, $this->maxWaitSeconds)
-                ->delay(now()->addSeconds(1))->onQueue('processarconversa');
+            $this->release(1);
             return;
         }
 
-        if ($createdPending) {
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
-                ->delay(now()->addSeconds($this->maxWaitSeconds))->onQueue('processarconversa');
-        }
+        self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
+            ->delay(now()->addSeconds($this->maxWaitSeconds))->onQueue('processarconversa');
 
         $this->logSilentReturn('debounce_buffered', [
             'cache_key' => $cacheKey,
@@ -240,7 +227,6 @@ class ProcessIncomingMessageJob implements ShouldQueue
             return;
         }
 
-        $pendingKey = $this->pendingKeyFromCacheKey($this->cacheKey);
         $lockKey = $this->lockKeyFromCacheKey($this->cacheKey);
         $buffer = null;
 
@@ -249,8 +235,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
                 $buffer = Cache::get($this->cacheKey);
             });
         } catch (LockTimeoutException $exception) {
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
-                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+            $this->release($this->debounceSeconds);
             return;
         }
 
@@ -258,9 +243,6 @@ class ProcessIncomingMessageJob implements ShouldQueue
             $this->logSilentReturn('debounce_buffer_empty', [
                 'cache_key' => $this->cacheKey,
             ]);
-            if ($pendingKey) {
-                Cache::forget($pendingKey);
-            }
             return;
         }
 
@@ -270,8 +252,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
         if ($secondsSinceLast < $this->maxWaitSeconds) {
             $delaySeconds = max(1, $this->maxWaitSeconds - $secondsSinceLast);
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
-                ->delay(now()->addSeconds($delaySeconds))->onQueue('processarconversa');
+            $this->release($delaySeconds);
             $this->logSilentReturn('debounce_waiting', [
                 'cache_key' => $this->cacheKey,
                 'last_at' => $lastAt->toIso8601String(),
@@ -295,18 +276,15 @@ class ProcessIncomingMessageJob implements ShouldQueue
                 'cache_key' => $this->cacheKey,
                 'error' => $exception->getMessage(),
             ]));
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
-                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+            $this->release($this->debounceSeconds);
             return;
         }
 
+        $releaseDelay = null;
         try {
-            Cache::lock($lockKey, 3)->block(2, function () use ($lastAtSent, $pendingKey) {
+            Cache::lock($lockKey, 3)->block(2, function () use ($lastAtSent, &$releaseDelay) {
                 $current = Cache::get($this->cacheKey);
                 if (empty($current)) {
-                    if ($pendingKey) {
-                        Cache::forget($pendingKey);
-                    }
                     return;
                 }
 
@@ -314,34 +292,21 @@ class ProcessIncomingMessageJob implements ShouldQueue
                 if ($currentLastAt > $lastAtSent) {
                     $now = Carbon::now()->timestamp;
                     $secondsSinceLast = max(0, $now - $currentLastAt);
-                    $delaySeconds = max(1, $this->maxWaitSeconds - $secondsSinceLast);
-                    self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
-                        ->delay(now()->addSeconds($delaySeconds))->onQueue('processarconversa');
-                    if ($pendingKey) {
-                        Cache::put($pendingKey, true, now()->addSeconds($this->maxWaitSeconds + 30));
-                    }
+                    $releaseDelay = max(1, $this->maxWaitSeconds - $secondsSinceLast);
                     return;
                 }
 
                 Cache::forget($this->cacheKey);
-                if ($pendingKey) {
-                    Cache::forget($pendingKey);
-                }
             });
         } catch (LockTimeoutException $exception) {
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
-                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+            $this->release($this->debounceSeconds);
             return;
         }
-    }
 
-    private function pendingKeyFromCacheKey(?string $cacheKey): ?string
-    {
-        if (!$cacheKey) {
-            return null;
+        if ($releaseDelay !== null) {
+            $this->release($releaseDelay);
+            return;
         }
-
-        return preg_replace('/^debounce:/', 'debounce-pending:', $cacheKey);
     }
 
     private function lockKeyFromCacheKey(?string $cacheKey): ?string
@@ -1238,6 +1203,28 @@ class ProcessIncomingMessageJob implements ShouldQueue
             LogContext::base($this->payload, $this->conexao),
             $extra
         );
+    }
+
+    public function uniqueId(): string
+    {
+        if ($this->cacheKey) {
+            return $this->cacheKey;
+        }
+
+        $eventId = $this->payload['event_id'] ?? null;
+        if (is_string($eventId) && $eventId !== '') {
+            return 'event:' . $eventId;
+        }
+
+        $phone = (string) ($this->payload['phone'] ?? '');
+        $payloadHash = sha1(json_encode($this->payload));
+
+        return "msg:{$this->conexaoId}:{$phone}:{$payloadHash}";
+    }
+
+    public function uniqueFor(): int
+    {
+        return max(30, $this->maxWaitSeconds + 60);
     }
 
     private function logSilentReturn(string $reason, array $extra = []): void
