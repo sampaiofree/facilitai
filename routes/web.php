@@ -149,6 +149,8 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::get('users', [UserController::class, 'index'])->name('users.index');
     Route::post('users', [UserController::class, 'store'])->name('users.store');
     Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    Route::post('users/{user}/asaas-customer', [UserController::class, 'createAsaasCustomer'])->name('users.asaas-customer');
     Route::get('assistant-lead', [AssistantLeadController::class, 'index'])->name('assistant-lead.index');
     Route::delete('assistant-lead/{assistantLead}', [AssistantLeadController::class, 'destroy'])->name('assistant-lead.destroy');
     Route::get('openai/conv_id', [App\Http\Controllers\Admin\OpenAIController::class, 'convId'])->name('openai.conv_id');

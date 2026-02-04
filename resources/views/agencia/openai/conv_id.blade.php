@@ -43,7 +43,7 @@
                 @forelse($items as $item)
                     <div class="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
                         <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Item {{ $loop->iteration }}</div>
-                        <pre class="mt-2 max-h-[320px] overflow-auto rounded-md bg-slate-900/80 p-3 text-xs text-slate-50 whitespace-pre-wrap break-words">{{ json_encode($item, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
+                        <pre class="mt-2 max-h-[320px] max-w-full overflow-x-auto overflow-y-auto rounded-md bg-slate-900/80 p-3 text-xs text-slate-50 whitespace-pre-wrap break-words">{{ json_encode($item, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
                     </div>
                 @empty
                     <div class="rounded-lg border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-500">Nenhum item retornado.</div>
@@ -68,7 +68,7 @@
 
             <details class="mt-6">
                 <summary class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-500">JSON retornado</summary>
-                <pre class="mt-3 max-h-[650px] overflow-auto rounded-lg bg-slate-900/80 p-4 text-xs text-slate-50 whitespace-pre-wrap break-words">
+                <pre class="mt-3 max-h-[650px] max-w-full overflow-x-auto overflow-y-auto rounded-lg bg-slate-900/80 p-4 text-xs text-slate-50 whitespace-pre-wrap break-words">
 {{ json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}
                 </pre>
             </details>
@@ -119,7 +119,7 @@
                 title.textContent = `Item ${itemCount}`;
 
                 const pre = document.createElement('pre');
-                pre.className = 'mt-2 max-h-[320px] overflow-auto rounded-md bg-slate-900/80 p-3 text-xs text-slate-50 whitespace-pre-wrap break-words';
+                pre.className = 'mt-2 max-h-[320px] max-w-full overflow-x-auto overflow-y-auto rounded-md bg-slate-900/80 p-3 text-xs text-slate-50 whitespace-pre-wrap break-words';
                 pre.textContent = JSON.stringify(item, null, 2);
 
                 wrapper.appendChild(title);
