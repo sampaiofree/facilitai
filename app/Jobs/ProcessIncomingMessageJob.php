@@ -172,6 +172,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         $scheduledKey = "{$cacheKey}:scheduled";
         $bufferMessagesCount = 0;
         $shouldDispatch = false;
+        $bufferVersion = null;
         $scheduledTtl = min(self::DEBOUNCE_CACHE_TTL_SECONDS, $this->maxWaitSeconds + $this->debounceSeconds + 30);
         $staleSeconds = max($this->maxWaitSeconds + 5, $this->debounceSeconds * 2);
 
@@ -184,10 +185,12 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                 $scheduledTtl,
                 $staleSeconds,
                 &$bufferMessagesCount,
-                &$shouldDispatch
+                &$shouldDispatch,
+                &$bufferVersion
             ) {
                 $buffer = Cache::get($cacheKey, []);
                 $agora = Carbon::now()->timestamp;
+                $previousLastAt = (int) ($buffer['last_at'] ?? 0);
 
                 if (empty($buffer)) {
                     $buffer = [
@@ -203,9 +206,13 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                     $buffer['data'] = $payload;
                 }
 
+                $buffer['version'] = (int) ($buffer['version'] ?? 0) + 1;
+                $buffer['data']['debounce_version'] = $buffer['version'];
+
                 Cache::put($cacheKey, $buffer, now()->addSeconds(self::DEBOUNCE_CACHE_TTL_SECONDS));
 
                 $bufferMessagesCount = count($buffer['messages'] ?? []);
+                $bufferVersion = $buffer['version'];
 
                 $created = Cache::add($scheduledKey, true, now()->addSeconds($scheduledTtl));
                 if ($created) {
@@ -213,8 +220,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                     return;
                 }
 
-                $lastAt = (int) ($buffer['last_at'] ?? $agora);
-                if (($agora - $lastAt) >= $staleSeconds) {
+                if (($agora - $previousLastAt) >= $staleSeconds) {
                     Cache::put($scheduledKey, true, now()->addSeconds($scheduledTtl));
                     $shouldDispatch = true;
                 }
@@ -231,7 +237,11 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         }
 
         if ($shouldDispatch) {
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
+            $dispatchPayload = $payload;
+            if ($bufferVersion !== null) {
+                $dispatchPayload['debounce_version'] = $bufferVersion;
+            }
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $dispatchPayload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
                 ->delay(now()->addSeconds($this->maxWaitSeconds))->onQueue('processarconversa');
         }
 
@@ -284,13 +294,36 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         $now = Carbon::now();
         $lastAt = Carbon::createFromTimestamp($buffer['last_at'] ?? $now->timestamp);
         $secondsSinceLast = $now->timestamp - $lastAt->timestamp;
+        $currentVersion = (int) ($buffer['version'] ?? 0);
+        $expectedVersion = $this->payload['debounce_version'] ?? null;
+        $dispatchPayload = $this->payload;
+        if ($currentVersion > 0) {
+            $dispatchPayload['debounce_version'] = $currentVersion;
+        }
+
+        if ($expectedVersion !== null && $currentVersion > 0 && $currentVersion !== (int) $expectedVersion) {
+            if ($scheduledKey) {
+                Cache::put($scheduledKey, true, now()->addSeconds($scheduledTtl));
+            }
+            $delaySeconds = max(1, $this->maxWaitSeconds - $secondsSinceLast);
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $dispatchPayload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds($delaySeconds))
+                ->onQueue('processarconversa');
+            $this->logSilentReturn('debounce_obsolete_tick', [
+                'cache_key' => $this->cacheKey,
+                'expected_version' => (int) $expectedVersion,
+                'current_version' => $currentVersion,
+                'delay_seconds' => $delaySeconds,
+            ]);
+            return;
+        }
 
         if ($secondsSinceLast < $this->maxWaitSeconds) {
             $delaySeconds = max(1, $this->maxWaitSeconds - $secondsSinceLast);
             if ($scheduledKey) {
                 Cache::put($scheduledKey, true, now()->addSeconds($scheduledTtl));
             }
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $dispatchPayload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
                 ->delay(now()->addSeconds($delaySeconds))
                 ->onQueue('processarconversa');
             $this->logSilentReturn('debounce_waiting', [
@@ -319,7 +352,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             if ($scheduledKey) {
                 Cache::put($scheduledKey, true, now()->addSeconds($scheduledTtl));
             }
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $dispatchPayload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
                 ->delay(now()->addSeconds($this->debounceSeconds))
                 ->onQueue('processarconversa');
             return;
@@ -356,7 +389,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             if ($scheduledKey) {
                 Cache::put($scheduledKey, true, now()->addSeconds($scheduledTtl));
             }
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $dispatchPayload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
                 ->delay(now()->addSeconds($this->debounceSeconds))
                 ->onQueue('processarconversa');
             return;
@@ -366,7 +399,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             if ($scheduledKey) {
                 Cache::put($scheduledKey, true, now()->addSeconds($scheduledTtl));
             }
-            self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+            self::dispatch($this->conexaoId, $this->clienteLeadId, $dispatchPayload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
                 ->delay(now()->addSeconds($releaseDelay))
                 ->onQueue('processarconversa');
             return;

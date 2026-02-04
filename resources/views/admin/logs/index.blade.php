@@ -86,7 +86,7 @@
             <p id="logLoading" class="mt-3 text-xs text-slate-500 hidden">Carregando...</p>
             <p id="logError" class="mt-3 text-xs text-rose-600 hidden">Não foi possível carregar o conteúdo do log.</p>
 
-            <div class="mt-3 flex-1 overflow-hidden rounded-lg border border-slate-200 bg-slate-900">
+            <div class="mt-3 flex-1 min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-900">
                 <pre id="logContent" class="p-4 text-xs leading-relaxed text-slate-100 whitespace-pre-wrap font-mono"></pre>
             </div>
         </div>

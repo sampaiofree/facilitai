@@ -238,10 +238,6 @@
             const viewUserWebhooks = document.getElementById('viewUserWebhooks');
             const createAsaasCustomerBtn = document.getElementById('createAsaasCustomerBtn');
             const createAsaasCustomerHint = document.getElementById('createAsaasCustomerHint');
-            const createCustomerUrlTemplate = '{{ route(''adm.users.asaas-customer'', [''user'' => ''__ID__'']) }}';
-            let currentViewUser = null;
-            const createAsaasCustomerBtn = document.getElementById('createAsaasCustomerBtn');
-            const createAsaasCustomerHint = document.getElementById('createAsaasCustomerHint');
             const createCustomerUrlTemplate = "{{ route('adm.users.asaas-customer', ['user' => '__ID__']) }}";
             let currentViewUser = null;
 
@@ -369,7 +365,6 @@
         })();
     </script>
 @endsection
-
 
 
 
