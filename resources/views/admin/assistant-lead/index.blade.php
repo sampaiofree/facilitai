@@ -8,6 +8,26 @@
         </div>
     </div>
 
+    <form method="GET" action="{{ route('adm.assistant-lead.index') }}" class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="flex-1">
+            <label for="assistantLeadSearch" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Buscar por nome ou telefone</label>
+            <input
+                id="assistantLeadSearch"
+                name="q"
+                type="text"
+                value="{{ $search ?? '' }}"
+                placeholder="Ex.: Maria ou 551199999999"
+                class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+        </div>
+        <div class="flex items-center gap-2">
+            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Buscar</button>
+            @if(!empty($search))
+                <a href="{{ route('adm.assistant-lead.index') }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Limpar</a>
+            @endif
+        </div>
+    </form>
+
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-slate-500">
@@ -61,6 +81,12 @@
             </tbody>
         </table>
     </div>
+
+    @if($assistantLeads->hasPages())
+        <div class="mt-4 flex items-center justify-end">
+            {{ $assistantLeads->links('pagination::tailwind') }}
+        </div>
+    @endif
 
     <div id="assistantLeadModal" class="fixed inset-0 hidden items-center justify-center bg-black/50 backdrop-blur">
         <div class="w-[min(720px,calc(100%-2rem))] rounded-2xl bg-white p-6 shadow-2xl">
