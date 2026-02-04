@@ -14,6 +14,7 @@ use App\Services\IAOrchestratorService;
 use App\Services\UazapiService;
 use App\DTOs\IAResult;
 use App\Support\LogContext;
+use App\Jobs\ProcessDebounceJob;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -208,7 +209,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUnique
             return;
         }
 
-        self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
+        ProcessDebounceJob::dispatch($this->conexaoId, $this->clienteLeadId, $payload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
             ->delay(now()->addSeconds($this->maxWaitSeconds))->onQueue('processarconversa');
 
         $this->logSilentReturn('debounce_buffered', [
@@ -235,7 +236,8 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUnique
                 $buffer = Cache::get($this->cacheKey);
             });
         } catch (LockTimeoutException $exception) {
-            $this->release($this->debounceSeconds);
+            ProcessDebounceJob::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
             return;
         }
 
@@ -252,7 +254,8 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUnique
 
         if ($secondsSinceLast < $this->maxWaitSeconds) {
             $delaySeconds = max(1, $this->maxWaitSeconds - $secondsSinceLast);
-            $this->release($delaySeconds);
+            ProcessDebounceJob::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds($delaySeconds))->onQueue('processarconversa');
             $this->logSilentReturn('debounce_waiting', [
                 'cache_key' => $this->cacheKey,
                 'last_at' => $lastAt->toIso8601String(),
@@ -276,7 +279,8 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUnique
                 'cache_key' => $this->cacheKey,
                 'error' => $exception->getMessage(),
             ]));
-            $this->release($this->debounceSeconds);
+            ProcessDebounceJob::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
             return;
         }
 
@@ -299,12 +303,14 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUnique
                 Cache::forget($this->cacheKey);
             });
         } catch (LockTimeoutException $exception) {
-            $this->release($this->debounceSeconds);
+            ProcessDebounceJob::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
             return;
         }
 
         if ($releaseDelay !== null) {
-            $this->release($releaseDelay);
+            ProcessDebounceJob::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
+                ->delay(now()->addSeconds($releaseDelay))->onQueue('processarconversa');
             return;
         }
     }
