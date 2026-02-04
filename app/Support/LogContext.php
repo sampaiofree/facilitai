@@ -18,7 +18,7 @@ class LogContext
             'message_type' => $payload['message_type'] ?? null,
             'conversation_id' => $payload['conversation_id'] ?? null,
             'provider' => $payload['provider'] ?? $conexao?->credential?->iaplataforma?->nome ?? null,
-            'model' => $payload['assistant_model'] ?? $conexao?->assistant?->modelo ?? null,
+            'model' => $payload['assistant_model'] ?? $conexao?->iamodelo?->nome ?? $conexao?->assistant?->modelo ?? null,
         ];
 
         return self::filter($context);
