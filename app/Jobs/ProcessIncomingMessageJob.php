@@ -911,6 +911,15 @@ class ProcessIncomingMessageJob implements ShouldQueue
         $docName = $arguments['docName'] ?? null;
 
         $finalType = $type ? Str::lower((string) $type) : $this->resolveMediaType($url);
+        $finalType = $this->normalizeMediaType($finalType);
+
+        if (!$this->isAllowedMediaType($finalType)) {
+            return 'Tipo de midia nao suportado. Envie imagem, video, audio ou PDF.';
+        }
+
+        if (!$this->isAllowedMediaUrl($url, $finalType)) {
+            return 'URL nao suportada. Envie apenas imagem, video, audio ou PDF.';
+        }
         
         $options = [];
 
@@ -964,6 +973,57 @@ class ProcessIncomingMessageJob implements ShouldQueue
             'mp3', 'ogg' => 'ptt',
             'pdf', 'doc', 'docx', 'xls', 'xlsx' => 'document',
             default => 'document',
+        };
+    }
+
+    private function normalizeMediaType(?string $type): ?string
+    {
+        if (!is_string($type) || trim($type) === '') {
+            return null;
+        }
+
+        $type = Str::lower(trim($type));
+        if ($type === 'audio') {
+            return 'ptt';
+        }
+
+        if ($type === 'pdf') {
+            return 'document';
+        }
+
+        return $type;
+    }
+
+    private function isAllowedMediaType(?string $type): bool
+    {
+        return in_array($type, ['image', 'video', 'ptt', 'document'], true);
+    }
+
+    private function isAllowedMediaUrl(string $url, string $type): bool
+    {
+        $lower = Str::lower($url);
+        if (str_starts_with($lower, 'data:')) {
+            return match ($type) {
+                'image' => str_starts_with($lower, 'data:image/'),
+                'video' => str_starts_with($lower, 'data:video/'),
+                'ptt' => str_starts_with($lower, 'data:audio/'),
+                'document' => str_starts_with($lower, 'data:application/pdf'),
+                default => false,
+            };
+        }
+
+        $path = parse_url($lower, PHP_URL_PATH) ?? '';
+        $ext = pathinfo($path, PATHINFO_EXTENSION);
+        if ($ext === '') {
+            return false;
+        }
+
+        return match ($type) {
+            'image' => in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true),
+            'video' => in_array($ext, ['mp4'], true),
+            'ptt' => in_array($ext, ['mp3', 'ogg'], true),
+            'document' => $ext === 'pdf',
+            default => false,
         };
     }
 

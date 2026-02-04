@@ -47,14 +47,14 @@ TXT,
                 'type' => 'function',
                 'name' => 'enviar_media',
                 'description' => <<<TXT
-Use para enviar áudio/imagem/vídeo hospedado publicamente em qualquer momento do atendimento, quando a estratégia pedir envio de mídia. Não use essa tool para links do youtube.
+Ferramenta para enviar arquivos de áudio, imagem, vídeo ou PDF. Use essa ferramente somente quando for especificado no prompt. Não use essa tool para links do youtube.
 TXT,
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'url' => [
                             'type' => 'string',
-                            'description' => 'A URL da imagem ou vídeo que será enviada. Verifique se a URL é de uma imagem ou vídeo acessível publicamente.',
+                            'description' => 'A URL do áudio, imagem, vídeo ou PDF que será enviada.',
                         ],
                     ],
                     'required' => ['url'],
