@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -11,7 +12,7 @@ class LogFileController extends Controller
 {
     private const MAX_BYTES = 512000; // 500 KB
 
-    public function index()
+    public function index(Request $request)
     {
         $dir = storage_path('logs');
         $files = [];
@@ -40,6 +41,13 @@ class LogFileController extends Controller
             usort($files, function (array $a, array $b) {
                 return $b['modified_ts'] <=> $a['modified_ts'];
             });
+
+            $search = trim((string) $request->input('nome', ''));
+            if ($search !== '') {
+                $files = array_values(array_filter($files, function (array $file) use ($search) {
+                    return stripos($file['name'], $search) !== false;
+                }));
+            }
         }
 
         return view('admin.logs.index', [
@@ -47,6 +55,7 @@ class LogFileController extends Controller
             'dirMissing' => $dirMissing,
             'maxBytes' => self::MAX_BYTES,
             'maxBytesHuman' => $this->formatBytes(self::MAX_BYTES),
+            'search' => $request->input('nome', ''),
         ]);
     }
 

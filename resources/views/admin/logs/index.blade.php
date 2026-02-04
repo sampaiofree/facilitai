@@ -8,6 +8,24 @@
         </div>
     </div>
 
+    <div class="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+        <form method="GET" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div class="flex-1">
+                <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="logSearch">Nome do arquivo</label>
+                <input id="logSearch"
+                       name="nome"
+                       type="text"
+                       value="{{ $search ?? '' }}"
+                       placeholder="ex: laravel.log"
+                       class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Buscar</button>
+                <a href="{{ route('adm.logs.index') }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Limpar</a>
+            </div>
+        </form>
+    </div>
+
     @if($dirMissing)
         <div class="mb-6 rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             Diretório de logs não encontrado.
