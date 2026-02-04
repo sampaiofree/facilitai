@@ -626,6 +626,8 @@
             const stepStoreTemplate = "{{ route('agencia.sequences.steps.store', ['sequence' => '__SEQ__']) }}";
             const stepUpdateTemplate = "{{ route('agencia.sequences.steps.update', ['sequence' => '__SEQ__', 'step' => '__STEP__']) }}";
 
+            const defaultDays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
             const openStepModal = (sequenceId, stepData = null) => {
                 stepSequenceInput.value = sequenceId;
                 if (stepData) {
@@ -652,7 +654,7 @@
                     stepJanelaFimInput.value = '';
                     stepPromptInput.value = '';
                     stepActiveInput.checked = true;
-                    setDayCheckboxes([]);
+                    setDayCheckboxes(defaultDays);
                     stepModalTitle.textContent = 'Nova etapa';
                 }
                 stepModal.classList.remove('hidden');
