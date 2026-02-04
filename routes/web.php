@@ -30,6 +30,7 @@ use App\Http\Controllers\Admin\AssistantLeadController;
 use App\Http\Controllers\UazapiController;
 use App\Http\Controllers\Admin\PlanController;
 use App\Http\Controllers\Admin\PromptHelpController;
+use App\Http\Controllers\Admin\LogFileController;
 use App\Http\Controllers\Agencia\AgenciaAssistantController;
 use App\Http\Controllers\Agencia\AgenciaClienteController;
 use App\Http\Controllers\Agencia\AgenciaConexaoController;
@@ -184,6 +185,9 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::post('prompt-ajuda/prompts', [PromptHelpController::class, 'storePrompt'])->name('prompt-ajuda.prompts.store');
     Route::patch('prompt-ajuda/prompts/{prompt}', [PromptHelpController::class, 'updatePrompt'])->name('prompt-ajuda.prompts.update');
     Route::delete('prompt-ajuda/prompts/{prompt}', [PromptHelpController::class, 'destroyPrompt'])->name('prompt-ajuda.prompts.destroy');
+    Route::get('logs', [LogFileController::class, 'index'])->name('logs.index');
+    Route::get('logs/{file}', [LogFileController::class, 'show'])->where('file', '[^/]+')->name('logs.show');
+    Route::get('logs/{file}/download', [LogFileController::class, 'download'])->where('file', '[^/]+')->name('logs.download');
 });
 
 Route::get('/dashboard', function () {

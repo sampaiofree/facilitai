@@ -31,6 +31,7 @@
                 <a href="{{ route('adm.prompt-ajuda.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.prompt-ajuda.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Prompt ajuda</a>
                 <a href="{{ route('adm.cliente-lead.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.cliente-lead.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Cliente Leads</a>
                 <a href="{{ route('adm.payload.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.payload.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Payload</a>
+                <a href="{{ route('adm.logs.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold {{ request()->routeIs('adm.logs.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Logs</a>
             </nav>
             <div class="mt-auto px-6 py-6 border-t border-slate-800 text-xs text-slate-400">
                 {{ auth()->user()->name ?? 'Usuário' }}
