@@ -517,18 +517,25 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUnique
         $result = $orchestrator->handleMessage($this->conexao, $assistant, $lead, $assistantLead, $payload, $handlers);
         $this->persistAssistantLeadResponse($assistantLead, $result);
 
-        if (!$result->ok || !is_string($result->text) || trim($result->text) === '') {
+        $text = is_string($result->text) ? $result->text : '';
+        $textTrimmed = trim($text);
+
+        $isEmptyResponse = $textTrimmed === '';
+        $isErrorResponse = !$result->ok || $result->error;
+
+        if ($isEmptyResponse || $isErrorResponse) {
             Log::channel('process_job')->warning('IAOrchestratorService sem resposta final.', $this->logContext(array_merge($logContext, [
                 'provider' => $result->provider,
                 'error' => $result->error,
+                'result_ok' => $result->ok,
             ])));
-            if ($result->provider === 'openai') {
+            if ($result->provider === 'openai' && $isErrorResponse) {
                 $this->handleOpenAIErrorFallback($result, $payload, $lead, $logContext);
             }
             return;
         }
 
-        $this->sendText($token, $phone, $result->text, $logContext);
+        $this->sendText($token, $phone, $text, $logContext);
     }
 
     private function persistAssistantLeadWebhookPayload(AssistantLead $assistantLead): void

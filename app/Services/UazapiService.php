@@ -284,16 +284,29 @@ class UazapiService
         }
 
         $paragrafos = preg_split('/\n\s*\n/', $mensagem) ?: [$mensagem];
-        $resultados = [];
-
+        $limpos = [];
         foreach ($paragrafos as $paragrafo) {
             $paragrafo = trim($paragrafo);
             if ($paragrafo !== '') {
-                $resultados[] = $paragrafo;
+                $limpos[] = $paragrafo;
             }
         }
 
-        return $resultados ?: [$mensagem];
+        if (empty($limpos)) {
+            return [$mensagem];
+        }
+
+        $resultados = [];
+        $total = count($limpos);
+        for ($i = 0; $i < $total; $i += 2) {
+            $bloco = $limpos[$i];
+            if (isset($limpos[$i + 1])) {
+                $bloco .= "\n\n" . $limpos[$i + 1];
+            }
+            $resultados[] = $bloco;
+        }
+
+        return $resultados;
     }
 
     public function sendMedia(string $token, string $number, string $type, string $file, array $options = []): array
