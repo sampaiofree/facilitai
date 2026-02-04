@@ -149,7 +149,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
         $payload['assistant_lead_id'] = $assistantLead->id;
         $payload['lead_id'] = $lead->id;
         $payload['conversation_id'] = $assistantLead->conv_id;
-        $payload['assistant_model'] = $assistant->modelo ?: 'gpt-4.1-mini';
+        $payload['assistant_model'] = $conexao->iamodelo?->nome ?? 'gpt-4.1-mini';
         $payload['contact_name'] = $lead->name ?: $leadName;
         $payload['system_prompt'] = $systemPrompt;
 
@@ -389,7 +389,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
             return $this->conexao;
         }
 
-        $conexao = Conexao::with(['cliente', 'assistant', 'credential.iaplataforma'])->find($this->conexaoId);
+        $conexao = Conexao::with(['cliente', 'assistant', 'credential.iaplataforma', 'iamodelo'])->find($this->conexaoId);
         if (!$conexao) {
             Log::channel('process_job')->error('Conexao não encontrada para ProcessIncomingMessageJob.', $this->logContext([
                 'conexao_id' => $this->conexaoId,
