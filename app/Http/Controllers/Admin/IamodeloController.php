@@ -55,6 +55,6 @@ class IamodeloController extends Controller
     {
         $iamodelo->delete();
 
-        return redirect()->route('adm.iamodelos.index')->with('success', 'Modelo excluÃ­do com sucesso.');
+        return redirect()->route('adm.iamodelos.index')->with('success', 'Modelo excluído com sucesso.');
     }
 }
