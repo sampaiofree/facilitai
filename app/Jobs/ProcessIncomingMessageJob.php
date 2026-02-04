@@ -49,7 +49,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUnique
     protected ?Conexao $conexao = null;
     protected ?ClienteLead $clienteLead = null;
 
-    public function __construct(int $conexaoId, ?int $clienteLeadId, array $payload, ?string $cacheKey = null, bool $isMedia = false, int $debounceSeconds = 5, int $maxWaitSeconds = 20)
+    public function __construct(int $conexaoId, ?int $clienteLeadId, array $payload, ?string $cacheKey = null, bool $isMedia = false, int $debounceSeconds = 5, int $maxWaitSeconds = 25)
     {
         $this->conexaoId = $conexaoId;
         $this->clienteLeadId = $clienteLeadId;
