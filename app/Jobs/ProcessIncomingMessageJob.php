@@ -202,10 +202,13 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
                 Cache::put($cacheKey, $buffer, now()->addSeconds(self::DEBOUNCE_CACHE_TTL_SECONDS));
 
-                $pendingTtl = now()->addSeconds($this->maxWaitSeconds + $this->debounceSeconds + 30);
-                $createdPending = Cache::add($pendingKey, true, $pendingTtl);
-                $bufferMessagesCount = count($buffer['messages'] ?? []);
-            });
+        $pendingTtl = now()->addSeconds($this->maxWaitSeconds + 30);
+        $createdPending = Cache::add($pendingKey, true, $pendingTtl);
+        if (!$createdPending) {
+            Cache::put($pendingKey, true, $pendingTtl);
+        }
+        $bufferMessagesCount = count($buffer['messages'] ?? []);
+    });
         } catch (LockTimeoutException $exception) {
             Log::channel('process_job')->warning('Debounce lock timeout.', $this->logContext([
                 'cache_key' => $cacheKey,
@@ -218,13 +221,14 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
         if ($createdPending) {
             self::dispatch($this->conexaoId, $this->clienteLeadId, $payload, $cacheKey, false, $this->debounceSeconds, $this->maxWaitSeconds)
-                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+                ->delay(now()->addSeconds($this->maxWaitSeconds))->onQueue('processarconversa');
         }
 
         $this->logSilentReturn('debounce_buffered', [
             'cache_key' => $cacheKey,
             'messages_count' => $bufferMessagesCount,
             'debounce_seconds' => $this->debounceSeconds,
+            'wait_seconds' => $this->maxWaitSeconds,
             'max_wait_seconds' => $this->maxWaitSeconds,
         ]);
     }
@@ -262,18 +266,17 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
         $now = Carbon::now();
         $lastAt = Carbon::createFromTimestamp($buffer['last_at'] ?? $now->timestamp);
-        $startedAt = Carbon::createFromTimestamp($buffer['started_at'] ?? $now->timestamp);
-        $debounceThreshold = $now->copy()->subSeconds($this->debounceSeconds);
-        $maxWaitThreshold = $now->copy()->subSeconds($this->maxWaitSeconds);
+        $secondsSinceLast = $now->timestamp - $lastAt->timestamp;
 
-        if ($lastAt->gt($debounceThreshold) && $startedAt->gt($maxWaitThreshold)) {
+        if ($secondsSinceLast < $this->maxWaitSeconds) {
+            $delaySeconds = max(1, $this->maxWaitSeconds - $secondsSinceLast);
             self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
-                ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+                ->delay(now()->addSeconds($delaySeconds))->onQueue('processarconversa');
             $this->logSilentReturn('debounce_waiting', [
                 'cache_key' => $this->cacheKey,
                 'last_at' => $lastAt->toIso8601String(),
-                'started_at' => $startedAt->toIso8601String(),
-                'debounce_seconds' => $this->debounceSeconds,
+                'seconds_since_last' => $secondsSinceLast,
+                'delay_seconds' => $delaySeconds,
                 'max_wait_seconds' => $this->maxWaitSeconds,
             ]);
             return;
@@ -309,8 +312,14 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
                 $currentLastAt = (int) ($current['last_at'] ?? 0);
                 if ($currentLastAt > $lastAtSent) {
+                    $now = Carbon::now()->timestamp;
+                    $secondsSinceLast = max(0, $now - $currentLastAt);
+                    $delaySeconds = max(1, $this->maxWaitSeconds - $secondsSinceLast);
                     self::dispatch($this->conexaoId, $this->clienteLeadId, $this->payload, $this->cacheKey, $this->isMedia, $this->debounceSeconds, $this->maxWaitSeconds)
-                        ->delay(now()->addSeconds($this->debounceSeconds))->onQueue('processarconversa');
+                        ->delay(now()->addSeconds($delaySeconds))->onQueue('processarconversa');
+                    if ($pendingKey) {
+                        Cache::put($pendingKey, true, now()->addSeconds($this->maxWaitSeconds + 30));
+                    }
                     return;
                 }
 
