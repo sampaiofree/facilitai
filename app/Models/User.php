@@ -30,6 +30,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'is_admin',
         'cpf_cnpj',
         'customer_asaas_id',
+        'asaas_sub',
         'mobile_phone',
         'plan_id',
         'storage_used_mb',

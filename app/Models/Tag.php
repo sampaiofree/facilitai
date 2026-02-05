@@ -11,6 +11,7 @@ class Tag extends Model
 
     protected $fillable = [
         'user_id',
+        'cliente_id',
         'name',
         'color',
         'description',
@@ -19,6 +20,11 @@ class Tag extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class);
     }
 
     public function chats()

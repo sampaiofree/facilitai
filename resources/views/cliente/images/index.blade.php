@@ -1,66 +1,12 @@
-@extends('layouts.agencia')
+@extends('layouts.cliente')
 
 @section('content')
 
     @php
-        $imagesRouteBase = $imagesRouteBase ?? 'images';
-        $foldersRouteBase = $foldersRouteBase ?? 'folders';
-        $quotaUser = auth()->user();
-        $quotaPlan = $quotaUser?->plan;
-        $quotaUsedMb = (int) ($quotaUser?->storage_used_mb ?? 0);
-        $quotaLimitMb = (int) ($quotaPlan?->storage_limit_mb ?? 0);
-        $quotaPercent = $quotaLimitMb > 0 ? min(100, (int) round(($quotaUsedMb / $quotaLimitMb) * 100)) : 0;
-        $quotaColor = $quotaLimitMb > 0
-            ? ($quotaPercent > 90 ? 'bg-rose-500' : ($quotaPercent >= 70 ? 'bg-amber-400' : 'bg-emerald-500'))
-            : 'bg-slate-300';
-        $formatStorage = function (int $mb): string {
-            if ($mb >= 1024) {
-                return number_format($mb / 1024, 1, ',', '.') . ' GB';
-            }
-            return number_format($mb, 0, ',', '.') . ' MB';
-        };
+        $imagesRouteBase = $imagesRouteBase ?? 'cliente.images';
+        $hasFolders = $folders->isNotEmpty();
     @endphp
     <div class="grid gap-6">
-        <!-- Seção de Upload -->
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div class="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <h3 class="text-lg font-semibold text-slate-900">Enviar nova mídia</h3>
-                    <p class="text-sm text-slate-500 mt-1">
-                        Gerencie imagens, vídeos, áudios e PDFs do seu usuário. Envie arquivos até 10MB, organize em pastas e copie o link para o assistente.
-                    </p>
-                    <p class="text-xs text-slate-400 mt-1">
-                        1. Envie os arquivos &nbsp;|&nbsp; 2. Organize em pastas &nbsp;|&nbsp; 3. Copie o link.
-                    </p>
-                </div>
-            </div>
-            <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <p class="text-sm font-semibold text-slate-800">Armazenamento</p>
-                        <p class="text-xs text-slate-500">
-                            @if($quotaLimitMb > 0)
-                                {{ $formatStorage($quotaUsedMb) }} de {{ $formatStorage($quotaLimitMb) }} usados
-                            @else
-                                Nenhum plano definido
-                            @endif
-                        </p>
-                    </div>
-                    <div class="flex-1 sm:max-w-md">
-                        <div class="h-2 w-full rounded-full bg-slate-100">
-                            <div class="h-2 rounded-full {{ $quotaColor }}" style="width: {{ $quotaPercent }}%"></div>
-                        </div>
-                        <div class="mt-1 text-[11px] text-slate-500">
-                            @if($quotaLimitMb > 0)
-                                {{ $quotaPercent }}% usado
-                            @else
-                                Selecione um plano para liberar uploads
-                            @endif
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 <!-- Modal Upload -->
             <div id="upload-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-start justify-center z-50 overflow-y-auto py-6">
                 <div class="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
@@ -88,11 +34,11 @@
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                         <div class="flex items-center justify-between gap-2">
-                                        <label class="block text-sm text-slate-700 mb-1" for="upload-folder-all">Pasta para todos (opcional)</label>
-                                        <span class="text-xs text-slate-400">Opcional - pode editar depois</span>
+                                        <label class="block text-sm text-slate-700 mb-1" for="upload-folder-all">Pasta para todos</label>
+                                        <span class="text-xs text-slate-400">Obrigatório</span>
                                     </div>
-                                    <select id="upload-folder-all" name="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full">
-                                        <option value="">Sem pasta</option>
+                                    <select id="upload-folder-all" name="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full" required>
+                                        <option value="" {{ old('folder_id') ? '' : 'selected' }}>Selecione uma pasta</option>
                                         @foreach($folders as $folder)
                                             <option value="{{ $folder->id }}" {{ old('folder_id') == $folder->id ? 'selected' : '' }}>{{ $folder->name }}</option>
                                         @endforeach
@@ -124,7 +70,7 @@
                         </div>
                     </form>
                     <template id="folder-options-template">
-                        <option value="">Sem pasta</option>
+                        <option value="">Selecione uma pasta</option>
                         @foreach($folders as $folder)
                             <option value="{{ $folder->id }}">{{ $folder->name }}</option>
                         @endforeach
@@ -142,63 +88,10 @@
                 </div>
             </div>
 
-            <!-- Modal Nova Pasta -->
-            <div id="folder-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-start justify-center z-50 overflow-y-auto py-6">
-                <div class="bg-white rounded-lg shadow-lg max-w-xl w-full mx-4 p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 id="folder-modal-title" class="text-lg font-semibold text-slate-800">Nova pasta</h3>
-                        <button type="button" id="folder-modal-close" class="text-slate-500 hover:text-slate-700">&times;</button>
-                    </div>
-                    <form id="folder-form" action="{{ route($foldersRouteBase . '.store') }}" method="POST" class="space-y-4">
-                        @csrf
-                        <input type="hidden" name="_folder_form" value="create">
-                        <input type="hidden" name="_folder_id" id="folder-form-id" value="">
-                        <input type="hidden" name="_method" id="folder-form-method" value="POST">
-                        <input type="hidden" name="user_id" id="folder-user-id" value="{{ auth()->id() }}" data-plan-limit="{{ $quotaLimitMb }}">
-                        <div>
-                            <label class="block text-sm text-slate-700 mb-1" for="folder-client-id">Cliente (opcional)</label>
-                            <select id="folder-client-id" name="cliente_id" class="border rounded-lg px-3 py-2 text-sm w-full" data-original-value="{{ old('cliente_id', '') }}">
-                                <option value="">Sem cliente</option>
-                                @foreach($clients as $client)
-                                    <option value="{{ $client->id }}" {{ (string) old('cliente_id') === (string) $client->id ? 'selected' : '' }}>
-                                        {{ $client->nome }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('cliente_id')
-                                <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm text-slate-700 mb-1" for="folder-name-modal">Nome da pasta</label>
-                            <input id="folder-name-modal" type="text" name="name" required maxlength="255" value="{{ old('name') }}" class="border rounded-lg px-3 py-2 text-sm w-full" placeholder="Nome da pasta">
-                            @error('name')
-                                <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div>
-                            <label class="block text-sm text-slate-700 mb-1" for="folder-storage-limit">Limite de armazenamento (MB)</label>
-                            <input id="folder-storage-limit" type="number" min="0" name="storage_limit_mb" value="{{ old('storage_limit_mb', 0) }}" class="border rounded-lg px-3 py-2 text-sm w-full" placeholder="Ex: 500">
-                            <p id="folder-storage-help" class="text-xs text-slate-500 mt-1">Limite do plano: {{ $quotaLimitMb }} MB</p>
-                            @error('storage_limit_mb')
-                                <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
-                            @enderror
-                        </div>
-                        <div class="flex justify-end gap-2 pt-2">
-                            <button type="button" id="folder-cancel" class="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200">Cancelar</button>
-                            <button id="folder-submit" type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Criar pasta</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
             <!-- Card Pastas -->
             <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <h3 class="text-base font-semibold text-slate-800">Pastas</h3>
-                    <button id="open-folder-modal" type="button" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                        Criar pasta
-                    </button>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -208,7 +101,6 @@
                                 <th class="px-3 py-2 text-left font-semibold text-slate-700">Nome</th>
                                 <th class="px-3 py-2 text-left font-semibold text-slate-700">Usado (MB)</th>
                                 <th class="px-3 py-2 text-left font-semibold text-slate-700">Limite (MB)</th>
-                                <th class="px-3 py-2 text-left font-semibold text-slate-700">Ações</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -226,35 +118,10 @@
                                     <td class="px-3 py-2 align-top text-slate-700">
                                         {{ $folder->storage_limit_mb ?? 0 }}
                                     </td>
-                                    <td class="px-3 py-2 align-top">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <button
-                                                type="button"
-                                                class="folder-edit inline-flex items-center gap-1 px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-md hover:bg-blue-200"
-                                                data-folder-id="{{ $folder->id }}"
-                                                data-folder-name="{{ e($folder->name) }}"
-                                                data-folder-user-id="{{ $folder->user_id }}"
-                                                data-folder-client-id="{{ $folder->cliente_id }}"
-                                                data-folder-limit="{{ $folder->storage_limit_mb ?? 0 }}"
-                                                data-update-url="{{ route($foldersRouteBase . '.update', $folder) }}"
-                                            >
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-4-9l3 3m-4-3l-7 7v3h3l7-7"></path></svg>
-                                                Editar
-                                            </button>
-                                            <form action="{{ route($foldersRouteBase . '.destroy', $folder) }}" method="POST" onsubmit="return confirm('Tem certeza?');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-semibold rounded-md hover:bg-red-200">
-                                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                                                    Excluir
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="px-3 py-6 text-center text-slate-500">Nenhuma pasta cadastrada.</td>
+                                    <td colspan="4" class="px-3 py-6 text-center text-slate-500">Nenhuma pasta cadastrada.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -268,11 +135,11 @@
                     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                         <h3 class="text-base font-semibold text-slate-800">Mídias</h3>
                         <div class="flex items-center gap-2">
-                            <button id="open-upload-modal" type="button" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+                            <button id="open-upload-modal" type="button" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 {{ $hasFolders ? '' : 'opacity-50 cursor-not-allowed' }}" {{ $hasFolders ? '' : 'disabled' }}>
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                                 Adicionar mídia
                             </button>
-                            @if($currentFolder || $selectedFolderId === 'none')
+                            @if($currentFolder)
                                 <a href="{{ route($imagesRouteBase . '.index') }}" class="inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                                     Voltar
@@ -280,27 +147,20 @@
                             @endif
                         </div>
                     </div>
+                    @unless($hasFolders)
+                        <p class="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                            Nenhuma pasta disponível. Solicite ao administrador a criação de uma pasta para enviar mídias.
+                        </p>
+                    @endunless
 
                     <form method="GET" action="{{ route($imagesRouteBase . '.index') }}" class="mb-4 flex flex-wrap items-end gap-3">
                         <div>
                             <label for="filter-folder" class="text-sm text-slate-700">Pasta</label>
                             <select id="filter-folder" name="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full">
                                 <option value="" {{ empty($selectedFolderId) ? 'selected' : '' }}>Todas</option>
-                                <option value="none" {{ $selectedFolderId === 'none' ? 'selected' : '' }}>Sem pasta</option>
                                 @foreach($folders as $folder)
                                     <option value="{{ $folder->id }}" {{ (string)$selectedFolderId === (string)$folder->id ? 'selected' : '' }}>
                                         {{ $folder->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div>
-                            <label for="filter-client" class="text-sm text-slate-700">Cliente</label>
-                            <select id="filter-client" name="cliente_id" class="border rounded-lg px-3 py-2 text-sm w-full">
-                                <option value="" {{ empty($selectedClienteId) ? 'selected' : '' }}>Todos</option>
-                                @foreach($clients as $client)
-                                    <option value="{{ $client->id }}" {{ (string)$selectedClienteId === (string)$client->id ? 'selected' : '' }}>
-                                        {{ $client->nome }}
                                     </option>
                                 @endforeach
                             </select>
@@ -312,8 +172,8 @@
                         @csrf
                         <div id="selection-bar" class="hidden bg-blue-50 border border-blue-100 text-blue-800 rounded-lg p-3 flex flex-wrap items-center gap-3">
                             <span class="text-sm font-semibold">Itens selecionados: <span id="selected-count">0</span></span>
-                            <select name="folder_id" class="border rounded-lg px-3 py-2 text-sm">
-                                <option value="">Mover para: Sem pasta</option>
+                            <select name="folder_id" class="border rounded-lg px-3 py-2 text-sm" required>
+                                <option value="">Mover para</option>
                                 @foreach($folders as $folder)
                                     <option value="{{ $folder->id }}">{{ $folder->name }}</option>
                                 @endforeach
@@ -397,7 +257,7 @@
                                             </span>
                                         </td>
                                         <td class="px-3 py-2 align-top text-slate-700">
-                                            {{ $file->folder->name ?? 'Sem pasta' }}
+                                            {{ $file->folder?->name ?? '-' }}
                                         </td>
                                         <td class="px-3 py-2 align-top text-slate-700">
                                             {{ $file->folder?->cliente?->nome ?? '-' }}
@@ -493,23 +353,6 @@
         const uploadFilesCount = document.getElementById('upload-files-count');
         const uploadFolderAll = document.getElementById('upload-folder-all');
         const folderOptionsTemplate = document.getElementById('folder-options-template');
-        const folderModal = document.getElementById('folder-modal');
-        const openFolderModal = document.getElementById('open-folder-modal');
-        const folderModalClose = document.getElementById('folder-modal-close');
-        const folderCancel = document.getElementById('folder-cancel');
-        const folderUserSelect = document.getElementById('folder-user-id');
-        const folderUserDefault = folderUserSelect?.getAttribute('value') ?? '';
-        const folderStorageHelp = document.getElementById('folder-storage-help');
-        const folderStorageInput = document.getElementById('folder-storage-limit');
-        const folderClientSelect = document.getElementById('folder-client-id');
-        const folderForm = document.getElementById('folder-form');
-        const folderFormMethod = document.getElementById('folder-form-method');
-        const folderFormId = document.getElementById('folder-form-id');
-        const folderNameInput = document.getElementById('folder-name-modal');
-        const folderModalTitle = document.getElementById('folder-modal-title');
-        const folderSubmit = document.getElementById('folder-submit');
-        const folderClientOriginal = folderClientSelect?.dataset?.originalValue ?? '';
-        const folderFormMode = folderForm?.querySelector('input[name="_folder_form"]');
 
         const copyText = async (text) => {
             if (navigator.clipboard && window.isSecureContext) {
@@ -689,7 +532,7 @@
                 return;
             }
 
-            const folderOptions = folderOptionsTemplate?.innerHTML || '<option value=\"\">Sem pasta</option>';
+            const folderOptions = folderOptionsTemplate?.innerHTML || '<option value=\"\">Selecione uma pasta</option>';
 
             files.forEach((file, index) => {
                 const card = document.createElement('div');
@@ -739,10 +582,11 @@
                 const folderWrapper = document.createElement('div');
                 const folderLabel = document.createElement('label');
                 folderLabel.className = 'block text-xs text-slate-600 mb-1';
-                folderLabel.textContent = 'Pasta (opcional)';
+                folderLabel.textContent = 'Pasta';
                 const folderSelect = document.createElement('select');
                 folderSelect.name = 'folders[]';
                 folderSelect.className = 'border rounded-lg px-3 py-2 text-sm w-full file-folder';
+                folderSelect.required = true;
                 folderSelect.innerHTML = folderOptions;
                 if (uploadFolderAll && uploadFolderAll.value !== undefined) {
                     folderSelect.value = uploadFolderAll.value;
@@ -791,72 +635,6 @@
             uploadModal.classList.remove('flex');
         };
 
-        const updateFolderPlanLimit = () => {
-            if (!folderUserSelect || !folderStorageHelp || !folderStorageInput) return;
-            const limitRaw = folderUserSelect.dataset?.planLimit ?? '0';
-            const limit = Number.parseInt(limitRaw, 10) || 0;
-            folderStorageHelp.textContent = `Limite do plano: ${limit} MB`;
-            if (limit > 0) {
-                folderStorageInput.max = String(limit);
-            } else {
-                folderStorageInput.removeAttribute('max');
-            }
-        };
-
-        const openFolder = () => {
-            updateFolderPlanLimit();
-            folderModal?.classList.remove('hidden');
-            folderModal?.classList.add('flex');
-        };
-
-        const setFolderFormMode = (mode, payload = null) => {
-            if (!folderForm || !folderFormMethod || !folderNameInput || !folderSubmit || !folderModalTitle || !folderFormId) return;
-
-            if (mode === 'edit' && payload) {
-                folderForm.action = payload.updateUrl;
-                folderFormMethod.value = 'PUT';
-                if (folderFormMode) folderFormMode.value = 'edit';
-                folderModalTitle.textContent = 'Editar pasta';
-                folderSubmit.textContent = 'Salvar';
-                folderFormId.value = payload.id ?? '';
-                folderNameInput.value = payload.name ?? '';
-                if (folderUserSelect) {
-                    folderUserSelect.value = payload.userId ?? folderUserDefault;
-                }
-                if (folderClientSelect) {
-                    folderClientSelect.value = payload.clientId ?? '';
-                }
-                if (folderStorageInput) {
-                    folderStorageInput.value = payload.limit ?? 0;
-                }
-                updateFolderPlanLimit();
-                return;
-            }
-
-            folderForm.action = "{{ route($foldersRouteBase . '.store') }}";
-            folderFormMethod.value = 'POST';
-            if (folderFormMode) folderFormMode.value = 'create';
-            folderModalTitle.textContent = 'Nova pasta';
-            folderSubmit.textContent = 'Criar pasta';
-            folderFormId.value = '';
-            folderNameInput.value = '';
-            if (folderUserSelect) {
-                folderUserSelect.value = folderUserDefault;
-            }
-            if (folderStorageInput) {
-                folderStorageInput.value = 0;
-            }
-            if (folderClientSelect) {
-                folderClientSelect.value = folderClientOriginal;
-            }
-            updateFolderPlanLimit();
-        };
-
-        const closeFolder = () => {
-            folderModal?.classList.add('hidden');
-            folderModal?.classList.remove('flex');
-        };
-
         openUploadModal?.addEventListener('click', openUpload);
         uploadModalClose?.addEventListener('click', closeUpload);
         uploadCancel?.addEventListener('click', closeUpload);
@@ -864,31 +642,6 @@
             if (event.target === uploadModal) {
                 closeUpload();
             }
-        });
-        openFolderModal?.addEventListener('click', () => {
-            setFolderFormMode('create');
-            openFolder();
-        });
-        folderModalClose?.addEventListener('click', closeFolder);
-        folderCancel?.addEventListener('click', closeFolder);
-        folderModal?.addEventListener('click', (event) => {
-            if (event.target === folderModal) {
-                closeFolder();
-            }
-        });
-        folderUserSelect?.addEventListener('change', updateFolderPlanLimit);
-        document.querySelectorAll('.folder-edit').forEach(button => {
-            button.addEventListener('click', () => {
-                setFolderFormMode('edit', {
-                    id: button.dataset.folderId,
-                    name: button.dataset.folderName,
-                    userId: button.dataset.folderUserId,
-                    clientId: button.dataset.folderClientId,
-                    limit: button.dataset.folderLimit,
-                    updateUrl: button.dataset.updateUrl,
-                });
-                openFolder();
-            });
         });
 
         uploadForm?.addEventListener('submit', (event) => {
@@ -917,24 +670,6 @@
 
         @if($errors->has('image') || $errors->has('images') || $errors->has('images.*') || $errors->has('title') || $errors->has('titles.*') || $errors->has('description') || $errors->has('descriptions.*') || $errors->has('folder_id') || $errors->has('folders.*'))
             openUpload();
-        @endif
-        @if(old('_folder_form') === 'create')
-            setFolderFormMode('create');
-            openFolder();
-        @endif
-        @if(old('_folder_form') === 'edit' && old('_folder_id'))
-            const editButton = document.querySelector(`.folder-edit[data-folder-id=\"{{ old('_folder_id') }}\"]`);
-            if (editButton) {
-                setFolderFormMode('edit', {
-                    id: editButton.dataset.folderId,
-                    name: @json(old('name', '')) || editButton.dataset.folderName,
-                    userId: @json(old('user_id', '')) || editButton.dataset.folderUserId,
-                    clientId: @json(old('cliente_id', '')) || editButton.dataset.folderClientId,
-                    limit: @json(old('storage_limit_mb', '')) || editButton.dataset.folderLimit,
-                    updateUrl: editButton.dataset.updateUrl,
-                });
-                openFolder();
-            }
         @endif
 
         document.querySelectorAll('.copy-image-link').forEach(btn => {

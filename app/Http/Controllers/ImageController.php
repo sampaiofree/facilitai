@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Image;
+use App\Models\User;
+use App\Services\FolderStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -21,14 +23,14 @@ class ImageController extends Controller
     {
         $user = Auth::user();
         $folderId = $request->input('folder_id');
+        $clienteId = $request->input('cliente_id');
         $currentFolder = null;
         $showFolders = false;
 
-        $imagesQuery = $user->images()->with('folder')->latest();
+        $imagesQuery = $user->images()->with('folder.cliente')->latest();
 
         if ($folderId === 'none') {
             $imagesQuery->whereNull('folder_id');
-            $showFolders = false;
         } elseif ($folderId) {
             $currentFolder = $user->folders()->find($folderId);
             if ($currentFolder) {
@@ -36,16 +38,29 @@ class ImageController extends Controller
             } else {
                 $folderId = null;
             }
-            $showFolders = false;
-        } else {
-            // Estado "todas": mostra as pastas e apenas os arquivos sem pasta
-            $imagesQuery->whereNull('folder_id');
-            $showFolders = true;
+        }
+        $showFolders = true;
+
+        if ($clienteId) {
+            $imagesQuery->whereHas('folder', function ($query) use ($clienteId) {
+                $query->where('cliente_id', $clienteId);
+            });
         }
 
         $images = $imagesQuery->paginate(100);
-        $folders = $user->folders()->orderBy('name')->get();
+        $folders = $user->folders()->with('cliente')->orderBy('name')->get();
+        $clients = $user->clientes()->orderBy('nome')->get();
         $selectedFolderId = $folderId;
+        $selectedClienteId = $clienteId;
+
+        $availableUsers = collect();
+        if ($this->imagesRouteBase === 'agencia.images') {
+            $availableUsers = User::query()
+                ->select('id', 'name', 'email', 'plan_id')
+                ->with('plan:id,storage_limit_mb')
+                ->orderBy('name')
+                ->get();
+        }
 
         return view($this->viewName, [
             'images' => $images,
@@ -53,8 +68,11 @@ class ImageController extends Controller
             'selectedFolderId' => $selectedFolderId,
             'currentFolder' => $currentFolder,
             'showFolders' => $showFolders,
+            'selectedClienteId' => $selectedClienteId,
             'imagesRouteBase' => $this->imagesRouteBase,
             'foldersRouteBase' => $this->foldersRouteBase,
+            'availableUsers' => $availableUsers,
+            'clients' => $clients,
         ]); 
     } 
 
@@ -138,6 +156,7 @@ class ImageController extends Controller
         $defaultDescription = $validated['description'] ?? null;
 
         $storedPaths = [];
+        $affectedFolderIds = [];
 
         DB::beginTransaction();
         try {
@@ -149,17 +168,22 @@ class ImageController extends Controller
                 Storage::disk('public')->setVisibility($path, 'public');
                 $storedPaths[] = $path;
 
+                $folderId = $folders[$index] ?? $defaultFolder;
                 $user->images()->create([
-                    'folder_id' => $folders[$index] ?? $defaultFolder,
+                    'folder_id' => $folderId,
                     'path' => $path,
                     'original_name' => $file->getClientOriginalName(),
                     'title' => $titles[$index] ?? $defaultTitle,
                     'description' => $descriptions[$index] ?? $defaultDescription,
                     'size' => $fileSizesKb[$index] ?? $this->calculateFileSizeKb($file),
                 ]);
+                if (!empty($folderId)) {
+                    $affectedFolderIds[] = $folderId;
+                }
             }
 
             $this->recalculateStorageUsedMb($user);
+            app(FolderStorageService::class)->recalculateForFolders($affectedFolderIds);
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -213,9 +237,15 @@ class ImageController extends Controller
             ],
         ]);
 
+        $images = $user->images()->whereIn('id', $validated['images'])->get(['id', 'folder_id']);
+        $previousFolderIds = $images->pluck('folder_id')->filter()->unique()->all();
+
         $user->images()
             ->whereIn('id', $validated['images'])
             ->update(['folder_id' => $validated['folder_id'] ?? null]);
+
+        $nextFolderIds = array_filter([$validated['folder_id'] ?? null]);
+        app(FolderStorageService::class)->recalculateForFolders(array_merge($previousFolderIds, $nextFolderIds));
 
         return back()->with('success', 'Imagens movidas com sucesso.');
     }
@@ -253,11 +283,13 @@ class ImageController extends Controller
         }
 
         $paths = $images->pluck('path')->all();
+        $folderIds = $images->pluck('folder_id')->filter()->unique()->all();
 
         DB::beginTransaction();
         try {
             Image::whereIn('id', $images->pluck('id'))->delete();
             $this->recalculateStorageUsedMb($user);
+            app(FolderStorageService::class)->recalculateForFolders($folderIds);
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -292,11 +324,13 @@ class ImageController extends Controller
 
         $user = Auth::user();
         $path = $image->path;
+        $folderId = $image->folder_id;
 
         DB::beginTransaction();
         try {
             $image->delete();
             $this->recalculateStorageUsedMb($user);
+            app(FolderStorageService::class)->recalculateForFolderId($folderId);
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();

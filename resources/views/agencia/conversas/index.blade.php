@@ -56,6 +56,40 @@
                             </div>
                         </div>
 
+                        <div class="flex flex-1 min-w-[220px] flex-col gap-1" data-chip-select="filter-assistants" data-input-name="assistant_id[]">
+                            <span class="text-[10px] uppercase tracking-wide text-slate-400">Assistentes</span>
+                            <div class="flex flex-wrap gap-2" data-chip-list></div>
+                            <div class="relative">
+                                <input
+                                    type="search"
+                                    data-chip-search
+                                    placeholder="Buscar assistente"
+                                    class="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
+                                    @forelse($assistants as $assistant)
+                                        <button
+                                            type="button"
+                                            data-chip-option
+                                            data-value="{{ $assistant->id }}"
+                                            data-label="{{ $assistant->name }}"
+                                            class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                                        >
+                                            <span>{{ $assistant->name }}</span>
+                                            <span class="text-[10px] text-slate-400">ID {{ $assistant->id }}</span>
+                                        </button>
+                                    @empty
+                                        <div class="px-3 py-2 text-xs text-slate-400">Nenhum assistente cadastrado.</div>
+                                    @endforelse
+                                </div>
+                            </div>
+                            <div class="hidden" data-chip-inputs>
+                                @foreach($assistantFilter as $assistantId)
+                                    <input type="hidden" name="assistant_id[]" value="{{ $assistantId }}">
+                                @endforeach
+                            </div>
+                        </div>
+
                         <div class="flex flex-1 min-w-[280px] flex-col gap-1" data-chip-select="filter-tags" data-input-name="tags[]">
                             <span class="text-[10px] uppercase tracking-wide text-slate-400">Tags</span>
                             <div class="flex flex-wrap gap-2" data-chip-list></div>

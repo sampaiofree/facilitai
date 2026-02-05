@@ -56,6 +56,12 @@
                             <a href="{{ route('cliente.assistant.index') }}" class="{{ request()->routeIs('cliente.assistant.*') ? 'text-white' : 'hover:text-white' }}">
                                 Assistentes
                             </a>
+                            <a href="{{ route('cliente.images.index') }}" class="{{ request()->routeIs('cliente.images.*') ? 'text-white' : 'hover:text-white' }}">
+                                Imagens
+                            </a>
+                            <a href="{{ route('cliente.tags.index') }}" class="{{ request()->routeIs('cliente.tags.*') ? 'text-white' : 'hover:text-white' }}">
+                                Tags
+                            </a>
                         @endif
                         @if($hasLibraryEntries)
                             <a href="{{ route('cliente.library.index') }}" class="{{ request()->routeIs('cliente.library.*') ? 'text-white' : 'hover:text-white' }}">

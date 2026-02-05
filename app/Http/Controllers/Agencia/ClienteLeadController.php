@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Agencia;
 
 use App\Http\Controllers\Controller;
+use App\Models\Assistant;
 use App\Models\Cliente;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
@@ -29,9 +30,10 @@ class ClienteLeadController extends Controller
     {
         $user = $request->user();
         $clients = Cliente::where('user_id', $user->id)->orderBy('nome')->get();
+        $assistants = Assistant::where('user_id', $user->id)->orderBy('name')->get();
         $tags = Tag::where('user_id', $user->id)->orderBy('name')->get();
 
-        [$clientFilter, $tagFilter, $dateStart, $dateEnd, $query] = $this->buildFilteredQuery($request, $user);
+        [$clientFilter, $assistantFilter, $tagFilter, $dateStart, $dateEnd, $query] = $this->buildFilteredQuery($request, $user);
 
         $leads = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
 
@@ -41,9 +43,11 @@ class ClienteLeadController extends Controller
 
         return view('agencia.conversas.index', compact(
             'clients',
+            'assistants',
             'tags',
             'leads',
             'clientFilter',
+            'assistantFilter',
             'tagFilter',
             'dateStart',
             'dateEnd',
@@ -399,7 +403,7 @@ class ClienteLeadController extends Controller
             $format = 'csv';
         }
 
-        [, , , , $query] = $this->buildFilteredQuery($request, $user, eager: true);
+        [, , , , , $query] = $this->buildFilteredQuery($request, $user, eager: true);
         $leads = $query->orderByDesc('created_at')->get();
 
         $mapped = $leads->map(function (ClienteLead $lead) {
@@ -507,6 +511,7 @@ class ClienteLeadController extends Controller
     private function buildFilteredQuery(Request $request, $user, bool $eager = false): array
     {
         $clientFilter = array_values(array_filter((array) $request->input('cliente_id', []), fn ($value) => $value !== '' && $value !== null));
+        $assistantFilter = array_values(array_filter((array) $request->input('assistant_id', []), fn ($value) => $value !== '' && $value !== null));
         $tagFilter = array_values(array_filter((array) $request->input('tags', []), fn ($value) => $value !== '' && $value !== null));
         $dateStart = $request->input('date_start');
         $dateEnd = $request->input('date_end');
@@ -523,6 +528,10 @@ class ClienteLeadController extends Controller
 
         if (!empty($clientFilter)) {
             $query->whereIn('cliente_id', $clientFilter);
+        }
+
+        if (!empty($assistantFilter)) {
+            $query->whereHas('assistantLeads', fn ($q) => $q->whereIn('assistant_id', $assistantFilter));
         }
 
         if (!empty($tagFilter)) {
@@ -554,7 +563,7 @@ class ClienteLeadController extends Controller
             });
         }
 
-        return [$clientFilter, $tagFilter, $dateStart, $dateEnd, $query];
+        return [$clientFilter, $assistantFilter, $tagFilter, $dateStart, $dateEnd, $query];
     }
 
     private function attachLeadToSequence(ClienteLead $lead, array $sequenceIds, int $userId, bool $sync = false): void

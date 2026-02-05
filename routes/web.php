@@ -49,6 +49,7 @@ use App\Http\Controllers\Cliente\ClienteLeadController as ClienteClienteLeadCont
 use App\Http\Controllers\Cliente\ConexaoClienteController;
 use App\Http\Controllers\Cliente\ClienteAssistantController;
 use App\Http\Controllers\Cliente\LibraryClienteController;
+use App\Http\Controllers\Cliente\ClienteTagController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
@@ -152,6 +153,8 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::post('users/{user}/asaas-customer', [UserController::class, 'createAsaasCustomer'])->name('users.asaas-customer');
+    Route::post('users/{user}/asaas-subscription', [UserController::class, 'createAsaasSubscription'])->name('users.asaas-subscription');
+    Route::get('users/{user}/asaas-subscription-link', [UserController::class, 'getAsaasSubscriptionLink'])->name('users.asaas-subscription-link');
     Route::get('assistant-lead', [AssistantLeadController::class, 'index'])->name('assistant-lead.index');
     Route::delete('assistant-lead/{assistantLead}', [AssistantLeadController::class, 'destroy'])->name('assistant-lead.destroy');
     Route::get('openai/conv_id', [App\Http\Controllers\Admin\OpenAIController::class, 'convId'])->name('openai.conv_id');
@@ -379,5 +382,11 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::post('library', [LibraryClienteController::class, 'store'])->name('library.store');
         Route::put('library/{libraryEntry}', [LibraryClienteController::class, 'update'])->name('library.update');
         Route::delete('library/{libraryEntry}', [LibraryClienteController::class, 'destroy'])->name('library.destroy');
+        Route::get('tags', [ClienteTagController::class, 'index'])->name('tags.index');
+        Route::post('tags', [ClienteTagController::class, 'store'])->name('tags.store');
+        Route::delete('tags/{tag}', [ClienteTagController::class, 'destroy'])->name('tags.destroy');
+        Route::post('images/move', [\App\Http\Controllers\Cliente\ClienteImageController::class, 'move'])->name('images.move');
+        Route::delete('images/bulk-destroy', [\App\Http\Controllers\Cliente\ClienteImageController::class, 'bulkDestroy'])->name('images.bulkDestroy');
+        Route::resource('images', \App\Http\Controllers\Cliente\ClienteImageController::class)->only(['index', 'store', 'destroy', 'update']);
     });
 });
