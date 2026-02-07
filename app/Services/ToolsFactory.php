@@ -47,7 +47,12 @@ TXT,
                 'type' => 'function',
                 'name' => 'enviar_media',
                 'description' => <<<TXT
-Ferramenta para enviar arquivos de áudio, imagem, vídeo ou PDF. Use essa ferramente somente quando for especificado no prompt. Não use essa tool para links do youtube.
+Use **somente** para enviar um audio, PDF, imagem ou vídeo **já pronto e hospedado publicamente**, **como resposta final visual ao usuário**.
+- **Não use** esta ferramenta para criar, gerar, sugerir ou buscar imagens.
+- **Não use** esta ferramenta apenas porque o usuário mencionou algo visual.
+- **Não use** esta ferramenta para links do youtube.
+- Use **apenas** se o assistente precisar realmente **enviar um link de audio/imagem/vídeo/pdf pronto**, como parte da mensagem final enviada ao WhatsApp ou à interface do usuário.
+- O conteúdo deve ser **acessível publicamente por URL**.                
 TXT,
                 'parameters' => [
                     'type' => 'object',
