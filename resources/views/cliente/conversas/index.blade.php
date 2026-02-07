@@ -466,6 +466,7 @@
             const clientLeadFormSelect = document.getElementById('clienteLeadFormClient');
             const addLeadBtn = document.getElementById('openClienteLeadForm');
             const formTabs = document.querySelectorAll('[data-form-tab]');
+            const importTabButton = document.querySelector('[data-form-tab="import"]');
             const csvFileInput = document.querySelector('[data-csv-file]');
             const csvDelimiterSelect = document.querySelector('[data-csv-delimiter]');
             const exportToggle = document.getElementById('exportToggle');
@@ -685,7 +686,21 @@
                 }
             });
 
+            const setImportTabVisible = (visible) => {
+                if (!importTabButton) {
+                    return;
+                }
+                importTabButton.classList.toggle('hidden', !visible);
+                if (!visible) {
+                    importForm?.classList.add('hidden');
+                    clientLeadForm?.classList.remove('hidden');
+                }
+            };
+
             const setActiveTab = (tab) => {
+                if (tab === 'import' && importTabButton?.classList.contains('hidden')) {
+                    tab = 'manual';
+                }
                 formTabs.forEach(button => {
                     const isActive = button.dataset.formTab === tab;
                     button.classList.toggle('bg-white', isActive);
@@ -750,6 +765,7 @@
                 }
 
                 resetForm();
+                setImportTabVisible(mode !== 'edit');
                 setActiveTab('manual');
                 if (mode === 'edit' && data) {
                     if (clientLeadFormTitle) {
