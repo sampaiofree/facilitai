@@ -1,4 +1,4 @@
-@extends('layouts.agencia')
+﻿@extends('layouts.agencia')
 
 @push('head')
     <style>
@@ -15,10 +15,10 @@
 @section('content')
     <div class="flex items-center justify-between mb-6">
         <div>
-            <h2 class="text-2xl font-semibold text-slate-900">Sequências</h2>
-            <p class="text-sm text-slate-500">Gerencie as sequências vinculadas ao seu usuário.</p>
+            <h2 class="text-2xl font-semibold text-slate-900">SequÃªncias</h2>
+            <p class="text-sm text-slate-500">Gerencie as sequÃªncias vinculadas ao seu usuÃ¡rio.</p>
         </div>
-        <button id="openSequenceModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Nova sequência</button>
+        <button id="openSequenceModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Nova sequÃªncia</button>
     </div>
 
     <div class="grid gap-4">
@@ -30,22 +30,22 @@
                             <h3 class="text-lg font-semibold text-slate-900">{{ $sequence->name }}</h3>
                             <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">id: {{ $sequence->id }}</span>
                         </div>
-                        <p class="text-sm text-slate-500">{{ $sequence->description ?? 'Sem descrição' }}</p>
+                        <p class="text-sm text-slate-500">{{ $sequence->description ?? 'Sem descriÃ§Ã£o' }}</p>
                     </div>
                     <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ $sequence->active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }}">
                         {{ $sequence->active ? 'Ativa' : 'Inativa' }}
                     </span>
                 </div>
                 <div class="mt-4 flex flex-wrap gap-4 text-sm text-slate-600">
-                    <div><span class="font-semibold text-slate-800">Cliente:</span> {{ $sequence->cliente?->nome ?? '—' }}</div>
-                    <div><span class="font-semibold text-slate-800">Conexão:</span> {{ $sequence->conexao?->name ?? '—' }}</div>
+                    <div><span class="font-semibold text-slate-800">Cliente:</span> {{ $sequence->cliente?->nome ?? 'â€”' }}</div>
+                    <div><span class="font-semibold text-slate-800">ConexÃ£o:</span> {{ $sequence->conexao?->name ?? 'â€”' }}</div>
                     <div>
                         <span class="font-semibold text-slate-800">Tags incluir:</span>
-                        {{ collect($sequence->tags_incluir ?? [])->implode(', ') ?: '—' }}
+                        {{ collect($sequence->tags_incluir ?? [])->implode(', ') ?: 'â€”' }}
                     </div>
                     <div>
                         <span class="font-semibold text-slate-800">Tags excluir:</span>
-                        {{ collect($sequence->tags_excluir ?? [])->implode(', ') ?: '—' }}
+                        {{ collect($sequence->tags_excluir ?? [])->implode(', ') ?: 'â€”' }}
                     </div>
                 </div>
                 <div class="mt-4 flex items-center gap-2">
@@ -85,24 +85,24 @@
                                     <table class="w-full text-xs text-slate-600 border border-slate-100">
                                         <thead class="bg-slate-50 text-slate-500 text-[11px] uppercase">
                                             <tr>
-                                                <th class="px-3 py-2 text-left">Título</th>
+                                                <th class="px-3 py-2 text-left">TÃ­tulo</th>
                                                 <th class="px-3 py-2 text-left">Atraso</th>
                                                 <th class="px-3 py-2 text-left">Tipo</th>
                                                 <th class="px-3 py-2 text-left">Ativo</th>
-                                                <th class="px-3 py-2 text-left">Ações</th>
+                                                <th class="px-3 py-2 text-left">AÃ§Ãµes</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             @forelse($sequence->steps as $step)
                                                 <tr class="border-t border-slate-100">
-                                                    <td class="px-3 py-2">{{ $step->title ?: 'Sem título' }}</td>
+                                                    <td class="px-3 py-2">{{ $step->title ?: 'Sem tÃ­tulo' }}</td>
                                                     <td class="px-3 py-2">{{ $step->atraso_valor }}</td>
                                                     <td class="px-3 py-2">{{ ucfirst($step->atraso_tipo) }}</td>
                                                     <td class="px-3 py-2">
                                                         @if($step->active)
                                                             <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">Sim</span>
                                                         @else
-                                                            <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700">Não</span>
+                                                            <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700">NÃ£o</span>
                                                         @endif
                                                     </td>
                                                     <td class="px-3 py-2">
@@ -182,14 +182,14 @@
                                         <tr class="border-t border-slate-100">
                                             <td class="px-3 py-2">{{ $log->id }}</td>
                                             <td class="px-3 py-2">{{ $log->sequence_chat_id }}</td>
-                                            <td class="px-3 py-2">{{ $log->sequence_step_id ?? '—' }}</td>
+                                            <td class="px-3 py-2">{{ $log->sequence_step_id ?? 'â€”' }}</td>
                                             <td class="px-3 py-2">
-                                                {{ $log->sequenceStep?->ordem ? 'Passo ' . $log->sequenceStep->ordem : '—' }}
+                                                {{ $log->sequenceStep?->ordem ? 'Passo ' . $log->sequenceStep->ordem : 'â€”' }}
                                             </td>
                                             <td class="px-3 py-2">{{ ucfirst($log->status) }}</td>
-                                            <td class="px-3 py-2">{{ $log->message ?? '—' }}</td>
+                                            <td class="px-3 py-2">{{ $log->message ?? 'â€”' }}</td>
                                             <td class="px-3 py-2">
-                                                {{ $log->created_at?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}
+                                                {{ $log->created_at?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? 'â€”' }}
                                             </td>
                                         </tr>
                                         @endforeach
@@ -208,14 +208,27 @@
                 @endphp
                 <details class="log-accordion sequence-chats-accordion rounded-2xl border border-slate-200 bg-slate-50">
                     <summary class="flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 cursor-pointer">
-                        <span>Chats da sequência ({{ $sequenceChatsPaginator ? $sequenceChatsPaginator->total() : 0 }})</span>
+                        <span class="inline-flex items-center gap-2">
+                            <span>Chats da sequÃªncia ({{ $sequenceChatsPaginator ? $sequenceChatsPaginator->total() : 0 }})</span>
+                            <form method="POST" action="{{ route('agencia.sequence-chats.destroy-by-sequence', $sequence) }}" onclick="event.stopPropagation();">
+                                @csrf
+                                @method('DELETE')
+                                <button
+                                    type="submit"
+                                    class="inline-flex items-center rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-200"
+                                    onclick="event.stopPropagation(); return confirm('Tem certeza de que deseja limpar todos os chats desta sequÃªncia?');"
+                                >
+                                    Limpar chats
+                                </button>
+                            </form>
+                        </span>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6" />
                         </svg>
                     </summary>
                     <div class="px-4 py-3">
                         @if($sequenceChats->isEmpty())
-                            <p class="text-xs text-slate-500">Nenhum chat associado a esta sequência.</p>
+                            <p class="text-xs text-slate-500">Nenhum chat associado a esta sequÃªncia.</p>
                         @else
                             <div class="overflow-x-auto">
                                 <table class="w-full text-xs text-slate-600 border border-slate-100">
@@ -225,15 +238,15 @@
                                             <th class="px-3 py-2 text-left">Passo atual</th>
                                             <th class="px-3 py-2 text-left">Status</th>
                                             <th class="px-3 py-2 text-left">Iniciado em</th>
-                                            <th class="px-3 py-2 text-left">Próximo envio</th>
-                                            <th class="px-3 py-2 text-left">Ações</th>
+                                            <th class="px-3 py-2 text-left">PrÃ³ximo envio</th>
+                                            <th class="px-3 py-2 text-left">AÃ§Ãµes</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         @foreach($sequenceChats as $chat)
                                             <tr class="border-t border-slate-100">
                                             <td class="px-3 py-2">
-                                                {{ $chat->cliente_lead_id ?? '—' }}
+                                                {{ $chat->cliente_lead_id ?? 'â€”' }}
                                                 @if($chat->clienteLead?->name)
                                                     ({{ $chat->clienteLead->name }})
                                                 @endif
@@ -241,13 +254,13 @@
                                                     ({{ $chat->clienteLead->phone }})
                                                 @endif
                                             </td>
-                                                <td class="px-3 py-2">{{ $chat->passo_atual_id ?? '—' }}</td>
-                                                <td class="px-3 py-2">{{ $chat->status ? ucfirst($chat->status) : '—' }}</td>
+                                                <td class="px-3 py-2">{{ $chat->passo_atual_id ?? 'â€”' }}</td>
+                                                <td class="px-3 py-2">{{ $chat->status ? ucfirst($chat->status) : 'â€”' }}</td>
                                                 <td class="px-3 py-2">
-                                                    {{ $chat->iniciado_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}
+                                                    {{ $chat->iniciado_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? 'â€”' }}
                                                 </td>
                                                 <td class="px-3 py-2">
-                                                    {{ $chat->proximo_envio_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}
+                                                    {{ $chat->proximo_envio_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? 'â€”' }}
                                                 </td>
                                                 <td class="px-3 py-2">
                                                     <form method="POST" action="{{ route('agencia.sequence-chats.destroy', $chat) }}">
@@ -279,7 +292,7 @@
         </article>
         @empty
             <div class="rounded-2xl border border-slate-200 bg-white p-5 text-center text-sm text-slate-500">
-                Nenhuma sequência encontrada.
+                Nenhuma sequÃªncia encontrada.
             </div>
         @endforelse
     </div>
@@ -287,7 +300,7 @@
     <div id="sequenceModal" class="fixed inset-0 hidden items-center justify-center bg-black/50 backdrop-blur">
         <div class="w-[min(720px,calc(100%-2rem))] rounded-2xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-slate-900" id="sequenceModalTitle">Nova sequência</h3>
+                <h3 class="text-lg font-semibold text-slate-900" id="sequenceModalTitle">Nova sequÃªncia</h3>
                 <button type="button" data-close-modal class="text-slate-500 hover:text-slate-700">x</button>
             </div>
             <form id="sequenceForm" method="POST" action="{{ route('agencia.sequences.store') }}" class="mt-5 space-y-4">
@@ -305,7 +318,7 @@
                 </div>
 
                 <div>
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="sequenceConexao">Conexão</label>
+                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="sequenceConexao">ConexÃ£o</label>
                     <select id="sequenceConexao" name="conexao_id" required class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm">
                         <option value="">Escolha o cliente primeiro</option>
                     </select>
@@ -317,7 +330,7 @@
                 </div>
 
                 <div>
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="sequenceDescription">Descrição</label>
+                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="sequenceDescription">DescriÃ§Ã£o</label>
                     <textarea id="sequenceDescription" name="description" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm"></textarea>
                 </div>
 
@@ -365,7 +378,7 @@
                 <input type="hidden" name="step_id" id="stepId" value="">
 
                 <div>
-                    <label class="text-xs uppercase tracking-wide text-slate-500">Título</label>
+                    <label class="text-xs uppercase tracking-wide text-slate-500">TÃ­tulo</label>
                     <input type="text" name="title" id="stepTitle" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="Nome do passo">
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -388,7 +401,7 @@
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="text-xs uppercase tracking-wide text-slate-500">Janela início</label>
+                        <label class="text-xs uppercase tracking-wide text-slate-500">Janela inÃ­cio</label>
                         <input type="time" name="janela_inicio" id="stepJanelaInicio" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
                     </div>
                     <div>
@@ -399,7 +412,7 @@
                 <div>
                     <label class="text-xs uppercase tracking-wide text-slate-500">Dias da semana</label>
                     <div class="flex flex-wrap gap-2 mt-2" id="stepDias">
-                        @foreach(['mon'=>'Seg','tue'=>'Ter','wed'=>'Qua','thu'=>'Qui','fri'=>'Sex','sat'=>'Sáb','sun'=>'Dom'] as $value => $label)
+                        @foreach(['mon'=>'Seg','tue'=>'Ter','wed'=>'Qua','thu'=>'Qui','fri'=>'Sex','sat'=>'SÃ¡b','sun'=>'Dom'] as $value => $label)
                             <label class="inline-flex items-center gap-1 text-sm text-slate-700">
                                 <input type="checkbox" value="{{ $value }}" class="text-blue-600" name="dias_semana[]" data-step-day>
                                 <span>{{ $label }}</span>
@@ -541,7 +554,7 @@
                 hiddenId.value = '';
                 form.reset();
                 connectionSelect.innerHTML = '<option value="">Escolha o cliente primeiro</option>';
-                title.textContent = 'Nova sequência';
+                title.textContent = 'Nova sequÃªncia';
                 incluirSelect.clear();
                 excluirSelect.clear();
             };
@@ -554,11 +567,11 @@
                 const url = connectionsUrlTemplate.replace('__CLIENT__', clienteId);
                 const response = await fetch(url);
                 if (!response.ok) {
-                    connectionSelect.innerHTML = '<option value="">Não foi possível carregar conexões</option>';
+                    connectionSelect.innerHTML = '<option value="">NÃ£o foi possÃ­vel carregar conexÃµes</option>';
                     return;
                 }
                 const json = await response.json();
-                connectionSelect.innerHTML = '<option value="">Selecione uma conexão</option>';
+                connectionSelect.innerHTML = '<option value="">Selecione uma conexÃ£o</option>';
                 json.forEach(item => {
                     const opt = document.createElement('option');
                     opt.value = item.id;
@@ -602,7 +615,7 @@
                     await populateConnections(data.cliente_id, data.conexao_id);
                     incluirSelect.setValues(data.tags_incluir ?? []);
                     excluirSelect.setValues(data.tags_excluir ?? []);
-                    title.textContent = 'Editar sequência';
+                    title.textContent = 'Editar sequÃªncia';
                     openModal();
                 });
             });

@@ -341,6 +341,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::post('sequences/{sequence}/steps', [AgenciaSequenceController::class, 'storeStep'])->name('sequences.steps.store');
     Route::patch('sequences/{sequence}/steps/{step}', [AgenciaSequenceController::class, 'updateStep'])->name('sequences.steps.update');
     Route::delete('sequences/{sequence}/steps/{step}', [AgenciaSequenceController::class, 'destroyStep'])->name('sequences.steps.destroy');
+    Route::delete('sequences/{sequence}/sequence-chats', [AgenciaSequenceController::class, 'destroySequenceChatsBySequence'])->name('sequence-chats.destroy-by-sequence');
     Route::get('clientes/{cliente}/conexoes', [AgenciaSequenceController::class, 'conexoes'])->name('sequences.cliente.conexoes');
     Route::get('clientes/{cliente}/sequences', [AgenciaSequenceController::class, 'sequences'])->name('sequences.cliente.sequences');
     Route::delete('sequence-chats/{sequenceChat}', [AgenciaSequenceController::class, 'destroySequenceChat'])->name('sequence-chats.destroy');

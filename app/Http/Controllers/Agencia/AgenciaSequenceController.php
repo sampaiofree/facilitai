@@ -47,6 +47,15 @@ class AgenciaSequenceController extends Controller
         return back()->with('success', 'Registro de SequenceChat removido com sucesso.');
     }
 
+    public function destroySequenceChatsBySequence(Request $request, Sequence $sequence): RedirectResponse
+    {
+        $this->ensureSequenceOwnership($sequence, $request->user()->id);
+
+        $deleted = SequenceChat::where('sequence_id', $sequence->id)->delete();
+
+        return back()->with('success', "{$deleted} chat(s) da sequência removido(s) com sucesso.");
+    }
+
     public function store(Request $request)
     {
         $user = $request->user();
