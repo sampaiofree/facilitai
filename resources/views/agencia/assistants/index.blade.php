@@ -43,6 +43,11 @@
                                     data-cliente-id="{{ $assistant->cliente_id ?? '' }}"
                                     data-delay="{{ $assistant->delay ?? 0 }}"
                                 >Editar</button>
+                                <form method="POST" action="{{ route('agencia.assistant.destroy', $assistant) }}" onsubmit="return confirm('Deseja excluir este assistente?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">Excluir</button>
+                                </form>
                             </div>
                         </td>
                     </tr>

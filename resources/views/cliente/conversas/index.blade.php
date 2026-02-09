@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Conversas</h2>
-            <p class="text-sm text-slate-500">Todos os seus leads, filtráveis por data.</p>
+            <p class="text-sm text-slate-500">Todos os seus leads, filtráveis por assistente, data e tags.</p>
         </div>
         <div class="flex items-center gap-2">
             @php
@@ -12,6 +12,112 @@
                 $exportXlsx = route('cliente.conversas.export', array_merge(request()->query(), ['format' => 'xlsx']));
                 $exportPdf = route('cliente.conversas.export', array_merge(request()->query(), ['format' => 'pdf']));
             @endphp
+            <div class="relative">
+                <button
+                    type="button"
+                    id="filtersToggle"
+                    class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 flex items-center gap-2"
+                >
+                    Filtros
+                    <svg class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div id="filtersMenu" class="hidden absolute right-0 mt-2 w-[90vw] max-w-[56rem] rounded-3xl border border-slate-200 bg-white p-4 shadow-lg">
+                    <form method="GET" class="flex flex-wrap items-end gap-4 text-xs text-slate-500">
+                        <input type="hidden" name="q" value="{{ request('q') }}">
+
+                        <div class="flex flex-1 min-w-[220px] flex-col gap-1" data-chip-select="filter-assistants" data-input-name="assistant_id[]">
+                            <span class="text-[10px] uppercase tracking-wide text-slate-400">Assistentes</span>
+                            <div class="flex flex-wrap gap-2" data-chip-list></div>
+                            <div class="relative">
+                                <input
+                                    type="search"
+                                    data-chip-search
+                                    placeholder="Buscar assistente"
+                                    class="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
+                                    @forelse($assistants as $assistant)
+                                        <button
+                                            type="button"
+                                            data-chip-option
+                                            data-value="{{ $assistant->id }}"
+                                            data-label="{{ $assistant->name }}"
+                                            class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                                        >
+                                            <span>{{ $assistant->name }}</span>
+                                            <span class="text-[10px] text-slate-400">ID {{ $assistant->id }}</span>
+                                        </button>
+                                    @empty
+                                        <div class="px-3 py-2 text-xs text-slate-400">Nenhum assistente cadastrado.</div>
+                                    @endforelse
+                                </div>
+                            </div>
+                            <div class="hidden" data-chip-inputs>
+                                @foreach($assistantFilter as $assistantId)
+                                    <input type="hidden" name="assistant_id[]" value="{{ $assistantId }}">
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <div class="flex flex-1 min-w-[280px] flex-col gap-1" data-chip-select="filter-tags" data-input-name="tags[]">
+                            <span class="text-[10px] uppercase tracking-wide text-slate-400">Tags</span>
+                            <div class="flex flex-wrap gap-2" data-chip-list></div>
+                            <div class="relative">
+                                <input
+                                    type="search"
+                                    data-chip-search
+                                    placeholder="Buscar tags"
+                                    class="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
+                                    @forelse($tags as $tag)
+                                        <button
+                                            type="button"
+                                            data-chip-option
+                                            data-value="{{ $tag->id }}"
+                                            data-label="{{ $tag->name }}"
+                                            class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                                        >
+                                            <span>{{ $tag->name }}</span>
+                                            <span class="text-[10px] text-slate-400">Tag</span>
+                                        </button>
+                                    @empty
+                                        <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag vinculada ainda.</div>
+                                    @endforelse
+                                </div>
+                            </div>
+                            <div class="hidden" data-chip-inputs>
+                                @foreach($tagFilter as $tagId)
+                                    <input type="hidden" name="tags[]" value="{{ $tagId }}">
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <div class="flex min-w-[220px] flex-col gap-1">
+                            <span class="text-[10px] uppercase tracking-wide text-slate-400">Data</span>
+                            <div class="flex gap-2">
+                                <input
+                                    type="date"
+                                    name="date_start"
+                                    value="{{ $dateStart }}"
+                                    class="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                <input
+                                    type="date"
+                                    name="date_end"
+                                    value="{{ $dateEnd }}"
+                                    class="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="ml-auto flex items-center gap-2">
+                            <button type="submit" class="rounded-2xl bg-blue-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-blue-700">Aplicar</button>
+                            <a href="{{ route('cliente.conversas.index') }}" class="text-[12px] font-semibold text-slate-500">Limpar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
             <div class="relative">
                 <button
                     type="button"
@@ -35,116 +141,27 @@
         </div>
     </div>
 
-    
-
-    <form method="GET" class="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500 shadow-sm" style="align-items: end;">
-        <div class="flex min-w-[220px] flex-col gap-1">
-            <span class="text-[10px] uppercase tracking-wide text-slate-400">Data</span>
-            <div class="flex gap-2">
-                <input
-                    type="date"
-                    name="date_start"
-                    value="{{ $dateStart }}"
-                    class="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
-                >
-                <input
-                    type="date"
-                    name="date_end"
-                    value="{{ $dateEnd }}"
-                    class="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
-                >
-            </div>
-        </div>
-
-        <div class="ml-auto flex items-center gap-2">
-            <button type="submit" class="rounded-2xl bg-blue-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-blue-700">Aplicar</button>
-            <a href="{{ route('cliente.conversas.index') }}" class="text-[12px] font-semibold text-slate-500">Limpar</a>
-        </div>
-    </form>
-
     <div class="mt-4 border-b border-slate-200"></div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <table class="min-w-full text-sm text-slate-600">
-            <thead class="bg-slate-50 text-slate-400 text-[11px] uppercase tracking-wide">
-                <tr>
-                    <th class="px-5 py-3 text-left font-semibold">Bot</th>
-                    <th class="px-5 py-3 text-left font-semibold">Telefone</th>
-                    <th class="px-5 py-3 text-left font-semibold">Lead</th>
-                    <th class="px-5 py-3 text-left font-semibold">Criado em</th>
-                    <th class="px-5 py-3 text-right font-semibold">Ações</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                @forelse($leads as $lead)
-                    @php
-                        $viewData = [
-                            'id' => $lead->id,
-                            'cliente' => [
-                                'id' => $lead->cliente_id,
-                                'nome' => $lead->cliente?->nome,
-                                'user_id' => optional($lead->cliente->user)->id,
-                                'user_name' => optional($lead->cliente->user)->name,
-                            ],
-                            'phone' => $lead->phone ?? '-',
-                            'phone_raw' => $lead->phone,
-                            'name' => $lead->name ?? '-',
-                            'name_raw' => $lead->name,
-                            'info' => $lead->info ?? '-',
-                            'info_raw' => $lead->info,
-                            'bot' => $lead->bot_enabled ? 'Ativado' : 'Desativado',
-                            'created_at' => $lead->created_at?->format('d/m/Y H:i') ?? '-',
-                            'assistant_leads' => $lead->assistantLeads->map(function ($assistantLead) {
-                                return [
-                                    'assistant' => optional($assistantLead->assistant)->name ?? '-',
-                                    'version' => $assistantLead->version,
-                                    'conv_id' => $assistantLead->conv_id ?? '-',
-                                    'created_at' => $assistantLead->created_at?->format('d/m/Y H:i') ?? '-',
-                                ];
-                            })->toArray(),
-                            'tags' => $lead->tags->pluck('name')->all(),
-                            'tag_ids' => $lead->tags->pluck('id')->all(),
-                            'bot_enabled' => $lead->bot_enabled,
-                        ];
-                    @endphp
-                    <tr class="hover:bg-slate-50">
-                        <td class="px-5 py-4 text-slate-600">{{ $lead->bot_enabled ? 'Ativado' : 'Desativado' }}</td>
-                        <td class="px-5 py-4 text-slate-600">{{ $lead->phone ?? '-' }}</td>
-                        <td class="px-5 py-4 text-slate-600">{{ $lead->name ?? '-' }}</td>
-                        <td class="px-5 py-4 text-slate-600">{{ $lead->created_at?->format('d/m/Y') ?? '-' }}</td>
-                        <td class="px-5 py-4 text-right">
-                            <div class="flex flex-wrap justify-end gap-2">
-                                <button
-                                    type="button"
-                                    class="rounded-full bg-slate-900 px-4 py-1 text-[12px] font-semibold text-white hover:bg-slate-800"
-                                    data-open-conversation
-                                    data-lead='@json($viewData, JSON_UNESCAPED_UNICODE)'
-                                >Ver</button>
-                                <button
-                                    type="button"
-                                    class="rounded-full border border-slate-300 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-500 hover:text-slate-900"
-                                    data-open-lead-form
-                                    data-lead='@json($viewData, JSON_UNESCAPED_UNICODE)'
-                                >Editar</button>
-                                <form method="POST" action="{{ route('cliente.conversas.destroy', $lead) }}" onsubmit="return confirm('Deseja excluir este lead?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="rounded-full bg-rose-100 px-4 py-1 text-[12px] font-semibold text-rose-700 hover:bg-rose-200">Excluir</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="5" class="px-5 py-6 text-center text-xs text-slate-400">Nenhum lead encontrado.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
+    <div class="mt-4 mb-4 flex flex-wrap items-center gap-3">
+        <div class="flex-1 min-w-[240px]">
+            <input
+                type="search"
+                id="leadSearchInput"
+                placeholder="Buscar por nome ou telefone (min. 3 caracteres)"
+                value="{{ request('q') }}"
+                class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none"
+            >
+        </div>
+        <button
+            type="button"
+            id="leadSearchClear"
+            class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
+        >Limpar</button>
     </div>
 
-    <div class="mt-4 flex justify-end">
-        {{ $leads->links('pagination::tailwind') }}
+    <div id="leadTableContainer">
+        @include('cliente.conversas._table', ['leads' => $leads])
     </div>
 
     <div id="agenciaClienteLeadFormModal" class="fixed inset-0 z-50 hidden flex items-start justify-center overflow-auto bg-black/50 px-4 py-6">
@@ -471,6 +488,12 @@
             const csvDelimiterSelect = document.querySelector('[data-csv-delimiter]');
             const exportToggle = document.getElementById('exportToggle');
             const exportMenu = document.getElementById('exportMenu');
+            const filtersToggle = document.getElementById('filtersToggle');
+            const filtersMenu = document.getElementById('filtersMenu');
+            const leadSearchInput = document.getElementById('leadSearchInput');
+            const leadSearchClear = document.getElementById('leadSearchClear');
+            const leadTableContainer = document.getElementById('leadTableContainer');
+            const filtersQueryInput = filtersMenu?.querySelector('input[name="q"]');
             const previewEmpty = document.getElementById('previewEmpty');
             const previewCards = document.getElementById('previewCards');
             const previewPhoneStatus = document.getElementById('previewPhoneStatus');
@@ -490,6 +513,133 @@
                     }
                 });
             }
+
+            if (filtersToggle && filtersMenu) {
+                filtersToggle.addEventListener('click', () => {
+                    filtersMenu.classList.toggle('hidden');
+                });
+                document.addEventListener('click', (event) => {
+                    if (!filtersMenu.contains(event.target) && !filtersToggle.contains(event.target)) {
+                        filtersMenu.classList.add('hidden');
+                    }
+                });
+                document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        filtersMenu.classList.add('hidden');
+                    }
+                });
+            }
+
+            const normalizeSearchTerm = (value) => value
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+
+            const debounce = (fn, delay = 350) => {
+                let timer;
+                return (...args) => {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => fn(...args), delay);
+                };
+            };
+
+            const setFiltersQueryValue = (value) => {
+                if (filtersQueryInput) {
+                    filtersQueryInput.value = value;
+                }
+            };
+
+            const fetchLeads = async (url, { pushState = false } = {}) => {
+                if (!leadTableContainer) {
+                    return;
+                }
+
+                leadTableContainer.classList.add('opacity-60', 'pointer-events-none');
+
+                try {
+                    const response = await fetch(url, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Request failed');
+                    }
+
+                    const html = await response.text();
+                    leadTableContainer.innerHTML = html;
+
+                    if (pushState) {
+                        window.history.pushState({}, '', url);
+                    }
+                } catch (error) {
+                    if (pushState) {
+                        window.location.href = url;
+                    }
+                } finally {
+                    leadTableContainer.classList.remove('opacity-60', 'pointer-events-none');
+                }
+            };
+
+            const syncSearchInputFromUrl = () => {
+                if (!leadSearchInput) {
+                    return;
+                }
+                const current = new URL(window.location.href).searchParams.get('q') || '';
+                leadSearchInput.value = current;
+                setFiltersQueryValue(current);
+            };
+
+            const syncSearchQuery = () => {
+                if (!leadSearchInput) {
+                    return;
+                }
+
+                const raw = leadSearchInput.value.trim();
+                const normalized = normalizeSearchTerm(raw);
+                const url = new URL(window.location.href);
+                const current = url.searchParams.get('q') || '';
+
+                if (normalized.length >= 3) {
+                    if (current === normalized) {
+                        setFiltersQueryValue(normalized);
+                        return;
+                    }
+                    url.searchParams.set('q', normalized);
+                    url.searchParams.delete('page');
+                    setFiltersQueryValue(normalized);
+                    fetchLeads(url.toString(), { pushState: true });
+                    return;
+                }
+
+                if (current !== '') {
+                    url.searchParams.delete('q');
+                    url.searchParams.delete('page');
+                    setFiltersQueryValue('');
+                    fetchLeads(url.toString(), { pushState: true });
+                } else {
+                    setFiltersQueryValue('');
+                }
+            };
+
+            if (leadSearchInput) {
+                leadSearchInput.addEventListener('input', debounce(syncSearchQuery));
+                leadSearchInput.addEventListener('blur', syncSearchQuery);
+            }
+
+            if (leadSearchClear) {
+                leadSearchClear.addEventListener('click', () => {
+                    if (leadSearchInput) {
+                        leadSearchInput.value = '';
+                    }
+                    syncSearchQuery();
+                });
+            }
+
+            window.addEventListener('popstate', () => {
+                syncSearchInputFromUrl();
+                fetchLeads(window.location.href);
+            });
 
             const closeModal = () => {
                 modal?.classList.add('hidden');
@@ -512,34 +662,40 @@
                 `).join('');
             };
 
-            document.querySelectorAll('[data-open-conversation]').forEach(button => {
-                button.addEventListener('click', () => {
-                    const raw = button.getAttribute('data-lead');
-                    if (!raw) return;
+            const parseLeadData = (button) => {
+                const raw = button.getAttribute('data-lead');
+                if (!raw) {
+                    return null;
+                }
 
-                    const data = JSON.parse(raw);
+                try {
+                    return JSON.parse(raw);
+                } catch (error) {
+                    return null;
+                }
+            };
 
-                    document.getElementById('viewLeadId').textContent = data.id;
-                    document.getElementById('viewLeadCliente').textContent = `${data.cliente.id} · ${data.cliente.nome}`;
-                    document.getElementById('viewLeadPhone').textContent = data.phone;
-                    document.getElementById('viewLeadBot').textContent = data.bot;
-                    document.getElementById('viewLeadName').textContent = data.name;
-                    document.getElementById('viewLeadInfo').textContent = data.info;
-                    document.getElementById('viewLeadCreatedAt').textContent = data.created_at;
+            const openConversation = (data) => {
+                document.getElementById('viewLeadId').textContent = data.id;
+                document.getElementById('viewLeadCliente').textContent = `${data.cliente.id} · ${data.cliente.nome}`;
+                document.getElementById('viewLeadPhone').textContent = data.phone;
+                document.getElementById('viewLeadBot').textContent = data.bot;
+                document.getElementById('viewLeadName').textContent = data.name;
+                document.getElementById('viewLeadInfo').textContent = data.info;
+                document.getElementById('viewLeadCreatedAt').textContent = data.created_at;
 
-                    if (assistantBody) {
-                        assistantBody.innerHTML = renderAssistants(data.assistant_leads);
-                    }
+                if (assistantBody) {
+                    assistantBody.innerHTML = renderAssistants(data.assistant_leads);
+                }
 
-                    if (tagsContainer) {
-                        tagsContainer.innerHTML = data.tags.length
-                            ? data.tags.map(tag => `<span class="rounded-full bg-slate-100 px-3 py-1 text-[11px] text-slate-600">${tag}</span>`).join('')
-                            : '<span class="text-[11px] text-slate-400">Sem tags</span>';
-                    }
+                if (tagsContainer) {
+                    tagsContainer.innerHTML = data.tags.length
+                        ? data.tags.map(tag => `<span class="rounded-full bg-slate-100 px-3 py-1 text-[11px] text-slate-600">${tag}</span>`).join('')
+                        : '<span class="text-[11px] text-slate-400">Sem tags</span>';
+                }
 
-                    modal?.classList.remove('hidden');
-                });
-            });
+                modal?.classList.remove('hidden');
+            };
 
             document.querySelectorAll('[data-view-close]').forEach(button => {
                 button.addEventListener('click', closeModal);
@@ -786,17 +942,42 @@
 
             addLeadBtn?.addEventListener('click', () => openForm('create'));
 
-            document.querySelectorAll('[data-open-lead-form]').forEach(button => {
-                button.addEventListener('click', () => {
-                    const raw = button.getAttribute('data-lead');
-                    if (!raw) {
+            const isModifiedClick = (event) => event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
+
+            const handleLeadTableClick = (event) => {
+                if (!leadTableContainer) {
+                    return;
+                }
+
+                const conversationButton = event.target.closest('[data-open-conversation]');
+                if (conversationButton && leadTableContainer.contains(conversationButton)) {
+                    const data = parseLeadData(conversationButton);
+                    if (data) {
+                        openConversation(data);
+                    }
+                    return;
+                }
+
+                const editButton = event.target.closest('[data-open-lead-form]');
+                if (editButton && leadTableContainer.contains(editButton)) {
+                    const data = parseLeadData(editButton);
+                    if (data) {
+                        openForm('edit', data);
+                    }
+                    return;
+                }
+
+                const pageLink = event.target.closest('a[href]');
+                if (pageLink && leadTableContainer.contains(pageLink)) {
+                    if (pageLink.getAttribute('aria-disabled') === 'true' || isModifiedClick(event)) {
                         return;
                     }
+                    event.preventDefault();
+                    fetchLeads(pageLink.href, { pushState: true });
+                }
+            };
 
-                    const leadData = JSON.parse(raw);
-                    openForm('edit', leadData);
-                });
-            });
+            leadTableContainer?.addEventListener('click', handleLeadTableClick);
 
             document.querySelectorAll('[data-form-close]').forEach(button => {
                 button.addEventListener('click', closeFormModal);

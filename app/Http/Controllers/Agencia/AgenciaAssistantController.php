@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Agencia;
 
 use App\Http\Controllers\Controller;
 use App\Models\Assistant;
+use App\Models\Conexao;
 use App\Models\PromptHelpTipo;
 use Illuminate\Http\Request;
 
@@ -83,6 +84,24 @@ class AgenciaAssistantController extends Controller
         return redirect()
             ->route('agencia.assistant.index')
             ->with('success', 'Assistente atualizado com sucesso.');
+    }
+
+    public function destroy(Request $request, Assistant $assistant)
+    {
+        $this->ensureOwnership($request, $assistant);
+
+        $hasConexoes = Conexao::where('assistant_id', $assistant->id)->exists();
+        if ($hasConexoes) {
+            return redirect()
+                ->route('agencia.assistant.index')
+                ->with('error', 'Nao e possivel excluir este assistente porque ha conexoes vinculadas.');
+        }
+
+        $assistant->delete();
+
+        return redirect()
+            ->route('agencia.assistant.index')
+            ->with('success', 'Assistente removido com sucesso.');
     }
 
     private function ensureOwnership(Request $request, Assistant $assistant): void

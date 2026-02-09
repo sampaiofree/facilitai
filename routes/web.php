@@ -323,6 +323,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('assistant', [AgenciaAssistantController::class, 'index'])->name('assistant.index');
     Route::post('assistant', [AgenciaAssistantController::class, 'store'])->name('assistant.store');
     Route::patch('assistant/{assistant}', [AgenciaAssistantController::class, 'update'])->name('assistant.update');
+    Route::delete('assistant/{assistant}', [AgenciaAssistantController::class, 'destroy'])->name('assistant.destroy');
     Route::get('profile', [AgenciaProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [AgenciaProfileController::class, 'update'])->name('profile.update');
     Route::get('agency-settings', [AgenciaSettingsController::class, 'edit'])->name('agency-settings.edit');

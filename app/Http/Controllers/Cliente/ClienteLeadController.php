@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Cliente;
 
 use App\Http\Controllers\Controller;
+use App\Models\Assistant;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Models\Tag;
@@ -17,6 +18,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Illuminate\Support\Str;
 
 class ClienteLeadController extends Controller
 {
@@ -27,16 +29,29 @@ class ClienteLeadController extends Controller
     public function index(Request $request): View
     {
         $cliente = auth('client')->user();
-        $tags = Tag::where('user_id', $cliente->user_id)->orderBy('name')->get();
+        $assistants = Assistant::where('cliente_id', $cliente->id)
+            ->orderBy('name')
+            ->get();
+        $tags = Tag::where('user_id', $cliente->user_id)
+            ->where('cliente_id', $cliente->id)
+            ->orderBy('name')
+            ->get();
 
-        [$dateStart, $dateEnd, $query] = $this->buildFilteredQuery($request, $cliente);
+        [$assistantFilter, $tagFilter, $dateStart, $dateEnd, $query] = $this->buildFilteredQuery($request, $cliente);
 
         $leads = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
 
+        if ($request->ajax()) {
+            return view('cliente.conversas._table', compact('leads'));
+        }
+
         return view('cliente.conversas.index', compact(
             'cliente',
+            'assistants',
             'tags',
             'leads',
+            'assistantFilter',
+            'tagFilter',
             'dateStart',
             'dateEnd',
         ));
@@ -117,7 +132,7 @@ class ClienteLeadController extends Controller
             'info' => $data['info'] ?? null,
         ]);
 
-        $lead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $cliente->user_id));
+        $lead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $cliente->user_id, $cliente->id));
 
         return redirect()
             ->route('cliente.conversas.index')
@@ -145,7 +160,7 @@ class ClienteLeadController extends Controller
             'info' => $data['info'] ?? null,
         ]);
 
-        $clienteLead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $cliente->user_id));
+        $clienteLead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $cliente->user_id, $cliente->id));
 
         return redirect()
             ->route('cliente.conversas.index')
@@ -167,7 +182,7 @@ class ClienteLeadController extends Controller
         ]);
 
         $delimiter = ($validated['delimiter'] ?? 'semicolon') === 'comma' ? ',' : ';';
-        $tagIds = $this->filterTags((array) ($validated['tags'] ?? []), $cliente->user_id);
+        $tagIds = $this->filterTags((array) ($validated['tags'] ?? []), $cliente->user_id, $cliente->id);
 
         $file = $validated['csv_file'];
         $extension = strtolower($file->getClientOriginalExtension());
@@ -417,7 +432,7 @@ class ClienteLeadController extends Controller
             $format = 'csv';
         }
 
-        [, , $query] = $this->buildFilteredQuery($request, $cliente, eager: true);
+        [, , , , $query] = $this->buildFilteredQuery($request, $cliente, eager: true);
         $leads = $query->orderByDesc('created_at')->get();
 
         $mapped = $leads->map(function (ClienteLead $lead) {
@@ -506,7 +521,7 @@ class ClienteLeadController extends Controller
     }
 
 
-    private function filterTags(array $tagIds, int $userId): array
+    private function filterTags(array $tagIds, int $userId, int $clienteId): array
     {
         $tagIds = array_values(array_filter($tagIds, fn ($value) => $value !== '' && $value !== null));
 
@@ -514,7 +529,11 @@ class ClienteLeadController extends Controller
             return [];
         }
 
-        return Tag::where('user_id', $userId)->whereIn('id', $tagIds)->pluck('id')->all();
+        return Tag::where('user_id', $userId)
+            ->where('cliente_id', $clienteId)
+            ->whereIn('id', $tagIds)
+            ->pluck('id')
+            ->all();
     }
 
     private function normalizePhone(?string $phone): ?string
@@ -640,8 +659,11 @@ class ClienteLeadController extends Controller
 
     private function buildFilteredQuery(Request $request, $cliente, bool $eager = false): array
     {
+        $assistantFilter = array_values(array_filter((array) $request->input('assistant_id', []), fn ($value) => $value !== '' && $value !== null));
+        $tagFilter = array_values(array_filter((array) $request->input('tags', []), fn ($value) => $value !== '' && $value !== null));
         $dateStart = $request->input('date_start');
         $dateEnd = $request->input('date_end');
+        $searchTerm = trim((string) $request->input('q', ''));
 
         $base = ClienteLead::query();
         if ($eager) {
@@ -652,6 +674,33 @@ class ClienteLeadController extends Controller
 
         $query = $base->where('cliente_id', $cliente->id);
 
+        if (!empty($assistantFilter)) {
+            $allowedAssistantIds = Assistant::where('cliente_id', $cliente->id)
+                ->whereIn('id', $assistantFilter)
+                ->pluck('id')
+                ->all();
+
+            if (empty($allowedAssistantIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereHas('assistantLeads', fn ($q) => $q->whereIn('assistant_id', $allowedAssistantIds));
+            }
+        }
+
+        if (!empty($tagFilter)) {
+            $allowedTagIds = Tag::where('user_id', $cliente->user_id)
+                ->where('cliente_id', $cliente->id)
+                ->whereIn('id', $tagFilter)
+                ->pluck('id')
+                ->all();
+
+            if (empty($allowedTagIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereHas('tags', fn ($q) => $q->whereIn('tags.id', $allowedTagIds));
+            }
+        }
+
         if ($dateStart) {
             $query->whereDate('created_at', '>=', $dateStart);
         }
@@ -660,7 +709,60 @@ class ClienteLeadController extends Controller
             $query->whereDate('created_at', '<=', $dateEnd);
         }
 
-        return [$dateStart, $dateEnd, $query];
+        if ($searchTerm !== '' && mb_strlen($searchTerm) >= 3) {
+            $normalizedTerm = Str::ascii($searchTerm);
+            $normalizedTerm = mb_strtolower($normalizedTerm);
+            $termLower = mb_strtolower($searchTerm);
+            $digits = preg_replace('/\D/', '', $searchTerm);
+            $normalizedNameExpr = $this->normalizedColumnSql('name');
+
+            $query->where(function ($subQuery) use ($termLower, $normalizedTerm, $digits, $normalizedNameExpr) {
+                $subQuery->whereRaw('LOWER(name) LIKE ?', ["%{$termLower}%"])
+                    ->orWhereRaw("{$normalizedNameExpr} LIKE ?", ["%{$normalizedTerm}%"]);
+
+                if ($digits !== '') {
+                    $subQuery->orWhere('phone', 'like', "%{$digits}%");
+                }
+            });
+        }
+
+        return [$assistantFilter, $tagFilter, $dateStart, $dateEnd, $query];
+    }
+
+    private function normalizedColumnSql(string $column): string
+    {
+        $expression = "LOWER({$column})";
+        $replacements = [
+            'á' => 'a',
+            'à' => 'a',
+            'â' => 'a',
+            'ã' => 'a',
+            'ä' => 'a',
+            'é' => 'e',
+            'è' => 'e',
+            'ê' => 'e',
+            'ë' => 'e',
+            'í' => 'i',
+            'ì' => 'i',
+            'î' => 'i',
+            'ï' => 'i',
+            'ó' => 'o',
+            'ò' => 'o',
+            'ô' => 'o',
+            'õ' => 'o',
+            'ö' => 'o',
+            'ú' => 'u',
+            'ù' => 'u',
+            'û' => 'u',
+            'ü' => 'u',
+            'ç' => 'c',
+        ];
+
+        foreach ($replacements as $from => $to) {
+            $expression = "REPLACE({$expression}, '{$from}', '{$to}')";
+        }
+
+        return $expression;
     }
 
     private function columnValue(array $row, ?int $index): ?string
