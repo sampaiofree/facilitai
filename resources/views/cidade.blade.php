@@ -101,7 +101,7 @@
             </p>
 
             <div class="cta-group">
-                <a href="https://wa.me/5527981227636?text=Oi%20Bruno,%20quero%20melhorar%20meu%20atendimento%20com%20IA" 
+                <a href="https://wa.me/5562995772922?text=Oi%20Bruno,%20quero%20melhorar%20meu%20atendimento%20com%20IA" 
                    class="whatsapp-btn" 
                    target="_blank">
                     <span class="whatsapp-icon">💬</span>
@@ -226,7 +226,7 @@
                 <p class="about-text">
                     "Olá, eu sou o Bruno. Minha especialidade é ajudar empresários locais como você a usar a tecnologia para vender mais, sem complicação. <strong>Não sou uma grande agência, sou eu quem vai analisar seu negócio</strong> e te ajudar a implementar uma solução que realmente funciona. Vamos conversar?"
                 </p>
-                 <a href="https://wa.me/5527981227636?text=Oi%20Bruno,%20quero%20melhorar%20meu%20atendimento%20com%20IA" 
+                 <a href="https://wa.me/5562995772922?text=Oi%20Bruno,%20quero%20melhorar%20meu%20atendimento%20com%20IA" 
                    class="whatsapp-btn" 
                    target="_blank">
                     <span class="whatsapp-icon">💬</span>
@@ -237,7 +237,7 @@
     </section>
     
     <div class="sticky-cta">
-        <a href="https://wa.me/5527981227636?text=Oi%20Bruno,%20quero%20uma%20an%C3%A1lise%20gratuita%20para%20meu%20neg%C3%B3cio" 
+        <a href="https://wa.me/5562995772922?text=Oi%20Bruno,%20quero%20uma%20an%C3%A1lise%20gratuita%20para%20meu%20neg%C3%B3cio" 
            class="whatsapp-btn" 
            target="_blank">
             <span class="whatsapp-icon">💬</span>

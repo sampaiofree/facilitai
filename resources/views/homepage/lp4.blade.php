@@ -41,7 +41,7 @@
       </div>
 
       <!-- CTA -->
-      <a href="https://wa.me/5527981227636?text=Olá quero saber mais sobre o FacilitAI." 
+      <a href="https://wa.me/5562995772922?text=Olá quero saber mais sobre o FacilitAI." 
          class="inline-block bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-xl py-5 px-12 rounded-full shadow-lg hover:shadow-emerald-500/40 hover:-translate-y-1 transition-all duration-300">
          🗓️ Agendar minha demonstração gratuita
       </a>
@@ -127,7 +127,7 @@
             </div>
         </div>
 
-        <a href="https://wa.me/5527981227636?text=Olá quero saber mais sobre o FacilitAI."
+        <a href="https://wa.me/5562995772922?text=Olá quero saber mais sobre o FacilitAI."
             target="_blank"
             class="inline-block w-full rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-4 text-center font-semibold text-white shadow-md hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-500/30 transition-all duration-300">
             💬 Agendar Demonstração via WhatsApp
@@ -200,7 +200,7 @@
       <p class="text-lg mb-10 opacity-90">
         Clique abaixo e veja na prática o que o <strong>Assistente de IA do FacilitAI</strong> pode fazer pela sua empresa.
       </p>
-      <a href="https://wa.me/5527981227636?text=Olá quero saber mais sobre o FacilitAI." 
+      <a href="https://wa.me/5562995772922?text=Olá quero saber mais sobre o FacilitAI." 
          class="inline-block bg-white text-emerald-600 font-bold text-xl py-5 px-12 rounded-full shadow-lg hover:-translate-y-1 hover:bg-gray-100 transition-all duration-300">
          🚀 Agendar minha demonstração gratuita
       </a>

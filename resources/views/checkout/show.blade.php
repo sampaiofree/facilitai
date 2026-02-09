@@ -32,7 +32,7 @@
                         + Desconto de até <span class="font-semibold text-yellow-300">90%</span> em tokens adicionais
                     </p>
                     <a 
-                        href="https://wa.me/5527981227636?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20planos%20anuais%20de%20tokens." 
+                        href="https://wa.me/5562995772922?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20os%20planos%20anuais%20de%20tokens." 
                         class="inline-block bg-yellow-400 hover:bg-yellow-300 text-purple-900 font-bold px-8 py-3 rounded-full transition-all duration-200 transform hover:scale-105 hover:shadow-xl"
                     >
                         Ver Planos Anuais →
