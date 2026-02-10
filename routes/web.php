@@ -6,10 +6,10 @@ use App\Http\Controllers\CredentialController;
 use App\Http\Controllers\AssistantController;
 use Illuminate\Support\Facades\Route;
 use App\Models\Credential;
-use App\Http\Controllers\Admin\ClienteLeadController;
 use App\Http\Controllers\Admin\LeadEmpresaController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\TagController;
+use App\Http\Controllers\ImageController;
 use App\Http\Controllers\FolderController;
 use App\Http\Controllers\LibraryEntryController;
 use App\Http\Controllers\LeadController; 
@@ -17,49 +17,23 @@ use App\Http\Controllers\HomepageController;
 use App\Http\Controllers\TokensController;
 use App\Http\Controllers\Admin\DashboardController; 
 use App\Http\Controllers\Admin\LessonController as AdminLessonController; 
+use App\Http\Controllers\EmpresasController;
+use App\Http\Controllers\MassSendController;
 use App\Http\Controllers\LandingPageController;
 use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\AgendaPublicaController; 
+use App\Http\Controllers\SequenceController;
 use App\Http\Controllers\LessonPublicController;
 use App\Http\Controllers\ProxyBanController;
 use App\Http\Controllers\Admin\WebhookRequestController;
 use App\Http\Controllers\Admin\InstanceReportController;
 use App\Http\Controllers\Admin\SystemErrorLogController;
-use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\AssistantLeadController;
-use App\Http\Controllers\UazapiController;
-use App\Http\Controllers\Admin\PlanController;
-use App\Http\Controllers\Admin\PromptHelpController;
-use App\Http\Controllers\Admin\LogFileController;
-use App\Http\Controllers\Agencia\AgenciaAssistantController;
-use App\Http\Controllers\Agencia\AgenciaClienteController;
-use App\Http\Controllers\Agencia\AgenciaConexaoController;
-use App\Http\Controllers\Agencia\AgenciaCredentialController;
-use App\Http\Controllers\Agencia\AgenciaProfileController;
-use App\Http\Controllers\Agencia\AgenciaSettingsController;
-use App\Http\Controllers\Agencia\AgenciaSequenceController;
-use App\Http\Controllers\Agencia\WhatsappCloudController;
-use App\Http\Controllers\Agencia\WhatsappCloudCustomFieldController;
-use App\Http\Controllers\Agencia\ScheduledMessageController as AgenciaScheduledMessageController;
-use App\Http\Controllers\Agencia\AgenciaTagController;
-use App\Http\Controllers\Agencia\ClienteLeadController as AgenciaClienteLeadController;
-use App\Http\Controllers\Agencia\ImageController as AgenciaImageController;
-use App\Http\Controllers\Agencia\LibraryEntryController as AgenciaLibraryEntryController;
-use App\Http\Controllers\Agencia\OpenAIController as AgenciaOpenAIController;
-use App\Http\Controllers\Cliente\ClienteAuthController;
-use App\Http\Controllers\Cliente\ClienteDashboardController;
-use App\Http\Controllers\Cliente\ClienteLeadController as ClienteClienteLeadController;
-use App\Http\Controllers\Cliente\ConexaoClienteController;
-use App\Http\Controllers\Cliente\ClienteAssistantController;
-use App\Http\Controllers\Cliente\LibraryClienteController;
-use App\Http\Controllers\Cliente\ClienteTagController;
-use App\Http\Controllers\Cliente\ClienteSequenceController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
 
 //PÁGINAS PUBLICAS
-Route::get('/', function () { return redirect()->route('login'); })->name('homepage');
+Route::get('/', function () {return redirect()->route('login');})->name('homepage');
 Route::get('/politica', function () {return view('homepage.politica');})->name('politica');
 Route::get('/bio', function () {return view('homepage.bio');});
 Route::get('/grupo-black', function () {return view('homepage.blackfriday');});
@@ -70,8 +44,10 @@ Route::get('/facilitai', function () {return redirect()->route('lp4');});
 Route::get('/planos', function () {return redirect()->route('lp4');});
 
 //MODELOS DE PÁGINAS COM PLANOS
-// Rotas p?blicas de landing pages (arquivo dedicado)
-require __DIR__ . '/lp.php';
+Route::get('/lp-1', function () {return view('homepage.lp1');})->name('lp1');
+Route::get('/lp-2', function () {return view('homepage.lp2');})->name('lp2');
+Route::get('/lp-3', function () {return view('homepage.lp3');})->name('lp3');
+Route::get('/lp-4', function () {return view('homepage.lp4');})->name('lp4');
 
 // Nova página pública de planos com o layout FacilitAI
 Route::get('/facilitai-pricing', [HomepageController::class, 'facilitaiPricing'])->name('facilitai.pricing');
@@ -142,81 +118,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
 });
 
-Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(function () {
-    Route::get('dashboard', function () {
-        return view('adm.dashboard');
-    })->name('dashboard');
-    Route::get('conexoes', [App\Http\Controllers\Admin\ConexaoController::class, 'index'])->name('conexoes.index');
-    Route::post('conexoes', [App\Http\Controllers\Admin\ConexaoController::class, 'store'])->name('conexoes.store');
-    Route::patch('conexoes/{conexao}', [App\Http\Controllers\Admin\ConexaoController::class, 'update'])->name('conexoes.update');
-    Route::delete('conexoes/{conexao}', [App\Http\Controllers\Admin\ConexaoController::class, 'destroy'])->name('conexoes.destroy');
-    Route::get('users', [UserController::class, 'index'])->name('users.index');
-    Route::post('users', [UserController::class, 'store'])->name('users.store');
-    Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
-    Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
-    Route::post('users/{user}/asaas-customer', [UserController::class, 'createAsaasCustomer'])->name('users.asaas-customer');
-    Route::post('users/{user}/asaas-subscription', [UserController::class, 'createAsaasSubscription'])->name('users.asaas-subscription');
-    Route::patch('users/{user}/asaas-subscription', [UserController::class, 'updateAsaasSubscription'])->name('users.asaas-subscription.update');
-    Route::get('users/{user}/asaas-subscription-link', [UserController::class, 'getAsaasSubscriptionLink'])->name('users.asaas-subscription-link');
-    Route::get('users/{user}/asaas-subscription-details', [UserController::class, 'getAsaasSubscriptionDetails'])->name('users.asaas-subscription-details');
-    Route::post('users/{user}/asaas-subscription-payments/sync', [UserController::class, 'syncAsaasSubscriptionPayments'])->name('users.asaas-subscription-payments.sync');
-    Route::delete('users/{user}/asaas-webhooks/{webhook}', [UserController::class, 'destroyAsaasWebhook'])->name('users.asaas-webhooks.destroy');
-    Route::get('assistant-lead', [AssistantLeadController::class, 'index'])->name('assistant-lead.index');
-    Route::delete('assistant-lead/{assistantLead}', [AssistantLeadController::class, 'destroy'])->name('assistant-lead.destroy');
-    Route::get('openai/conv_id', [App\Http\Controllers\Admin\OpenAIController::class, 'convId'])->name('openai.conv_id');
-    Route::get('ia-plataformas', [App\Http\Controllers\Admin\IaplataformaController::class, 'index'])->name('iaplataformas.index');
-    Route::post('ia-plataformas', [App\Http\Controllers\Admin\IaplataformaController::class, 'store'])->name('iaplataformas.store');
-    Route::patch('ia-plataformas/{iaplataforma}', [App\Http\Controllers\Admin\IaplataformaController::class, 'update'])->name('iaplataformas.update');
-    Route::delete('ia-plataformas/{iaplataforma}', [App\Http\Controllers\Admin\IaplataformaController::class, 'destroy'])->name('iaplataformas.destroy');
-    Route::get('ia-modelos', [App\Http\Controllers\Admin\IamodeloController::class, 'index'])->name('iamodelos.index');
-    Route::post('ia-modelos', [App\Http\Controllers\Admin\IamodeloController::class, 'store'])->name('iamodelos.store');
-    Route::patch('ia-modelos/{iamodelo}', [App\Http\Controllers\Admin\IamodeloController::class, 'update'])->name('iamodelos.update');
-    Route::delete('ia-modelos/{iamodelo}', [App\Http\Controllers\Admin\IamodeloController::class, 'destroy'])->name('iamodelos.destroy');
-    Route::get('whatsapp-api', [App\Http\Controllers\Admin\WhatsappApiController::class, 'index'])->name('whatsapp-api.index');
-    Route::post('whatsapp-api', [App\Http\Controllers\Admin\WhatsappApiController::class, 'store'])->name('whatsapp-api.store');
-    Route::patch('whatsapp-api/{whatsappApi}', [App\Http\Controllers\Admin\WhatsappApiController::class, 'update'])->name('whatsapp-api.update');
-    Route::delete('whatsapp-api/{whatsappApi}', [App\Http\Controllers\Admin\WhatsappApiController::class, 'destroy'])->name('whatsapp-api.destroy');
-    Route::get('cliente-lead', [ClienteLeadController::class, 'index'])->name('cliente-lead.index');
-    Route::delete('cliente-lead/{clienteLead}', [ClienteLeadController::class, 'destroy'])->name('cliente-lead.destroy');
-    Route::view('payload', 'admin.payload.index')->name('payload.index');
-    Route::post('payload', [App\Http\Controllers\Admin\PayloadController::class, 'send'])->name('payload.send');
-    Route::get('agendamentos', [App\Http\Controllers\Admin\ScheduledMessageController::class, 'index'])->name('agendamentos.index');
-    Route::patch('agendamentos/{scheduledMessage}/cancel', [App\Http\Controllers\Admin\ScheduledMessageController::class, 'cancel'])->name('agendamentos.cancel');
-    Route::patch('agendamentos/{scheduledMessage}/retry', [App\Http\Controllers\Admin\ScheduledMessageController::class, 'retry'])->name('agendamentos.retry');
-    Route::get('plano', [PlanController::class, 'index'])->name('plano.index');
-    Route::post('plano', [PlanController::class, 'store'])->name('plano.store');
-    Route::put('plano/{plan}', [PlanController::class, 'update'])->name('plano.update');
-    Route::delete('plano/{plan}', [PlanController::class, 'destroy'])->name('plano.destroy');
-    Route::get('prompt-ajuda', [PromptHelpController::class, 'index'])->name('prompt-ajuda.index');
-    Route::post('prompt-ajuda/tipos', [PromptHelpController::class, 'storeTipo'])->name('prompt-ajuda.tipos.store');
-    Route::patch('prompt-ajuda/tipos/{tipo}', [PromptHelpController::class, 'updateTipo'])->name('prompt-ajuda.tipos.update');
-    Route::delete('prompt-ajuda/tipos/{tipo}', [PromptHelpController::class, 'destroyTipo'])->name('prompt-ajuda.tipos.destroy');
-    Route::post('prompt-ajuda/sections', [PromptHelpController::class, 'storeSection'])->name('prompt-ajuda.sections.store');
-    Route::patch('prompt-ajuda/sections/{section}', [PromptHelpController::class, 'updateSection'])->name('prompt-ajuda.sections.update');
-    Route::delete('prompt-ajuda/sections/{section}', [PromptHelpController::class, 'destroySection'])->name('prompt-ajuda.sections.destroy');
-    Route::post('prompt-ajuda/prompts', [PromptHelpController::class, 'storePrompt'])->name('prompt-ajuda.prompts.store');
-    Route::patch('prompt-ajuda/prompts/{prompt}', [PromptHelpController::class, 'updatePrompt'])->name('prompt-ajuda.prompts.update');
-    Route::delete('prompt-ajuda/prompts/{prompt}', [PromptHelpController::class, 'destroyPrompt'])->name('prompt-ajuda.prompts.destroy');
-    Route::get('logs', [LogFileController::class, 'index'])->name('logs.index');
-    Route::get('logs/{file}', [LogFileController::class, 'show'])->where('file', '[^/]+')->name('logs.show');
-    Route::get('logs/{file}/download', [LogFileController::class, 'download'])->where('file', '[^/]+')->name('logs.download');
-});
-
 Route::get('/dashboard', function () {
-    return redirect()->route('agencia.dashboard');
+    return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth', 'verified')->group(function () {
-    Route::prefix('uazapi')->name('uazapi.')->group(function () {
-        Route::get('/instancias', [UazapiController::class, 'index'])->name('instances');
-        Route::post('/instancias/create', [UazapiController::class, 'store'])->name('instances.create');
-        Route::patch('/instancias/{instance}', [UazapiController::class, 'update'])->name('instances.update');
-        Route::post('/instancias/{instance}/connect', [UazapiController::class, 'connect'])->name('instances.connect');
-        Route::get('/instancias/{instance}/status', [UazapiController::class, 'status'])->name('instances.status');
-        Route::post('/instancias/{instance}/destroy', [UazapiController::class, 'destroy'])->name('instances.destroy');
-        Route::post('/instancias/{instance}/assistant', [UazapiController::class, 'assignAssistant'])->name('instances.assignAssistant');
-    });
-
     Route::middleware('admin')->group(function () {
         Route::get('/proxy-ban', [ProxyBanController::class, 'index'])->name('proxy-ban.index');
         Route::delete('/proxy-ban/{ban}', [ProxyBanController::class, 'destroy'])->name('proxy-ban.destroy');
@@ -242,6 +148,11 @@ Route::middleware('auth', 'verified')->group(function () {
     //PASTAS DE IMAGENS
     Route::resource('folders', FolderController::class)->only(['store', 'update', 'destroy']);
 
+    //CRIAR IMAGENS
+    Route::post('/images/move', [ImageController::class, 'move'])->name('images.move');
+    Route::delete('/images/bulk-destroy', [ImageController::class, 'bulkDestroy'])->name('images.bulkDestroy');
+    Route::resource('images', ImageController::class)->only(['index', 'store', 'destroy', 'update']);
+
     //BIBLIOTECA DE TEXTOS
     Route::resource('library', LibraryEntryController::class)->except(['show']);
 
@@ -255,6 +166,21 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::post('/chats/inscrever-sequencia', [ChatController::class, 'inscreverSequencia'])->name('chats.sequence.subscribe');
     Route::resource('chats', ChatController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::resource('tags', TagController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::resource('sequences', SequenceController::class);
+    Route::delete('sequences/{sequence}/chats/{sequenceChat}', [SequenceController::class, 'removeChat'])
+        ->name('sequences.chats.destroy');
+
+    //DISPAROS EM MASSA
+    Route::get('/disparos', [MassSendController::class, 'index'])->name('mass.index');
+    Route::post('/disparos', [MassSendController::class, 'store'])->name('mass.store');
+    Route::get('/disparos/preview', [MassSendController::class, 'preview'])->name('mass.preview');
+    Route::get('/disparos/historico', [MassSendController::class, 'historico'])
+    ->name('mass.historico');
+    Route::get('/disparos/{id}', [MassSendController::class, 'show'])
+    ->name('mass.show');
+    Route::delete('/disparos/{campanha}/contatos/{contato}', [MassSendController::class, 'removerContato'])
+        ->name('mass.contacts.destroy');
+
 
 
     // INSTANCIAS
@@ -270,13 +196,19 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::post('/tokens/payment', [TokensController::class, 'createPayment'])->name('tokens.createPayment');
     Route::get('/payments', [TokensController::class, 'index'])->name('payments.index');
 
+    //BUSCAR EMPRESAS
+    Route::get('/empresas', [EmpresasController::class, 'index'])->name('empresas.index');
+    Route::post('/empresas/buscar', [EmpresasController::class, 'buscar'])->name('empresas.buscar');
+
     // CREDENCIAIS
     Route::resource('credentials', CredentialController::class);
     // Nova rota para o JavaScript chamar e buscar assistentes de uma credencial
+    Route::get('/credentials/{credential}/assistants', [InstanceController::class, 'getAssistantsForCredential'])->name('credentials.assistants');
 
     // ASSISTENTES
     Route::get('/assistants', [AssistantController::class, 'index'])->name('assistants.index');
     //Route::post('/assistants/fetch', [AssistantController::class, 'fetchAssistants'])->name('assistants.fetch');
+    Route::post('/assistants', [AssistantController::class, 'store'])->name('assistants.store');
     Route::delete('/assistants/{assistant}', [AssistantController::class, 'destroy'])->name('assistants.destroy');
     // Rota GET para mostrar a página do assistente de criação (o quiz)
     Route::get('/assistant-builder', [AssistantController::class, 'showBuilder'])->name('assistants.builder');
@@ -287,7 +219,7 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::post('/assistants/wizard', [AssistantController::class, 'storeWizard'])->name('assistants.wizard.store');
     Route::get('/assistants/{assistant}/wizard', [AssistantController::class, 'editWizard'])->name('assistants.wizard.edit');
     Route::put('/assistants/{assistant}/wizard', [AssistantController::class, 'updateWizard'])->name('assistants.wizard.update');
-    Route::resource('assistants', AssistantController::class)->except(['create', 'show', 'store']);
+    Route::resource('assistants', AssistantController::class)->except(['create', 'show']);
 
 });
 
@@ -304,174 +236,3 @@ Route::get('/test-credential/{id}', function ($id) {
 });
 
 require __DIR__.'/auth.php';
-
-Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function () {
-    Route::get('dashboard', function () {
-        return view('agencia.dashboard');
-    })->name('dashboard');
-    Route::get('dashboard/asaas-subscription-link', function () {
-        $user = auth()->user();
-
-        if (empty($user?->asaas_sub)) {
-            return response()->json([
-                'error' => true,
-                'message' => 'Assinatura Asaas não encontrada para este usuário.',
-            ], 422);
-        }
-
-        $asaas = new \App\Services\AsaasService();
-        $response = $asaas->getSubscriptionPaymentLink($user->asaas_sub, ['status' => 'PENDING']);
-
-        if (!$response || !empty($response['error'])) {
-            $fallback = $asaas->getSubscriptionPaymentLink($user->asaas_sub);
-            if ($fallback && empty($fallback['error']) && !empty($fallback['invoice_url'])) {
-                return response()->json([
-                    'ok' => true,
-                    'url' => $fallback['invoice_url'],
-                    'payment_id' => $fallback['payment_id'] ?? null,
-                ]);
-            }
-
-            return response()->json([
-                'error' => true,
-                'message' => $response['message'] ?? 'Falha ao obter link de cobrança.',
-                'response' => $response,
-            ], 502);
-        }
-
-        return response()->json([
-            'ok' => true,
-            'url' => $response['invoice_url'] ?? null,
-            'payment_id' => $response['payment_id'] ?? null,
-        ]);
-    })->name('dashboard.asaas-subscription-link');
-    Route::get('clientes', [AgenciaClienteController::class, 'index'])->name('clientes.index');
-    Route::post('clientes', [AgenciaClienteController::class, 'store'])->name('clientes.store');
-    Route::patch('clientes/{cliente}', [AgenciaClienteController::class, 'update'])->name('clientes.update');
-    Route::patch('clientes/{cliente}/restore', [AgenciaClienteController::class, 'restore'])->name('clientes.restore');
-    Route::delete('clientes/{cliente}/force', [AgenciaClienteController::class, 'forceDelete'])->name('clientes.forceDelete');
-    Route::delete('clientes/{cliente}', [AgenciaClienteController::class, 'destroy'])->name('clientes.destroy');
-    Route::get('credenciais', [AgenciaCredentialController::class, 'index'])->name('credentials.index');
-    Route::post('credenciais', [AgenciaCredentialController::class, 'store'])->name('credentials.store');
-    Route::patch('credenciais/{credential}', [AgenciaCredentialController::class, 'update'])->name('credentials.update');
-    Route::delete('credenciais/{credential}', [AgenciaCredentialController::class, 'destroy'])->name('credentials.destroy');
-    Route::get('conexoes', [AgenciaConexaoController::class, 'index'])->name('conexoes.index');
-    Route::post('conexoes', [AgenciaConexaoController::class, 'store'])->name('conexoes.store');
-    Route::get('conexoes/{conexao}/status', [AgenciaConexaoController::class, 'status'])->name('conexoes.status');
-    Route::post('conexoes/{conexao}/connect', [AgenciaConexaoController::class, 'connect'])->name('conexoes.connect');
-    Route::patch('conexoes/{conexao}', [AgenciaConexaoController::class, 'update'])->name('conexoes.update');
-    Route::delete('conexoes/{conexao}', [AgenciaConexaoController::class, 'destroy'])->name('conexoes.destroy');
-    Route::get('whatsapp-api-cloud', [WhatsappCloudController::class, 'index'])->name('whatsapp-cloud.index');
-    Route::get('whatsapp-api-cloud/webhook', [WhatsappCloudController::class, 'webhook'])->name('whatsapp-cloud.webhook');
-    Route::post('whatsapp-api-cloud/contas', [WhatsappCloudController::class, 'storeAccount'])->name('whatsapp-cloud.accounts.store');
-    Route::patch('whatsapp-api-cloud/contas/{account}', [WhatsappCloudController::class, 'updateAccount'])->name('whatsapp-cloud.accounts.update');
-    Route::post('whatsapp-api-cloud/webhook/nova-chave', [WhatsappCloudController::class, 'rotateWebhookKey'])->name('whatsapp-cloud.webhook.rotate-key');
-    Route::delete('whatsapp-api-cloud/contas/{account}', [WhatsappCloudController::class, 'destroyAccount'])->name('whatsapp-cloud.accounts.destroy');
-    Route::post('whatsapp-api-cloud/modelos', [WhatsappCloudController::class, 'storeTemplate'])->name('whatsapp-cloud.templates.store');
-    Route::patch('whatsapp-api-cloud/modelos/{template}', [WhatsappCloudController::class, 'updateTemplate'])->name('whatsapp-cloud.templates.update');
-    Route::post('whatsapp-api-cloud/modelos/importar-meta', [WhatsappCloudController::class, 'importTemplatesFromMeta'])->name('whatsapp-cloud.templates.import-meta');
-    Route::post('whatsapp-api-cloud/modelos/{template}/atualizar-status', [WhatsappCloudController::class, 'refreshTemplateStatus'])->name('whatsapp-cloud.templates.refresh-status');
-    Route::post('whatsapp-api-cloud/modelos/atualizar-status-lote', [WhatsappCloudController::class, 'refreshTemplateStatusBulk'])->name('whatsapp-cloud.templates.refresh-status-bulk');
-    Route::delete('whatsapp-api-cloud/modelos/{template}', [WhatsappCloudController::class, 'destroyTemplate'])->name('whatsapp-cloud.templates.destroy');
-    Route::get('whatsapp-api-cloud/campanhas/leads-elegiveis', [WhatsappCloudController::class, 'campaignLeadCount'])->name('whatsapp-cloud.campaigns.lead-count');
-    Route::post('whatsapp-api-cloud/campanhas', [WhatsappCloudController::class, 'storeCampaign'])->name('whatsapp-cloud.campaigns.store');
-    Route::patch('whatsapp-api-cloud/campanhas/{campaign}/cancelar', [WhatsappCloudController::class, 'cancelCampaign'])->name('whatsapp-cloud.campaigns.cancel');
-    Route::get('campos-personalizados', [WhatsappCloudCustomFieldController::class, 'index'])->name('campos-personalizados.index');
-    Route::post('campos-personalizados', [WhatsappCloudCustomFieldController::class, 'store'])->name('campos-personalizados.store');
-    Route::patch('campos-personalizados/{campoPersonalizado}', [WhatsappCloudCustomFieldController::class, 'update'])->name('campos-personalizados.update');
-    Route::delete('campos-personalizados/{campoPersonalizado}', [WhatsappCloudCustomFieldController::class, 'destroy'])->name('campos-personalizados.destroy');
-    Route::get('assistant', [AgenciaAssistantController::class, 'index'])->name('assistant.index');
-    Route::post('assistant', [AgenciaAssistantController::class, 'store'])->name('assistant.store');
-    Route::patch('assistant/{assistant}', [AgenciaAssistantController::class, 'update'])->name('assistant.update');
-    Route::delete('assistant/{assistant}', [AgenciaAssistantController::class, 'destroy'])->name('assistant.destroy');
-    Route::get('profile', [AgenciaProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('profile', [AgenciaProfileController::class, 'update'])->name('profile.update');
-    Route::get('agency-settings', [AgenciaSettingsController::class, 'edit'])->name('agency-settings.edit');
-    Route::post('agency-settings', [AgenciaSettingsController::class, 'update'])->name('agency-settings.update');
-    Route::get('sequence', [AgenciaSequenceController::class, 'index'])->name('sequences.index');
-    Route::get('conversas', [AgenciaClienteLeadController::class, 'index'])->name('conversas.index');
-    Route::post('conversas', [AgenciaClienteLeadController::class, 'store'])->name('conversas.store');
-    Route::post('conversas/ativar-bot-todos', [AgenciaClienteLeadController::class, 'activateBotForAll'])->name('conversas.activate-bot-all');
-    Route::delete('conversas/excluir-todos', [AgenciaClienteLeadController::class, 'destroyAll'])->name('conversas.destroy-all');
-    Route::post('conversas/tags/lote', [AgenciaClienteLeadController::class, 'bulkUpdateTags'])->name('conversas.tags.bulk');
-    Route::get('conversas/sequencias/remocao/opcoes', [AgenciaClienteLeadController::class, 'removeSequencesOptions'])->name('conversas.remove-sequences.options');
-    Route::delete('conversas/sequencias/remocao', [AgenciaClienteLeadController::class, 'removeSequences'])->name('conversas.remove-sequences');
-    Route::post('conversas/{clienteLead}/send-message', [AgenciaClienteLeadController::class, 'sendMessage'])->name('conversas.send-message');
-    Route::get('conversas/{clienteLead}/cloud-send-context', [AgenciaClienteLeadController::class, 'cloudSendContext'])->name('conversas.cloud-send-context');
-    Route::get('conversas/{clienteLead}/scheduled-messages', [AgenciaClienteLeadController::class, 'scheduledMessages'])->name('conversas.scheduled-messages.index');
-    Route::delete('conversas/scheduled-messages/{scheduledMessage}', [AgenciaClienteLeadController::class, 'cancelScheduledMessage'])->name('conversas.scheduled-messages.cancel');
-    Route::get('mensagens-agendadas', [AgenciaScheduledMessageController::class, 'index'])->name('mensagens-agendadas.index');
-    Route::get('mensagens-agendadas/{scheduledMessage}', [AgenciaScheduledMessageController::class, 'show'])->name('mensagens-agendadas.show');
-    Route::patch('mensagens-agendadas/{scheduledMessage}', [AgenciaScheduledMessageController::class, 'update'])->name('mensagens-agendadas.update');
-    Route::patch('mensagens-agendadas/{scheduledMessage}/cancel', [AgenciaScheduledMessageController::class, 'cancel'])->name('mensagens-agendadas.cancel');
-    Route::post('conversas/import', [AgenciaClienteLeadController::class, 'import'])->name('conversas.import');
-    Route::post('conversas/preview', [AgenciaClienteLeadController::class, 'preview'])->name('conversas.preview');
-    Route::get('conversas/export', [AgenciaClienteLeadController::class, 'export'])->name('conversas.export');
-    Route::get('openai/conv_id', [AgenciaOpenAIController::class, 'convId'])->name('openai.conv_id');
-    Route::put('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'update'])->name('conversas.update');
-    Route::delete('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'destroy'])->name('conversas.destroy');
-    Route::post('sequences', [AgenciaSequenceController::class, 'store'])->name('sequences.store');
-    Route::delete('sequences/{sequence}', [AgenciaSequenceController::class, 'destroy'])->name('sequences.destroy');
-    Route::post('sequences/{sequence}/steps', [AgenciaSequenceController::class, 'storeStep'])->name('sequences.steps.store');
-    Route::patch('sequences/{sequence}/steps/{step}', [AgenciaSequenceController::class, 'updateStep'])->name('sequences.steps.update');
-    Route::delete('sequences/{sequence}/steps/{step}', [AgenciaSequenceController::class, 'destroyStep'])->name('sequences.steps.destroy');
-    Route::delete('sequences/{sequence}/sequence-chats', [AgenciaSequenceController::class, 'destroySequenceChatsBySequence'])->name('sequence-chats.destroy-by-sequence');
-    Route::get('clientes/{cliente}/conexoes', [AgenciaSequenceController::class, 'conexoes'])->name('sequences.cliente.conexoes');
-    Route::get('clientes/{cliente}/sequences', [AgenciaSequenceController::class, 'sequences'])->name('sequences.cliente.sequences');
-    Route::delete('sequence-chats/{sequenceChat}', [AgenciaSequenceController::class, 'destroySequenceChat'])->name('sequence-chats.destroy');
-    Route::post('images/move', [AgenciaImageController::class, 'move'])->name('images.move');
-    Route::delete('images/bulk-destroy', [AgenciaImageController::class, 'bulkDestroy'])->name('images.bulkDestroy');
-    Route::resource('images', AgenciaImageController::class)->only(['index', 'store', 'destroy', 'update']);
-    Route::resource('folders', FolderController::class)->only(['store', 'update', 'destroy']);
-    Route::get('tags', [AgenciaTagController::class, 'index'])->name('tags.index');
-    Route::post('tags', [AgenciaTagController::class, 'store'])->name('tags.store');
-    Route::delete('tags/{tag}', [AgenciaTagController::class, 'destroy'])->name('tags.destroy');
-    Route::get('library', [AgenciaLibraryEntryController::class, 'index'])->name('library.index');
-    Route::post('library', [AgenciaLibraryEntryController::class, 'store'])->name('library.store');
-    Route::put('library/{libraryEntry}', [AgenciaLibraryEntryController::class, 'update'])->name('library.update');
-    Route::delete('library/{libraryEntry}', [AgenciaLibraryEntryController::class, 'destroy'])->name('library.destroy');
-});
-
-Route::prefix('cliente')->name('cliente.')->group(function () {
-    Route::middleware('guest:client')->group(function () {
-        Route::get('login', [ClienteAuthController::class, 'create'])->name('login');
-        Route::post('login', [ClienteAuthController::class, 'store']);
-    });
-
-    Route::middleware('auth:client')->group(function () {
-        Route::get('dashboard', [ClienteDashboardController::class, 'index'])->name('dashboard');
-        Route::post('logout', [ClienteAuthController::class, 'destroy'])->name('logout');
-        Route::get('assistant', [ClienteAssistantController::class, 'index'])->name('assistant.index');
-        Route::patch('assistant/{assistant}', [ClienteAssistantController::class, 'update'])->name('assistant.update');
-        Route::get('conexoes', [ConexaoClienteController::class, 'index'])->name('conexoes.index');
-        Route::get('conexoes/{conexao}/status', [ConexaoClienteController::class, 'status'])->name('conexoes.status');
-        Route::post('conexoes/{conexao}/connect', [ConexaoClienteController::class, 'connect'])->name('conexoes.connect');
-        Route::get('conversas', [ClienteClienteLeadController::class, 'index'])->name('conversas.index');
-        Route::post('conversas', [ClienteClienteLeadController::class, 'store'])->name('conversas.store');
-        Route::post('conversas/import', [ClienteClienteLeadController::class, 'import'])->name('conversas.import');
-        Route::post('conversas/preview', [ClienteClienteLeadController::class, 'preview'])->name('conversas.preview');
-        Route::get('conversas/export', [ClienteClienteLeadController::class, 'export'])->name('conversas.export');
-        Route::put('conversas/{clienteLead}', [ClienteClienteLeadController::class, 'update'])->name('conversas.update');
-        Route::delete('conversas/{clienteLead}', [ClienteClienteLeadController::class, 'destroy'])->name('conversas.destroy');
-        Route::get('sequence', [ClienteSequenceController::class, 'index'])->name('sequences.index');
-        Route::post('sequences', [ClienteSequenceController::class, 'store'])->name('sequences.store');
-        Route::delete('sequences/{sequence}', [ClienteSequenceController::class, 'destroy'])->name('sequences.destroy');
-        Route::post('sequences/{sequence}/steps', [ClienteSequenceController::class, 'storeStep'])->name('sequences.steps.store');
-        Route::patch('sequences/{sequence}/steps/{step}', [ClienteSequenceController::class, 'updateStep'])->name('sequences.steps.update');
-        Route::delete('sequences/{sequence}/steps/{step}', [ClienteSequenceController::class, 'destroyStep'])->name('sequences.steps.destroy');
-        Route::delete('sequences/{sequence}/sequence-chats', [ClienteSequenceController::class, 'destroySequenceChatsBySequence'])->name('sequence-chats.destroy-by-sequence');
-        Route::get('clientes/{cliente}/conexoes', [ClienteSequenceController::class, 'conexoes'])->name('sequences.cliente.conexoes');
-        Route::get('clientes/{cliente}/sequences', [ClienteSequenceController::class, 'sequences'])->name('sequences.cliente.sequences');
-        Route::delete('sequence-chats/{sequenceChat}', [ClienteSequenceController::class, 'destroySequenceChat'])->name('sequence-chats.destroy');
-        Route::get('library', [LibraryClienteController::class, 'index'])->name('library.index');
-        Route::post('library', [LibraryClienteController::class, 'store'])->name('library.store');
-        Route::put('library/{libraryEntry}', [LibraryClienteController::class, 'update'])->name('library.update');
-        Route::delete('library/{libraryEntry}', [LibraryClienteController::class, 'destroy'])->name('library.destroy');
-        Route::get('tags', [ClienteTagController::class, 'index'])->name('tags.index');
-        Route::post('tags', [ClienteTagController::class, 'store'])->name('tags.store');
-        Route::delete('tags/{tag}', [ClienteTagController::class, 'destroy'])->name('tags.destroy');
-        Route::post('images/move', [\App\Http\Controllers\Cliente\ClienteImageController::class, 'move'])->name('images.move');
-        Route::delete('images/bulk-destroy', [\App\Http\Controllers\Cliente\ClienteImageController::class, 'bulkDestroy'])->name('images.bulkDestroy');
-        Route::resource('images', \App\Http\Controllers\Cliente\ClienteImageController::class)->only(['index', 'store', 'destroy', 'update']);
-    });
-});
