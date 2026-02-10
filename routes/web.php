@@ -50,6 +50,7 @@ use App\Http\Controllers\Cliente\ConexaoClienteController;
 use App\Http\Controllers\Cliente\ClienteAssistantController;
 use App\Http\Controllers\Cliente\LibraryClienteController;
 use App\Http\Controllers\Cliente\ClienteTagController;
+use App\Http\Controllers\Cliente\ClienteSequenceController;
 
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
@@ -339,6 +340,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::put('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'update'])->name('conversas.update');
     Route::delete('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'destroy'])->name('conversas.destroy');
     Route::post('sequences', [AgenciaSequenceController::class, 'store'])->name('sequences.store');
+    Route::delete('sequences/{sequence}', [AgenciaSequenceController::class, 'destroy'])->name('sequences.destroy');
     Route::post('sequences/{sequence}/steps', [AgenciaSequenceController::class, 'storeStep'])->name('sequences.steps.store');
     Route::patch('sequences/{sequence}/steps/{step}', [AgenciaSequenceController::class, 'updateStep'])->name('sequences.steps.update');
     Route::delete('sequences/{sequence}/steps/{step}', [AgenciaSequenceController::class, 'destroyStep'])->name('sequences.steps.destroy');
@@ -380,6 +382,16 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::get('conversas/export', [ClienteClienteLeadController::class, 'export'])->name('conversas.export');
         Route::put('conversas/{clienteLead}', [ClienteClienteLeadController::class, 'update'])->name('conversas.update');
         Route::delete('conversas/{clienteLead}', [ClienteClienteLeadController::class, 'destroy'])->name('conversas.destroy');
+        Route::get('sequence', [ClienteSequenceController::class, 'index'])->name('sequences.index');
+        Route::post('sequences', [ClienteSequenceController::class, 'store'])->name('sequences.store');
+        Route::delete('sequences/{sequence}', [ClienteSequenceController::class, 'destroy'])->name('sequences.destroy');
+        Route::post('sequences/{sequence}/steps', [ClienteSequenceController::class, 'storeStep'])->name('sequences.steps.store');
+        Route::patch('sequences/{sequence}/steps/{step}', [ClienteSequenceController::class, 'updateStep'])->name('sequences.steps.update');
+        Route::delete('sequences/{sequence}/steps/{step}', [ClienteSequenceController::class, 'destroyStep'])->name('sequences.steps.destroy');
+        Route::delete('sequences/{sequence}/sequence-chats', [ClienteSequenceController::class, 'destroySequenceChatsBySequence'])->name('sequence-chats.destroy-by-sequence');
+        Route::get('clientes/{cliente}/conexoes', [ClienteSequenceController::class, 'conexoes'])->name('sequences.cliente.conexoes');
+        Route::get('clientes/{cliente}/sequences', [ClienteSequenceController::class, 'sequences'])->name('sequences.cliente.sequences');
+        Route::delete('sequence-chats/{sequenceChat}', [ClienteSequenceController::class, 'destroySequenceChat'])->name('sequence-chats.destroy');
         Route::get('library', [LibraryClienteController::class, 'index'])->name('library.index');
         Route::post('library', [LibraryClienteController::class, 'store'])->name('library.store');
         Route::put('library/{libraryEntry}', [LibraryClienteController::class, 'update'])->name('library.update');

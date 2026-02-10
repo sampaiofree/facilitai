@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Agencia;
+namespace App\Http\Controllers\Cliente;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
@@ -9,18 +9,30 @@ use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\SequenceStep;
 use App\Models\Tag;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
-class AgenciaSequenceController extends Controller
+class ClienteSequenceController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
-        $clients = Cliente::where('user_id', $user->id)->orderBy('nome')->get();
-        $tags = Tag::where('user_id', $user->id)->orderBy('name')->get();
+        $cliente = $request->user('client');
+
+        $clients = Cliente::query()
+            ->where('id', $cliente->id)
+            ->where('user_id', $cliente->user_id)
+            ->orderBy('nome')
+            ->get();
+
+        $tags = Tag::query()
+            ->where('user_id', $cliente->user_id)
+            ->where('cliente_id', $cliente->id)
+            ->orderBy('name')
+            ->get();
+
         $sequences = Sequence::with(['cliente', 'conexao', 'steps', 'logs.sequenceStep'])
-            ->where('user_id', $user->id)
+            ->where('user_id', $cliente->user_id)
+            ->where('cliente_id', $cliente->id)
             ->latest()
             ->get();
 
@@ -34,13 +46,20 @@ class AgenciaSequenceController extends Controller
                 ->withQueryString();
         }
 
-        return view('agencia.sequences.index', compact('sequences', 'clients', 'tags', 'sequenceChatsBySequence'));
+        return view('cliente.sequences.index', compact('sequences', 'clients', 'tags', 'sequenceChatsBySequence'));
     }
 
     public function destroySequenceChat(Request $request, SequenceChat $sequenceChat): RedirectResponse
     {
+        $cliente = $request->user('client');
         $sequence = $sequenceChat->sequence;
-        abort_unless($sequence && $sequence->user_id === $request->user()->id, 404);
+
+        abort_unless(
+            $sequence
+            && $sequence->user_id === $cliente->user_id
+            && $sequence->cliente_id === $cliente->id,
+            404
+        );
 
         $sequenceChat->delete();
 
@@ -49,32 +68,35 @@ class AgenciaSequenceController extends Controller
 
     public function destroySequenceChatsBySequence(Request $request, Sequence $sequence): RedirectResponse
     {
-        $this->ensureSequenceOwnership($sequence, $request->user()->id);
+        $cliente = $request->user('client');
+        $this->ensureSequenceOwnership($sequence, $cliente->id, $cliente->user_id);
 
         $deleted = SequenceChat::where('sequence_id', $sequence->id)->delete();
 
-        return back()->with('success', "{$deleted} chat(s) da sequência removido(s) com sucesso.");
+        return back()->with('success', "{$deleted} chat(s) da sequencia removido(s) com sucesso.");
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
-        $user = $request->user();
+        $cliente = $request->user('client');
         $data = $request->validate([
             'sequence_id' => ['nullable', 'integer'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'cliente_id' => ['required', 'integer', 'exists:clientes,id'],
+            'cliente_id' => ['required', 'integer', 'in:' . $cliente->id],
             'conexao_id' => ['required', 'integer', 'exists:conexoes,id'],
             'active' => ['nullable', 'boolean'],
             'tags_incluir' => ['nullable', 'array'],
             'tags_excluir' => ['nullable', 'array'],
         ]);
 
-        $cliente = Cliente::where('user_id', $user->id)->findOrFail($data['cliente_id']);
-        $conexao = Conexao::where('cliente_id', $cliente->id)->findOrFail($data['conexao_id']);
+        $conexao = Conexao::query()
+            ->where('id', $data['conexao_id'])
+            ->where('cliente_id', $cliente->id)
+            ->firstOrFail();
 
         $payload = [
-            'user_id' => $user->id,
+            'user_id' => $cliente->user_id,
             'cliente_id' => $cliente->id,
             'conexao_id' => $conexao->id,
             'name' => $data['name'],
@@ -85,31 +107,36 @@ class AgenciaSequenceController extends Controller
         ];
 
         if (!empty($data['sequence_id'])) {
-            $sequence = Sequence::where('user_id', $user->id)->findOrFail($data['sequence_id']);
+            $sequence = Sequence::query()
+                ->where('user_id', $cliente->user_id)
+                ->where('cliente_id', $cliente->id)
+                ->findOrFail($data['sequence_id']);
             $sequence->update($payload);
-            $message = 'Sequência atualizada com sucesso.';
+            $message = 'Sequencia atualizada com sucesso.';
         } else {
             Sequence::create($payload);
-            $message = 'Sequência criada com sucesso.';
+            $message = 'Sequencia criada com sucesso.';
         }
 
-        return redirect()->route('agencia.sequences.index')->with('success', $message);
-        }
+        return redirect()->route('cliente.sequences.index')->with('success', $message);
+    }
 
     public function destroy(Request $request, Sequence $sequence): RedirectResponse
     {
-        $this->ensureSequenceOwnership($sequence, $request->user()->id);
+        $cliente = $request->user('client');
+        $this->ensureSequenceOwnership($sequence, $cliente->id, $cliente->user_id);
 
         $sequence->delete();
 
         return redirect()
-            ->route('agencia.sequences.index')
+            ->route('cliente.sequences.index')
             ->with('success', 'Sequencia removida com sucesso.');
     }
 
-    public function storeStep(Request $request, Sequence $sequence)
+    public function storeStep(Request $request, Sequence $sequence): RedirectResponse
     {
-        $this->ensureSequenceOwnership($sequence, $request->user()->id);
+        $cliente = $request->user('client');
+        $this->ensureSequenceOwnership($sequence, $cliente->id, $cliente->user_id);
 
         $data = $request->validate([
             'title' => ['nullable', 'string', 'max:255'],
@@ -135,12 +162,13 @@ class AgenciaSequenceController extends Controller
             'ordem' => (int) ($sequence->steps()->max('ordem') ?? 0) + 1,
         ]);
 
-        return redirect()->route('agencia.sequences.index')->with('success', 'Etapa criada com sucesso.');
+        return redirect()->route('cliente.sequences.index')->with('success', 'Etapa criada com sucesso.');
     }
 
-    public function updateStep(Request $request, Sequence $sequence, SequenceStep $step)
+    public function updateStep(Request $request, Sequence $sequence, SequenceStep $step): RedirectResponse
     {
-        $this->ensureSequenceOwnership($sequence, $request->user()->id);
+        $cliente = $request->user('client');
+        $this->ensureSequenceOwnership($sequence, $cliente->id, $cliente->user_id);
         abort_unless($step->sequence_id === $sequence->id, 404);
 
         $data = $request->validate([
@@ -166,33 +194,43 @@ class AgenciaSequenceController extends Controller
             'active' => $request->boolean('active'),
         ]);
 
-        return redirect()->route('agencia.sequences.index')->with('success', 'Etapa atualizada com sucesso.');
+        return redirect()->route('cliente.sequences.index')->with('success', 'Etapa atualizada com sucesso.');
     }
 
     public function destroyStep(Request $request, Sequence $sequence, SequenceStep $step): RedirectResponse
     {
-        $this->ensureSequenceOwnership($sequence, $request->user()->id);
+        $cliente = $request->user('client');
+        $this->ensureSequenceOwnership($sequence, $cliente->id, $cliente->user_id);
         abort_unless($step->sequence_id === $sequence->id, 404);
 
         $step->delete();
 
         return redirect()
-            ->route('agencia.sequences.index')
+            ->route('cliente.sequences.index')
             ->with('success', 'Etapa removida com sucesso.');
     }
 
     public function conexoes(Cliente $cliente)
     {
-        abort_unless($cliente->user_id === auth()->id(), 403);
+        $authCliente = auth('client')->user();
+        abort_unless(
+            $cliente->id === $authCliente->id && $cliente->user_id === $authCliente->user_id,
+            403
+        );
+
         return $cliente->conexoes()->select('id', 'name')->orderBy('name')->get();
     }
 
     public function sequences(Cliente $cliente)
     {
-        abort_unless($cliente->user_id === auth()->id(), 403);
+        $authCliente = auth('client')->user();
+        abort_unless(
+            $cliente->id === $authCliente->id && $cliente->user_id === $authCliente->user_id,
+            403
+        );
 
         return Sequence::with('conexao')
-            ->where('user_id', auth()->id())
+            ->where('user_id', $authCliente->user_id)
             ->where('cliente_id', $cliente->id)
             ->where('active', true)
             ->orderBy('name')
@@ -208,15 +246,15 @@ class AgenciaSequenceController extends Controller
     private function normalizeTags(array $tags): array
     {
         return collect($tags)
-            ->map(fn($tag) => trim((string) $tag))
+            ->map(fn ($tag) => trim((string) $tag))
             ->filter()
             ->unique()
             ->values()
             ->all();
     }
 
-    private function ensureSequenceOwnership(Sequence $sequence, int $userId): void
+    private function ensureSequenceOwnership(Sequence $sequence, int $clienteId, int $userId): void
     {
-        abort_unless($sequence->user_id === $userId, 404);
+        abort_unless($sequence->cliente_id === $clienteId && $sequence->user_id === $userId, 404);
     }
 }

@@ -1,4 +1,4 @@
-@extends('layouts.agencia')
+@extends('layouts.cliente')
 
 @push('head')
     <style>
@@ -16,7 +16,7 @@
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Sequências</h2>
-            <p class="text-sm text-slate-500">Gerencie as sequências vinculadas ao seu usuário.</p>
+            <p class="text-sm text-slate-500">Gerencie as sequências vinculadas ao cliente logado.</p>
         </div>
         <button id="openSequenceModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Nova sequência</button>
     </div>
@@ -70,7 +70,7 @@
                     >Criar Etapa</button>
                     <form
                         method="POST"
-                        action="{{ route('agencia.sequences.destroy', $sequence) }}"
+                        action="{{ route('cliente.sequences.destroy', $sequence) }}"
                         onsubmit="return confirm('Deseja excluir esta sequencia? Esta acao tambem removera etapas, chats e logs vinculados.');"
                     >
                         @csrf
@@ -137,7 +137,7 @@
                                                         {{--
                                                         <form
                                                             method="POST"
-                                                            action="{{ route('agencia.sequences.steps.destroy', ['sequence' => $sequence->id, 'step' => $step->id]) }}"
+                                                            action="{{ route('cliente.sequences.steps.destroy', ['sequence' => $sequence->id, 'step' => $step->id]) }}"
                                                             class="inline"
                                                             onsubmit="return confirm('Deseja excluir esta etapa?');"
                                                         >
@@ -222,7 +222,7 @@
                     <summary class="flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 cursor-pointer">
                         <span class="inline-flex items-center gap-2">
                             <span>Chats da sequência ({{ $sequenceChatsPaginator ? $sequenceChatsPaginator->total() : 0 }})</span>
-                            <form method="POST" action="{{ route('agencia.sequence-chats.destroy-by-sequence', $sequence) }}" onclick="event.stopPropagation();">
+                            <form method="POST" action="{{ route('cliente.sequence-chats.destroy-by-sequence', $sequence) }}" onclick="event.stopPropagation();">
                                 @csrf
                                 @method('DELETE')
                                 <button
@@ -275,7 +275,7 @@
                                                     {{ $chat->proximo_envio_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}
                                                 </td>
                                                 <td class="px-3 py-2">
-                                                    <form method="POST" action="{{ route('agencia.sequence-chats.destroy', $chat) }}">
+                                                    <form method="POST" action="{{ route('cliente.sequence-chats.destroy', $chat) }}">
                                                         @csrf
                                                         @method('DELETE')
                                                         <button
@@ -315,7 +315,7 @@
                 <h3 class="text-lg font-semibold text-slate-900" id="sequenceModalTitle">Nova sequência</h3>
                 <button type="button" data-close-modal class="text-slate-500 hover:text-slate-700">x</button>
             </div>
-            <form id="sequenceForm" method="POST" action="{{ route('agencia.sequences.store') }}" class="mt-5 space-y-4">
+            <form id="sequenceForm" method="POST" action="{{ route('cliente.sequences.store') }}" class="mt-5 space-y-4">
                 @csrf
                 <input type="hidden" name="sequence_id" id="sequenceId" value="">
 
@@ -460,7 +460,7 @@
             const tagsIncluirContainer = document.getElementById('sequenceTagsIncluirContainer');
             const tagsExcluirContainer = document.getElementById('sequenceTagsExcluirContainer');
 
-            const connectionsUrlTemplate = "{{ route('agencia.sequences.cliente.conexoes', ['cliente' => '__CLIENT__']) }}";
+            const connectionsUrlTemplate = "{{ route('cliente.sequences.cliente.conexoes', ['cliente' => '__CLIENT__']) }}";
 
             class MultiTagSelect {
                 constructor(root) {
@@ -648,8 +648,8 @@
             const stepModalTitle = document.getElementById('stepModalTitle');
             const stepCloseButtons = stepModal.querySelectorAll('[data-close-step-modal]');
 
-            const stepStoreTemplate = "{{ route('agencia.sequences.steps.store', ['sequence' => '__SEQ__']) }}";
-            const stepUpdateTemplate = "{{ route('agencia.sequences.steps.update', ['sequence' => '__SEQ__', 'step' => '__STEP__']) }}";
+            const stepStoreTemplate = "{{ route('cliente.sequences.steps.store', ['sequence' => '__SEQ__']) }}";
+            const stepUpdateTemplate = "{{ route('cliente.sequences.steps.update', ['sequence' => '__SEQ__', 'step' => '__STEP__']) }}";
 
             const defaultDays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
@@ -720,3 +720,4 @@
         })();
     </script>
 @endsection
+
