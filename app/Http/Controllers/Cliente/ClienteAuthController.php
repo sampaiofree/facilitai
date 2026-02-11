@@ -71,7 +71,15 @@ class ClienteAuthController extends Controller
             ])->onlyInput('email');
         }
 
-        return redirect()->intended(route('cliente.dashboard'));
+        $intendedUrl = $request->session()->pull('url.intended');
+        if (is_string($intendedUrl)) {
+            $intendedPath = parse_url($intendedUrl, PHP_URL_PATH) ?: '';
+            if ($intendedPath !== '' && str_starts_with($intendedPath, '/cliente')) {
+                return redirect()->to($intendedUrl);
+            }
+        }
+
+        return redirect()->route('cliente.dashboard');
     }
 
     public function destroy(Request $request): RedirectResponse
