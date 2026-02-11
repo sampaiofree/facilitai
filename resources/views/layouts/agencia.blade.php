@@ -147,7 +147,7 @@
                                 </svg>
                             </span>
                             <span class="min-w-0">
-                                <span class="block truncate text-sm">{{ $sidebarUser?->name ?? 'Usuário' }}</span>
+                                <span class="block truncate text-sm" style="text-wrap: auto;">{{ $sidebarUser?->name ?? 'Usuário' }}</span>
                                 <span class="block truncate text-xs text-slate-400">{{ $sidebarUser?->email ?? '' }}</span>
                             </span>
                         </span>
