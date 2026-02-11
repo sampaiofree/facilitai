@@ -7,6 +7,7 @@ use App\Models\AgencySetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
@@ -36,6 +37,9 @@ class ClienteAuthController extends Controller
         ]);
 
         $remember = (bool) $request->boolean('remember');
+        if ($remember && !Schema::hasColumn('clientes', 'remember_token')) {
+            $remember = false;
+        }
         $credentials['is_active'] = true;
 
         if (!Auth::guard('client')->attempt($credentials, $remember)) {

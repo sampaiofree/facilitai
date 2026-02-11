@@ -15,6 +15,9 @@ class UserController extends Controller
         $users = User::withCount('conexoes')
             ->with('asaasWebhooks')
             ->with('plan')
+            ->with(['clientes' => function ($query) {
+                $query->orderBy('nome');
+            }])
             ->latest()
             ->get();
 

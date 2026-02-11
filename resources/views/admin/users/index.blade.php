@@ -76,6 +76,16 @@
                                                 'created_at' => $hook->created_at?->format('d/m/Y H:i'),
                                             ];
                                         })->values()->all(),
+                                        'clientes' => $user->clientes->map(function ($cliente) {
+                                            return [
+                                                'id' => $cliente->id,
+                                                'nome' => $cliente->nome,
+                                                'email' => $cliente->email,
+                                                'telefone' => $cliente->telefone,
+                                                'is_active' => (bool) $cliente->is_active,
+                                                'created_at' => $cliente->created_at?->format('d/m/Y H:i'),
+                                            ];
+                                        })->values()->all(),
                                     ];
                                 @endphp
                                 <button type="button"
@@ -169,6 +179,29 @@
                             </tr>
                         </thead>
                         <tbody id="viewUserWebhooks" class="border-t border-slate-100 text-slate-700">
+                            <tr>
+                                <td colspan="6" class="px-3 py-2 text-center text-slate-400">Sem registros.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <h4 class="text-sm font-semibold text-slate-700">Clientes</h4>
+                <div class="mt-2 overflow-x-auto rounded-xl border border-slate-200">
+                    <table class="min-w-full text-xs text-slate-600">
+                        <thead class="bg-slate-50 text-slate-400 uppercase tracking-wide">
+                            <tr>
+                                <th class="px-3 py-2 text-left">ID</th>
+                                <th class="px-3 py-2 text-left">Nome</th>
+                                <th class="px-3 py-2 text-left">Email</th>
+                                <th class="px-3 py-2 text-left">Telefone</th>
+                                <th class="px-3 py-2 text-left">Status</th>
+                                <th class="px-3 py-2 text-left">Criado em</th>
+                            </tr>
+                        </thead>
+                        <tbody id="viewUserClientes" class="border-t border-slate-100 text-slate-700">
                             <tr>
                                 <td colspan="6" class="px-3 py-2 text-center text-slate-400">Sem registros.</td>
                             </tr>
@@ -321,6 +354,7 @@
             const viewUserCreated = document.getElementById('viewUserCreated');
             const viewUserUpdated = document.getElementById('viewUserUpdated');
             const viewUserWebhooks = document.getElementById('viewUserWebhooks');
+            const viewUserClientes = document.getElementById('viewUserClientes');
             const createAsaasCustomerBtn = document.getElementById('createAsaasCustomerBtn');
             const createAsaasCustomerHint = document.getElementById('createAsaasCustomerHint');
             const createAsaasSubscriptionBtn = document.getElementById('createAsaasSubscriptionBtn');
@@ -349,6 +383,16 @@
                 } else {
                     element.classList.add('hidden');
                 }
+            };
+
+            const escapeHtml = (value) => {
+                const stringValue = value === null || value === undefined || value === '' ? '-' : String(value);
+                return stringValue
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
             };
 
             const setRegisterButtonState = (state) => {
@@ -569,6 +613,27 @@
                         viewUserWebhooks.innerHTML = '<tr><td colspan="6" class="px-3 py-2 text-center text-slate-400">Sem registros.</td></tr>';
                     }
 
+                    if (Array.isArray(payload.clientes) && payload.clientes.length) {
+                        viewUserClientes.innerHTML = payload.clientes.map(item => {
+                            const statusLabel = item.is_active === true
+                                ? 'Ativo'
+                                : (item.is_active === false ? 'Inativo' : '-');
+
+                            return `
+                                <tr>
+                                    <td class="px-3 py-2">${escapeHtml(item.id)}</td>
+                                    <td class="px-3 py-2">${escapeHtml(item.nome)}</td>
+                                    <td class="px-3 py-2">${escapeHtml(item.email)}</td>
+                                    <td class="px-3 py-2">${escapeHtml(item.telefone)}</td>
+                                    <td class="px-3 py-2">${escapeHtml(statusLabel)}</td>
+                                    <td class="px-3 py-2">${escapeHtml(item.created_at)}</td>
+                                </tr>
+                            `;
+                        }).join('');
+                    } else {
+                        viewUserClientes.innerHTML = '<tr><td colspan="6" class="px-3 py-2 text-center text-slate-400">Sem registros.</td></tr>';
+                    }
+
                     openViewModal();
                 });
             });
@@ -769,7 +834,6 @@
         })();
     </script>
 @endsection
-
 
 
 
