@@ -1,15 +1,15 @@
 @extends('layouts.adm')
 
 @section('content')
-    <div class="flex items-center justify-between mb-6">
+    <div class="mb-6 flex items-center justify-between">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Assistant Leads</h2>
-            <p class="text-sm text-slate-500">Registros concluídos pelo job de processamento de mensagens.</p>
+            <p class="text-sm text-slate-500">Registros concluidos pelo job de processamento de mensagens.</p>
         </div>
     </div>
 
-    <form method="GET" action="{{ route('adm.assistant-lead.index') }}" class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end">
-        <div class="flex-1">
+    <form method="GET" action="{{ route('adm.assistant-lead.index') }}" class="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-4">
+        <div>
             <label for="assistantLeadSearch" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Buscar por nome ou telefone</label>
             <input
                 id="assistantLeadSearch"
@@ -20,37 +20,67 @@
                 class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
             >
         </div>
-        <div class="flex items-center gap-2">
-            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Buscar</button>
-            @if(!empty($search))
+        <div>
+            <label for="assistantLeadClienteFilter" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</label>
+            <select
+                id="assistantLeadClienteFilter"
+                name="cliente_id"
+                class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+                <option value="">Todos</option>
+                @foreach(($clientes ?? collect()) as $cliente)
+                    <option value="{{ $cliente->id }}" @selected((int) ($clienteId ?? 0) === (int) $cliente->id)>{{ $cliente->nome }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div>
+            <label for="assistantLeadAssistantFilter" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Assistente</label>
+            <select
+                id="assistantLeadAssistantFilter"
+                name="assistant_id"
+                class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+                <option value="">Todos</option>
+                @foreach(($assistants ?? collect()) as $assistant)
+                    <option value="{{ $assistant->id }}" @selected((int) ($assistantId ?? 0) === (int) $assistant->id)>{{ $assistant->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="flex items-end gap-2">
+            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Filtrar</button>
+            @if(!empty($search) || !empty($clienteId) || !empty($assistantId))
                 <a href="{{ route('adm.assistant-lead.index') }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Limpar</a>
             @endif
         </div>
     </form>
 
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-slate-500">
                 <tr>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">ID</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Lead</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Assistente</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conv ID</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Criado em</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">ID</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Lead</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Assistente</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Conv ID</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Criado em</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Acoes</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @forelse($assistantLeads as $assistantLead)
                     <tr class="hover:bg-slate-50">
                         <td class="px-5 py-4 font-medium text-slate-800">{{ $assistantLead->id }}</td>
-                        <td class="px-5 py-4 text-slate-600">{{ $assistantLead->lead?->name ?? '—' }}</td>
-                        <td class="px-5 py-4 text-slate-600">{{ $assistantLead->assistant?->name ?? '—' }}</td>
-                        <td class="px-5 py-4 text-slate-600">{{ $assistantLead->conv_id ?? '—' }}</td>
-                        <td class="px-5 py-4 text-slate-600">{{ $assistantLead->created_at?->format('d/m/Y H:i') ?? '—' }}</td>
+                        <td class="px-5 py-4 text-slate-600">
+                            <div>{{ $assistantLead->lead?->name ?? '-' }}</div>
+                            <div class="text-xs text-slate-400">{{ $assistantLead->lead?->cliente?->nome ?? '-' }}</div>
+                        </td>
+                        <td class="px-5 py-4 text-slate-600">{{ $assistantLead->assistant?->name ?? '-' }}</td>
+                        <td class="px-5 py-4 text-slate-600">{{ $assistantLead->conv_id ?? '-' }}</td>
+                        <td class="px-5 py-4 text-slate-600">{{ $assistantLead->created_at?->format('d/m/Y H:i') ?? '-' }}</td>
                         <td class="px-5 py-4">
                             <div class="flex items-center gap-2">
-                                <button type="button"
+                                <button
+                                    type="button"
                                     data-view-record="{{ json_encode([
                                         'id' => $assistantLead->id,
                                         'lead' => $assistantLead->lead?->name,
@@ -109,7 +139,7 @@
                         <dd id="assistantLeadDetailAssistant"></dd>
                     </div>
                     <div>
-                        <dt class="text-xs uppercase tracking-wide text-slate-400">Versão</dt>
+                        <dt class="text-xs uppercase tracking-wide text-slate-400">Versao</dt>
                         <dd id="assistantLeadDetailVersion"></dd>
                     </div>
                     <div>
@@ -162,12 +192,14 @@
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
             };
+
             const closeModal = () => {
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');
             };
 
             closeBtns.forEach(btn => btn.addEventListener('click', closeModal));
+
             modal.addEventListener('click', (event) => {
                 if (event.target === modal) {
                     closeModal();
@@ -177,16 +209,16 @@
             document.querySelectorAll('[data-view-record]').forEach(button => {
                 button.addEventListener('click', () => {
                     const data = JSON.parse(button.dataset.viewRecord);
-                    fields.id.textContent = data.id ?? '—';
-                    fields.lead.textContent = data.lead ?? '—';
-                    fields.assistant.textContent = data.assistant ?? '—';
-                    fields.version.textContent = data.version ?? '—';
-                    fields.convId.textContent = data.conv_id ?? '—';
-                    fields.createdAt.textContent = data.created_at ?? '—';
-                    fields.updatedAt.textContent = data.updated_at ?? '—';
+                    fields.id.textContent = data.id ?? '-';
+                    fields.lead.textContent = data.lead ?? '-';
+                    fields.assistant.textContent = data.assistant ?? '-';
+                    fields.version.textContent = data.version ?? '-';
+                    fields.convId.textContent = data.conv_id ?? '-';
+                    fields.createdAt.textContent = data.created_at ?? '-';
+                    fields.updatedAt.textContent = data.updated_at ?? '-';
                     fields.payload.textContent = JSON.stringify(data.webhook_payload ?? {}, null, 2);
                     fields.response.textContent = JSON.stringify(data.assistant_response ?? {}, null, 2);
-                    fields.jobMessage.textContent = data.job_message ?? '—';
+                    fields.jobMessage.textContent = data.job_message ?? '-';
                     openModal();
                 });
             });
