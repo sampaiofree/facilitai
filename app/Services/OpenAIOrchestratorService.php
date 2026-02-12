@@ -375,7 +375,7 @@ class OpenAIOrchestratorService
         return array_merge([
             [
                 'role' => 'system',
-                'content' => "Agora: {$now->toIso8601String()} ({$dayName}, {$date} as {$time}, tz: {$timezone}).\n{$contactInfo}",
+                'content' => "Agora: {$now->toIso8601String()} ({$dayName}, {$date} as {$time}, tz: {$timezone}).",
             ],
         ], $input);
     }
