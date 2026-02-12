@@ -370,7 +370,7 @@ class OpenAIOrchestratorService
         $dayName = $now->locale('pt_BR')->isoFormat('dddd');
         $date = $now->format('Y-m-d');
         $time = $now->format('H:i');
-        $contactInfo = $contactName ? "nome do cliente/contato: {$contactName}" : '';
+        //$contactInfo = $contactName ? "nome do cliente/contato: {$contactName}" : '';
 
         return array_merge([
             [
