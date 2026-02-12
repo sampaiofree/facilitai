@@ -15,7 +15,7 @@ class ClienteLeadController extends Controller
      */
     public function index(): View
     {
-        $leads = ClienteLead::with(['cliente', 'assistantLeads.assistant'])
+        $leads = ClienteLead::with(['cliente.user', 'assistantLeads.assistant'])
             ->orderByDesc('created_at')
             ->get();
 

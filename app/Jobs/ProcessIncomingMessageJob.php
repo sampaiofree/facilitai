@@ -916,7 +916,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                     return '❌ Não foi possível aplicar as tags.';
                 }
             },
-            'inscrever_sequencia' => function (array $arguments, array $context) use ($lead) {
+            'inscrever_sequencia' => function (array $arguments, array $context) use ($lead, $payload, $conexao) {
                 try {
                     if (!$lead || !$lead->bot_enabled) {
                         return ['output' => '⚠️ Lead indisponível ou bot desativado.'];
@@ -953,9 +953,16 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                         return ['output' => 'ℹ️ Este lead já está inscrito ou finalizou esta sequência.'];
                     }
 
+                    $assistantId = isset($payload['assistant_id']) && $payload['assistant_id'] !== ''
+                        ? (int) $payload['assistant_id']
+                        : ($conexao?->assistant_id ? (int) $conexao->assistant_id : null);
+                    $conexaoId = $conexao?->id ? (int) $conexao->id : null;
+
                     SequenceChat::create([
                         'sequence_id' => $sequence->id,
                         'cliente_lead_id' => $lead->id,
+                        'assistant_id' => $assistantId,
+                        'conexao_id' => $conexaoId,
                         'status' => 'em_andamento',
                         'iniciado_em' => now('America/Sao_Paulo'),
                         'proximo_envio_em' => null,

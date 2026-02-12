@@ -34,8 +34,8 @@
                             'cliente' => [
                                 'id' => $lead->cliente_id ?? '-',
                                 'nome' => optional($lead->cliente)->nome ?? '-',
-                                'user_id' => optional($lead->cliente->user)->id ?? '-',
-                                'user_name' => optional($lead->cliente->user)->name ?? '-',
+                                'user_id' => optional(optional($lead->cliente)->user)->id ?? '-',
+                                'user_name' => optional(optional($lead->cliente)->user)->name ?? '-',
                             ],
                             'assistant_leads' => $lead->assistantLeads->map(function ($assistantLead) {
                                 return [

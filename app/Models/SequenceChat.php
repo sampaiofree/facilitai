@@ -13,6 +13,8 @@ class SequenceChat extends Model
     protected $fillable = [
         'sequence_id',
         'cliente_lead_id',
+        'assistant_id',
+        'conexao_id',
         'passo_atual_id',
         'status',
         'iniciado_em',
@@ -33,6 +35,16 @@ class SequenceChat extends Model
     public function clienteLead()
     {
         return $this->belongsTo(ClienteLead::class);
+    }
+
+    public function assistant()
+    {
+        return $this->belongsTo(Assistant::class);
+    }
+
+    public function conexao()
+    {
+        return $this->belongsTo(Conexao::class);
     }
 
     public function step()

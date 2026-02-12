@@ -58,4 +58,9 @@ class Conexao extends Model
     {
         return $this->belongsTo(Iamodelo::class, 'model');
     }
+
+    public function sequenceChats()
+    {
+        return $this->hasMany(SequenceChat::class);
+    }
 }

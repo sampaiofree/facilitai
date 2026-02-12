@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\ProcessIncomingMessageJob;
+use App\Models\Conexao;
 use App\Models\SequenceChat;
 use App\Models\SequenceLog;
 use App\Models\SequenceStep;
@@ -20,7 +21,7 @@ class ProcessSequences extends Command
         $intervaloMinutos = 2;
         $ultimoEnvioLocal = null;
 
-        SequenceChat::with(['sequence', 'clienteLead', 'clienteLead.tags'])
+        SequenceChat::with(['sequence', 'sequence.conexao', 'clienteLead', 'clienteLead.tags', 'conexao'])
             ->where('status', 'em_andamento')
             ->where(function ($q) {
                 $agoraLocal = Carbon::now('America/Sao_Paulo');
@@ -81,6 +82,11 @@ class ProcessSequences extends Command
                         continue;
                     }
 
+                    $conexaoId = $this->resolverConexaoIdParaInscricao($inscricao, $step, $agoraLocal);
+                    if (!$conexaoId) {
+                        continue;
+                    }
+
                     // Disparo
                     try {
                         $mensagem = $step->prompt;
@@ -104,9 +110,9 @@ class ProcessSequences extends Command
                             'event_id' => $eventId,
                             'message_timestamp' => $agoraUtc->valueOf(),
                             'message_type' => 'conversation',
+                            'conexao_id' => $conexaoId,
                         ];
 
-                        $conexaoId = $seq->conexao?->id ?? $seq->conexao_id;
                         ProcessIncomingMessageJob::dispatch($conexaoId, $lead->id, $payload)
                             ->onQueue('processarconversa');
 
@@ -251,6 +257,113 @@ class ProcessSequences extends Command
             'dia' => $base->copy()->addDays($step->atraso_valor ?? 0),
             default => $base->copy()->addHours($step->atraso_valor ?? 0),
         };
+    }
+
+    private function resolverConexaoIdParaInscricao(SequenceChat $inscricao, ?SequenceStep $step, Carbon $agoraLocal): ?int
+    {
+        $leadClienteId = $inscricao->clienteLead?->cliente_id;
+        $candidatos = [];
+
+        if (!empty($inscricao->conexao_id)) {
+            $candidatos[] = [
+                'id' => (int) $inscricao->conexao_id,
+                'source' => 'sequence_chat.conexao_id',
+                'model' => $inscricao->conexao,
+            ];
+        }
+
+        $sequenceConexaoId = $inscricao->sequence?->conexao_id;
+        if (!empty($sequenceConexaoId) && (int) $sequenceConexaoId !== (int) $inscricao->conexao_id) {
+            $candidatos[] = [
+                'id' => (int) $sequenceConexaoId,
+                'source' => 'sequence.conexao_id',
+                'model' => $inscricao->sequence?->conexao,
+            ];
+        }
+
+        if (empty($candidatos)) {
+            $this->reagendarPorConexaoInvalida(
+                $inscricao,
+                $step,
+                $agoraLocal,
+                'Nenhuma conexao definida em sequence_chat ou sequence.'
+            );
+
+            return null;
+        }
+
+        $erros = [];
+        foreach ($candidatos as $candidato) {
+            /** @var Conexao|null $conexao */
+            $conexao = $candidato['model'];
+            if (!$conexao || (int) $conexao->id !== (int) $candidato['id']) {
+                $conexao = Conexao::find($candidato['id']);
+            }
+
+            if (!$conexao) {
+                $erros[] = $candidato['source'] . '=' . $candidato['id'] . ' inexistente';
+                continue;
+            }
+
+            if ($leadClienteId && (int) $conexao->cliente_id !== (int) $leadClienteId) {
+                $erros[] = $candidato['source'] . '=' . $conexao->id . ' nao pertence ao cliente do lead';
+                continue;
+            }
+
+            if (empty($conexao->assistant_id)) {
+                $erros[] = $candidato['source'] . '=' . $conexao->id . ' sem assistant_id';
+                continue;
+            }
+
+            if (empty($conexao->whatsapp_api_key)) {
+                $erros[] = $candidato['source'] . '=' . $conexao->id . ' sem whatsapp_api_key';
+                continue;
+            }
+
+            $inscricaoAlterada = false;
+            if ((int) ($inscricao->conexao_id ?? 0) !== (int) $conexao->id) {
+                $inscricao->conexao_id = $conexao->id;
+                $inscricaoAlterada = true;
+            }
+
+            if (empty($inscricao->assistant_id) && !empty($conexao->assistant_id)) {
+                $inscricao->assistant_id = (int) $conexao->assistant_id;
+                $inscricaoAlterada = true;
+            }
+
+            if ($inscricaoAlterada) {
+                $inscricao->save();
+            }
+
+            return (int) $conexao->id;
+        }
+
+        $motivo = empty($erros)
+            ? 'Conexao invalida para disparo.'
+            : implode(' | ', $erros);
+
+        $this->reagendarPorConexaoInvalida($inscricao, $step, $agoraLocal, $motivo);
+
+        return null;
+    }
+
+    private function reagendarPorConexaoInvalida(SequenceChat $inscricao, ?SequenceStep $step, Carbon $agoraLocal, string $motivo): void
+    {
+        $proximaTentativa = $agoraLocal->copy()->addMinutes(5);
+        $inscricao->proximo_envio_em = $proximaTentativa->clone()->setTimezone('UTC');
+        $inscricao->save();
+
+        $mensagem = 'Conexao indisponivel para disparo. ' . $motivo . '. Reagendado para ' . $proximaTentativa->format('d/m/Y H:i');
+        $this->log($inscricao, $step, 'erro', $mensagem);
+
+        Log::warning('Sequencia sem conexao valida para disparo.', [
+            'sequence_chat_id' => $inscricao->id,
+            'sequence_id' => $inscricao->sequence_id,
+            'cliente_lead_id' => $inscricao->cliente_lead_id,
+            'conexao_id_sequence_chat' => $inscricao->conexao_id,
+            'conexao_id_sequence' => $inscricao->sequence?->conexao_id,
+            'motivo' => $motivo,
+        ]);
     }
 
     private function log(SequenceChat $inscricao, ?SequenceStep $step, string $status, string $message): void

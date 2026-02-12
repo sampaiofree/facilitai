@@ -60,6 +60,11 @@ class Assistant extends Model
         return $this->hasMany(Instance::class, 'default_assistant_id', 'id');
     }
 
+    public function sequenceChats()
+    {
+        return $this->hasMany(SequenceChat::class);
+    }
+
     public function chats()
     {
         // Relacionamento com chats removido.
