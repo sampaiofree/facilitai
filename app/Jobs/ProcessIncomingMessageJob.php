@@ -764,6 +764,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             "\npayload: " . $payloadString;
 
         $notified = $this->notifyOpenAIErrorUser($token, $lead, $message, $logContext);
+        $this->notifyOpenAIErrorDev($token, $message, $logContext);
 
         if (!$notified) {
             $this->notifyOpenAIErrorAdmin($token, $message, $logContext);
@@ -818,6 +819,31 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             Log::channel('process_job')->warning('Falha ao notificar admin sobre erro OpenAI.', $this->logContext(array_merge($logContext, [
                 'error' => $exception->getMessage(),
                 'admin_id' => $admin->id,
+            ])));
+        }
+    }
+
+    private function notifyOpenAIErrorDev(?string $token, string $message, array $logContext): void
+    {
+        $devPhoneRaw = config('services.dev.whatsapp');
+        if (!is_string($devPhoneRaw) || trim($devPhoneRaw) === '') {
+            return;
+        }
+
+        $devPhone = preg_replace('/\D/', '', $devPhoneRaw);
+        if ($devPhone === '') {
+            Log::channel('process_job')->warning('DEV_WHATSAPP invalido para notificacao.', $this->logContext($logContext));
+            return;
+        }
+
+        try {
+            $this->sendText($token, $devPhone, $message, array_merge($logContext, [
+                'dev_phone' => $devPhone,
+            ]));
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->warning('Falha ao notificar DEV_WHATSAPP sobre erro OpenAI.', $this->logContext(array_merge($logContext, [
+                'error' => $exception->getMessage(),
+                'dev_phone' => $devPhone,
             ])));
         }
     }

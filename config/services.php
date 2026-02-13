@@ -61,5 +61,8 @@ return [
         'token' =>env('UAZAPI_TOKEN'),
         'url' =>env('UAZAPI_BASE_URL'),
     ],
+    'dev' => [
+        'whatsapp' => env('DEV_WHATSAPP'),
+    ],
 
 ];
