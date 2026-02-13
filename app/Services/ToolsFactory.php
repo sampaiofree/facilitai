@@ -138,11 +138,7 @@ TXT,
                         'informacoes' => [
                             'type' => 'string',
                             'description' => 'Informações adicionais sobre o atendimento.',
-                        ],
-                        'aguardando_atendimento' => [
-                            'type' => 'boolean',
-                            'description' => 'Marca se aguarda atendimento humano.',
-                        ],
+                        ]
                     ],
                     'required' => ['nome', 'informacoes'],
                     'additionalProperties' => false,
