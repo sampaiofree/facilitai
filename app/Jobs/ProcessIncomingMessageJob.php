@@ -1189,7 +1189,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                 return 'video';
             }
             if (str_starts_with($lower, 'data:audio/')) {
-                return 'ptt';
+                return 'audio';
             }
             if (str_starts_with($lower, 'data:application/')) {
                 return 'document';
@@ -1201,7 +1201,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         return match ($ext) {
             'jpg', 'jpeg', 'png', 'webp' => 'image',
             'mp4' => 'video',
-            'mp3', 'ogg' => 'ptt',
+            'mp3', 'ogg' => 'audio',
             'pdf', 'doc', 'docx', 'xls', 'xlsx' => 'document',
             default => 'document',
         };
@@ -1214,10 +1214,6 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         }
 
         $type = Str::lower(trim($type));
-        if ($type === 'audio') {
-            return 'ptt';
-        }
-
         if ($type === 'pdf') {
             return 'document';
         }
@@ -1227,7 +1223,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
 
     private function isAllowedMediaType(?string $type): bool
     {
-        return in_array($type, ['image', 'video', 'ptt', 'document'], true);
+        return in_array($type, ['image', 'video', 'ptt', 'audio', 'document'], true);
     }
 
     private function isAllowedMediaUrl(string $url, string $type): bool
@@ -1238,6 +1234,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                 'image' => str_starts_with($lower, 'data:image/'),
                 'video' => str_starts_with($lower, 'data:video/'),
                 'ptt' => str_starts_with($lower, 'data:audio/'),
+                'audio' => str_starts_with($lower, 'data:audio/'),
                 'document' => str_starts_with($lower, 'data:application/pdf'),
                 default => false,
             };
@@ -1253,6 +1250,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             'image' => in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true),
             'video' => in_array($ext, ['mp4'], true),
             'ptt' => in_array($ext, ['mp3', 'ogg'], true),
+            'audio' => in_array($ext, ['mp3', 'ogg'], true),
             'document' => $ext === 'pdf',
             default => false,
         };

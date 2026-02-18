@@ -161,7 +161,7 @@ class EvolutionAPIOficial
         }
 
         $caption = isset($options['text']) && is_string($options['text']) ? trim($options['text']) : '';
-        $defaultFileName = $normalizedType === 'ptt'
+        $defaultFileName = in_array($normalizedType, ['ptt', 'audio'], true)
             ? 'audio.mp3'
             : $this->defaultFilenameForType($normalizedType);
         $fileName = isset($options['docName']) && is_string($options['docName']) && trim($options['docName']) !== ''
@@ -169,30 +169,47 @@ class EvolutionAPIOficial
             : ($this->extractFilename($file) ?? $defaultFileName);
 
         if ($normalizedType === 'ptt') {
-            if ($this->isBusinessIntegration()) {
-                $payload = [
-                    'number' => $number,
-                    'mediatype' => 'audio',
-                    'media' => $file,
-                    'fileName' => $fileName,
-                    'caption' => $caption,
-                ];
+            $audioExtension = strtolower((string) pathinfo($fileName, PATHINFO_EXTENSION));
+            $payload = [
+                'number' => $number,
+                'mediatype' => 'document',
+                'media' => $file,
+                'fileName' => $fileName,
+                'caption' => $caption,
+            ];
 
-                return $this->performPost("/message/sendMedia/{$instanceId}", $payload, 'send_media_audio_business', [
+            if ($audioExtension === 'mp3') {
+                $payload['audio'] = $file;
+
+                return $this->performPost("/message/sendWhatsAppAudio/{$instanceId}", $payload, 'send_media_audio_legacy', [
                     'instanceId' => $instanceId,
                     'number' => $number,
                     'type' => 'audio',
+                    'extension' => $audioExtension,
                 ]);
             }
 
-            $payload = [
-                'number' => $number,
-                'audio' => $file,
-            ];
-
-            return $this->performPost("/message/sendWhatsAppAudio/{$instanceId}", $payload, 'send_media_audio', [
+            return $this->performPost("/message/sendMedia/{$instanceId}", $payload, 'send_media_audio_legacy_fallback', [
                 'instanceId' => $instanceId,
                 'number' => $number,
+                'type' => 'document',
+                'extension' => $audioExtension,
+            ]);
+        }
+
+        if ($normalizedType === 'audio') {
+            $payload = [
+                'number' => $number,
+                'mediatype' => 'audio',
+                'media' => $file,
+                'fileName' => $fileName,
+                'caption' => $caption,
+            ];
+
+            return $this->performPost("/message/sendMedia/{$instanceId}", $payload, 'send_media_audio', [
+                'instanceId' => $instanceId,
+                'number' => $number,
+                'type' => 'audio',
             ]);
         }
 
@@ -249,12 +266,6 @@ class EvolutionAPIOficial
             'instanceId' => $instanceId,
             'number' => $number,
         ]);
-    }
-
-    private function isBusinessIntegration(): bool
-    {
-        $integration = strtoupper(trim((string) config('services.evolution.oficial_integration', 'WHATSAPP-BUSINESS')));
-        return $integration === 'WHATSAPP-BUSINESS';
     }
 
     private function sendTextSingle(string $instanceId, string $number, string $text): array
@@ -416,15 +427,19 @@ class EvolutionAPIOficial
             return null;
         }
 
-        if (in_array($type, ['audio', 'ptt', 'voice'], true)) {
+        if (in_array($type, ['ptt', 'voice'], true)) {
             return 'ptt';
+        }
+
+        if ($type === 'audio') {
+            return 'audio';
         }
 
         if ($type === 'pdf') {
             return 'document';
         }
 
-        if (in_array($type, ['image', 'video', 'document'], true)) {
+        if (in_array($type, ['image', 'video', 'document', 'audio'], true)) {
             return $type;
         }
 
@@ -445,6 +460,7 @@ class EvolutionAPIOficial
     private function defaultFilenameForType(string $type): string
     {
         return match ($type) {
+            'audio' => 'audio.mp3',
             'image' => 'imagem.jpg',
             'video' => 'video.mp4',
             default => 'documento.pdf',
