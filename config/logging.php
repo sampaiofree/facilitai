@@ -132,6 +132,20 @@ return [
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
         ],
+        'evolution_oficial_webhook' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/evolution_oficial_webhook.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+        'evolution_oficial_job' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/evolution_oficial_job.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
         'process_job' => [
             'driver' => 'daily',
             'path' => storage_path('logs/process_job.log'),

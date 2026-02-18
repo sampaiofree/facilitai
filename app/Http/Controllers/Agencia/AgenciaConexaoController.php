@@ -141,6 +141,7 @@ class AgenciaConexaoController extends Controller
                     $request->all(),
                     [
                         'token' => ['required', 'string', 'max:2048'],
+                        'businessId' => ['required', 'string', 'max:255'],
                         'number' => ['required', 'string', 'regex:/^\d+$/', 'max:30'],
                     ],
                     [
@@ -163,6 +164,7 @@ class AgenciaConexaoController extends Controller
                 $evolutionResponse = $this->evolutionAPIOficial->instance_create([
                     'instanceName' => (string) $conexao->id,
                     'token' => $officialData['token'],
+                    'businessId' => $officialData['businessId'],
                     'number' => $officialData['number'],
                     'proxyHost' => $conexao->proxy_ip,
                     'proxyPort' => (string) ($conexao->proxy_port ?? ''),

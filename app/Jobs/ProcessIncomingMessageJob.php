@@ -10,6 +10,7 @@ use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\EvolutionAPIOficial;
 use App\Services\IAOrchestratorService;
 use App\Services\UazapiService;
 use App\DTOs\IAResult;
@@ -468,7 +469,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return $this->conexao;
         }
 
-        $conexao = Conexao::with(['cliente', 'assistant', 'credential.iaplataforma', 'iamodelo'])->find($this->conexaoId);
+        $conexao = Conexao::with(['cliente', 'assistant', 'credential.iaplataforma', 'iamodelo', 'whatsappApi'])->find($this->conexaoId);
         if (!$conexao) {
             Log::channel('process_job')->error('Conexao não encontrada para ProcessIncomingMessageJob.', $this->logContext([
                 'conexao_id' => $this->conexaoId,
@@ -599,24 +600,6 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         $phone = (string) ($payload['phone'] ?? '');
         $token = $this->conexao?->whatsapp_api_key;
 
-        if ($token && $phone !== '') {
-            try {
-                $presenceResult = (new UazapiService())->messagePresence($token, $phone);
-
-                if (!empty($presenceResult['error'])) {
-                    Log::channel('process_job')->warning('Falha ao enviar presence via Uazapi.', $this->logContext([
-                        'response' => $presenceResult,
-                    ]));
-                }
-            } catch (\Throwable $exception) {
-                Log::channel('process_job')->error('Erro inesperado ao chamar messagePresence.', [
-                    'error' => $exception->getMessage(),
-                    'assistant_lead_id' => $assistantLead->id,
-                    'conexao_id' => $this->conexao?->id,
-                ]);
-            }
-        }
-
         $logContext = array_filter([
             'conexao_id' => $payload['conexao_id'] ?? $this->conexao?->id,
             'assistant_id' => $payload['assistant_id'] ?? null,
@@ -625,6 +608,10 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         ], function ($value) {
             return $value !== null && $value !== '';
         });
+
+        $this->sendPresence($token, $phone, array_merge($logContext, [
+            'assistant_lead_id' => $assistantLead->id,
+        ]));
 
         $handlers = $this->buildToolHandlers($payload, $this->conexao, $this->clienteLead);
         $orchestrator = new IAOrchestratorService();
@@ -698,21 +685,124 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
-    private function sendText(?string $token, string $phone, string $message, array $logContext = []): void
+    private function sendPresence(?string $token, string $phone, array $logContext = []): void
     {
-        if (!$token || $phone === '') {
-            Log::channel('process_job')->warning('Token ou telefone ausente para envio da resposta.', $this->logContext($logContext));
+        if ($phone === '') {
             return;
         }
 
-        $uazapi = new UazapiService();
-        $sendResult = $uazapi->sendText($token, $phone, $message);
-        if (!empty($sendResult['error'])) {
-            Log::channel('process_job')->error('Falha ao enviar mensagem via Uazapi.', $this->logContext(array_merge($logContext, [
-                'response' => $sendResult,
-            ])));
-            $this->throwTransient('Falha ao enviar mensagem via Uazapi.', $logContext);
+        $providerSlug = $this->resolveWhatsappProviderSlug();
+
+        if ($providerSlug === 'uazapi') {
+            $providerToken = $token ?: $this->conexao?->whatsapp_api_key;
+            if (!$providerToken) {
+                return;
+            }
+
+            try {
+                $presenceResult = (new UazapiService())->messagePresence($providerToken, $phone);
+                if (!empty($presenceResult['error'])) {
+                    Log::channel('process_job')->warning('Falha ao enviar presence via Uazapi.', $this->logContext(array_merge($logContext, [
+                        'response' => $presenceResult,
+                    ])));
+                }
+            } catch (\Throwable $exception) {
+                Log::channel('process_job')->error('Erro inesperado ao chamar messagePresence.', $this->logContext(array_merge($logContext, [
+                    'error' => $exception->getMessage(),
+                ])));
+            }
+
+            return;
         }
+
+        if ($providerSlug === 'api_oficial') {
+            $instanceId = $this->resolveApiOficialInstanceId();
+            if (!$instanceId) {
+                Log::channel('process_job')->warning('Instância ausente para presence via API Oficial.', $this->logContext($logContext));
+                return;
+            }
+
+            try {
+                $presenceResult = (new EvolutionAPIOficial())->messagePresence($instanceId, $phone);
+                if (!empty($presenceResult['error'])) {
+                    Log::channel('process_job')->warning('Falha ao enviar presence via API Oficial.', $this->logContext(array_merge($logContext, [
+                        'response' => $presenceResult,
+                    ])));
+                }
+            } catch (\Throwable $exception) {
+                Log::channel('process_job')->error('Erro inesperado ao chamar messagePresence da API Oficial.', $this->logContext(array_merge($logContext, [
+                    'error' => $exception->getMessage(),
+                ])));
+            }
+        }
+    }
+
+    private function sendText(?string $token, string $phone, string $message, array $logContext = []): void
+    {
+        if ($phone === '') {
+            Log::channel('process_job')->warning('Telefone ausente para envio da resposta.', $this->logContext($logContext));
+            return;
+        }
+
+        $providerSlug = $this->resolveWhatsappProviderSlug();
+
+        if ($providerSlug === 'uazapi') {
+            $providerToken = $token ?: $this->conexao?->whatsapp_api_key;
+            if (!$providerToken) {
+                Log::channel('process_job')->warning('Token ausente para envio via Uazapi.', $this->logContext($logContext));
+                return;
+            }
+
+            $uazapi = new UazapiService();
+            $sendResult = $uazapi->sendText($providerToken, $phone, $message);
+            if (!empty($sendResult['error'])) {
+                Log::channel('process_job')->error('Falha ao enviar mensagem via Uazapi.', $this->logContext(array_merge($logContext, [
+                    'response' => $sendResult,
+                ])));
+                $this->throwTransient('Falha ao enviar mensagem via Uazapi.', $logContext);
+            }
+
+            return;
+        }
+
+        if ($providerSlug === 'api_oficial') {
+            $instanceId = $this->resolveApiOficialInstanceId();
+            if (!$instanceId) {
+                Log::channel('process_job')->warning('Instância ausente para envio via API Oficial.', $this->logContext($logContext));
+                return;
+            }
+
+            $service = new EvolutionAPIOficial();
+            $sendResult = $service->sendText($instanceId, $phone, $message);
+            if (!empty($sendResult['error'])) {
+                Log::channel('process_job')->error('Falha ao enviar mensagem via API Oficial.', $this->logContext(array_merge($logContext, [
+                    'response' => $sendResult,
+                ])));
+                $this->throwTransient('Falha ao enviar mensagem via API Oficial.', $logContext);
+            }
+
+            return;
+        }
+
+        Log::channel('process_job')->warning('Provedor WhatsApp não suportado para envio de texto.', $this->logContext(array_merge($logContext, [
+            'provider_slug' => $providerSlug,
+        ])));
+    }
+
+    private function resolveWhatsappProviderSlug(): string
+    {
+        $slug = Str::lower((string) ($this->conexao?->whatsappApi?->slug ?? ''));
+        return $slug !== '' ? $slug : 'uazapi';
+    }
+
+    private function resolveApiOficialInstanceId(): ?string
+    {
+        $instanceId = $this->conexao?->id;
+        if (!$instanceId) {
+            return null;
+        }
+
+        return (string) $instanceId;
     }
 
     private function handleOpenAIErrorFallback(IAResult $result, array $payload, ClienteLead $lead, array $logContext): void
@@ -738,7 +828,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
     private function notifyAdminOpenAIError(IAResult $result, ClienteLead $lead, array $payload, array $logContext): void
     {
         $token = $this->conexao?->whatsapp_api_key;
-        if (!$token) {
+        if (!$token && $this->resolveWhatsappProviderSlug() === 'uazapi') {
             Log::channel('process_job')->warning('Token ausente para notificar admin.', $this->logContext($logContext));
             return;
         }
@@ -1014,8 +1104,8 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return 'URL inválida para envio de mídia.';
         }
 
-        if (!$token || !$phone) {
-            return 'Token ou telefone ausente para envio de mídia.';
+        if (!$phone) {
+            return 'Telefone ausente para envio de mídia.';
         }
 
         $type = $arguments['type'] ?? null;
@@ -1046,17 +1136,46 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             }
         }
 
-        $uazapi = new UazapiService();
-        $response = $uazapi->sendMedia($token, $phone, $finalType, $url, $options);
+        $providerSlug = $this->resolveWhatsappProviderSlug();
 
-        if (!empty($response['error'])) {
-            Log::channel('process_job')->error('Falha ao enviar mídia via Uazapi.', $this->logContext([
-                'response' => $response,
-            ]));
-            return 'Falha ao enviar mídia.';
+        if ($providerSlug === 'uazapi') {
+            $providerToken = $token ?: $this->conexao?->whatsapp_api_key;
+            if (!$providerToken) {
+                return 'Token ausente para envio de mídia.';
+            }
+
+            $uazapi = new UazapiService();
+            $response = $uazapi->sendMedia($providerToken, $phone, $finalType, $url, $options);
+
+            if (!empty($response['error'])) {
+                Log::channel('process_job')->error('Falha ao enviar mídia via Uazapi.', $this->logContext([
+                    'response' => $response,
+                ]));
+                return 'Falha ao enviar mídia.';
+            }
+
+            return 'Midia enviada para a fila de envio.';
         }
 
-        return 'Midia enviada para a fila de envio.';
+        if ($providerSlug === 'api_oficial') {
+            $instanceId = $this->resolveApiOficialInstanceId();
+            if (!$instanceId) {
+                return 'Instância ausente para envio de mídia.';
+            }
+
+            $service = new EvolutionAPIOficial();
+            $response = $service->sendMedia($instanceId, $phone, (string) $finalType, $url, $options);
+            if (!empty($response['error'])) {
+                Log::channel('process_job')->error('Falha ao enviar mídia via API Oficial.', $this->logContext([
+                    'response' => $response,
+                ]));
+                return 'Falha ao enviar mídia.';
+            }
+
+            return 'Midia enviada para a fila de envio.';
+        }
+
+        return 'Integração não suportada para envio de mídia.';
     }
 
     private function resolveMediaType(string $url): string
@@ -1159,17 +1278,43 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return 'Parâmetros inválidos para notificar administrador.';
         }
 
-        if (!$token) {
-            return 'Token ausente para notificar administrador.';
+        $mensagem = trim($mensagem);
+        if ($mensagem === '') {
+            return 'Mensagem vazia para notificar administrador.';
         }
 
-        $uazapi = new UazapiService();
+        $numerosSanitizados = [];
         foreach ($numeros as $numero) {
-            $numero = preg_replace('/\D/', '', (string) $numero);
-            if ($numero === '') {
-                continue;
+            $numeroLimpo = preg_replace('/\D/', '', (string) $numero);
+            if ($numeroLimpo !== '') {
+                $numerosSanitizados[$numeroLimpo] = true;
             }
-            $uazapi->sendText($token, $numero, $mensagem);
+        }
+
+        if (empty($numerosSanitizados)) {
+            return 'Nenhum número válido para notificar.';
+        }
+
+        $total = 0;
+        $errors = 0;
+        foreach (array_keys($numerosSanitizados) as $numero) {
+            $total++;
+            try {
+                $this->sendText($token, $numero, $mensagem, [
+                    'tool' => 'notificar_adm',
+                ]);
+            } catch (\Throwable $exception) {
+                $errors++;
+                Log::channel('process_job')->warning('Falha ao notificar administrador via tool.', $this->logContext([
+                    'error' => $exception->getMessage(),
+                    'phone' => $numero,
+                ]));
+            }
+        }
+
+        if ($errors > 0) {
+            $sent = $total - $errors;
+            return "Notificação enviada parcialmente ({$sent}/{$total}).";
         }
 
         return 'Notificação enviada para o administrador.';

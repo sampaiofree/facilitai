@@ -42,6 +42,7 @@ return [
     'evolution' => [
         'key' => env('EVOLUTION_GLOBAL_API_KEY'),
         'url' => env('EVOLUTION_URL', 'https://evolution.3f7.org'), // Adicionando a URL também!
+        'oficial_integration' => env('EVOLUTION_OFICIAL_INTEGRATION', 'WHATSAPP-BUSINESS'),
     ],
     'hotmart' => [
         'hottok' => env('HOTMART_HOTTOK'),

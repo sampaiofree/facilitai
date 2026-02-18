@@ -207,6 +207,18 @@
                     </div>
 
                     <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="conexaoApiOficialBusinessId">Business ID</label>
+                        <input
+                            id="conexaoApiOficialBusinessId"
+                            name="businessId"
+                            type="text"
+                            autocomplete="off"
+                            value="{{ old('businessId') }}"
+                            class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                    </div>
+
+                    <div>
                         <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="conexaoApiOficialNumber">Number</label>
                         <input
                             id="conexaoApiOficialNumber"
@@ -269,6 +281,7 @@
             const phoneInput = document.getElementById('conexaoPhone');
             const apiOficialFields = document.getElementById('conexaoApiOficialFields');
             const apiOficialTokenInput = document.getElementById('conexaoApiOficialToken');
+            const apiOficialBusinessIdInput = document.getElementById('conexaoApiOficialBusinessId');
             const apiOficialNumberInput = document.getElementById('conexaoApiOficialNumber');
             const storeRoute = "{{ route('agencia.conexoes.store') }}";
             const baseUrl = "{{ url('/agencia/conexoes') }}";
@@ -281,6 +294,7 @@
             const oldModelId = @json(old('model'));
             const oldWhatsappApiId = @json(old('whatsapp_api_id'));
             const oldPhone = @json(old('phone'));
+            const oldBusinessId = @json(old('businessId'));
             const oldNumber = @json(old('number'));
             const statusElements = Array.from(document.querySelectorAll('[data-conexao-status]'));
             const connectButtons = Array.from(document.querySelectorAll('[data-conexao-connect]'));
@@ -368,6 +382,13 @@
                         apiOficialTokenInput.value = '';
                     }
                 }
+                if (apiOficialBusinessIdInput) {
+                    apiOficialBusinessIdInput.required = showApiOficial;
+                    apiOficialBusinessIdInput.disabled = !showApiOficial;
+                    if (!showApiOficial) {
+                        apiOficialBusinessIdInput.value = '';
+                    }
+                }
                 if (apiOficialNumberInput) {
                     apiOficialNumberInput.required = showApiOficial;
                     apiOficialNumberInput.disabled = !showApiOficial;
@@ -430,6 +451,9 @@
                 }
                 if (apiOficialTokenInput) {
                     apiOficialTokenInput.value = '';
+                }
+                if (apiOficialBusinessIdInput) {
+                    apiOficialBusinessIdInput.value = '';
                 }
                 if (apiOficialNumberInput) {
                     apiOficialNumberInput.value = '';
@@ -528,6 +552,9 @@
                 }
                 if (apiOficialNumberInput) {
                     apiOficialNumberInput.value = oldNumber ?? '';
+                }
+                if (apiOficialBusinessIdInput) {
+                    apiOficialBusinessIdInput.value = oldBusinessId ?? '';
                 }
                 toggleConnectionFields({
                     slug: getSelectedWhatsappApiSlug(),
