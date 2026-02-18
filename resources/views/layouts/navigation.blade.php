@@ -14,7 +14,6 @@
     ];
 
     if (Auth::user()->canManageCredentials()) {
-        $ferramentas[] = ['label' => 'Buscar Empresas', 'route' => 'empresas.index'];
         $ferramentas[] = ['label' => 'Credenciais', 'route' => 'credentials.index'];
         $ferramentas[] = ['label' => 'Agenda', 'route' => 'agendas.index'];
         

@@ -262,10 +262,6 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::post('/tokens/payment', [TokensController::class, 'createPayment'])->name('tokens.createPayment');
     Route::get('/payments', [TokensController::class, 'index'])->name('payments.index');
 
-    //BUSCAR EMPRESAS
-    Route::get('/empresas', [EmpresasController::class, 'index'])->name('empresas.index');
-    Route::post('/empresas/buscar', [EmpresasController::class, 'buscar'])->name('empresas.buscar');
-
     // CREDENCIAIS
     Route::resource('credentials', CredentialController::class);
     // Nova rota para o JavaScript chamar e buscar assistentes de uma credencial

@@ -70,7 +70,6 @@
                         </td>
                         <td class="px-5 py-4 text-slate-600">{{ $conexao->phone ?? '-' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ optional($conexao->assistant)->name ?? '-' }}</td>
-                        <td class="px-5 py-4 text-slate-600">{{ optional($conexao->cliente)->nome ?? '-' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ optional($conexao->iamodelo)->nome ?? '-' }}</td>
                         <td class="px-5 py-4">
                             <div class="flex items-center gap-2">
@@ -85,6 +84,7 @@
                                     data-cliente-id="{{ $conexao->cliente_id }}"
                                     data-model-id="{{ $conexao->model }}"
                                     data-whatsapp-api-id="{{ $conexao->whatsapp_api_id }}"
+                                    data-whatsapp-api-slug="{{ $conexao->whatsappApi?->slug }}"
                                     data-phone="{{ $conexao->phone }}"
                                 >Editar</button>
                                 <form method="POST" action="{{ route('agencia.conexoes.destroy', $conexao) }}" onsubmit="return confirm('Deseja excluir esta conexão?');">
@@ -169,6 +169,17 @@
                 </div>
 
                 <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="conexaoWhatsappApi">Integração WhatsApp</label>
+                    <select id="conexaoWhatsappApi" name="whatsapp_api_id" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="" disabled {{ old('whatsapp_api_id') ? '' : 'selected' }}>Escolha uma API</option>
+                        @foreach ($whatsappApis as $api)
+                            <option value="{{ $api->id }}" data-slug="{{ $api->slug }}" @selected(old('whatsapp_api_id') == $api->id)>{{ $api->nome }}</option>
+                        @endforeach
+                    </select>
+                    <p id="whatsappApiEditHint" class="mt-1 text-xs text-slate-400 hidden">O provedor WhatsApp não pode ser alterado após a criação.</p>
+                </div>
+
+                <div id="conexaoPhoneField">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="conexaoPhone">Telefone</label>
                     <input
                         id="conexaoPhone"
@@ -176,7 +187,6 @@
                         type="text"
                         inputmode="numeric"
                         minlength="11"
-                        required
                         pattern="[0-9]{11,}"
                         title="Informe apenas números (mínimo 11 dígitos)"
                         value="{{ old('phone') }}"
@@ -184,15 +194,30 @@
                     >
                 </div>
 
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="conexaoWhatsappApi">Integração WhatsApp</label>
-                    <select id="conexaoWhatsappApi" name="whatsapp_api_id" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                        <option value="" disabled {{ old('whatsapp_api_id') ? '' : 'selected' }}>Escolha uma API</option>
-                        @foreach ($whatsappApis as $api)
-                            <option value="{{ $api->id }}" @selected(old('whatsapp_api_id') == $api->id)>{{ $api->nome }}</option>
-                        @endforeach
-                    </select>
-                    <p id="whatsappApiEditHint" class="mt-1 text-xs text-slate-400 hidden">O provedor WhatsApp não pode ser alterado após a criação.</p>
+                <div id="conexaoApiOficialFields" class="hidden space-y-4">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="conexaoApiOficialToken">Token</label>
+                        <input
+                            id="conexaoApiOficialToken"
+                            name="token"
+                            type="text"
+                            autocomplete="off"
+                            class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="conexaoApiOficialNumber">Number</label>
+                        <input
+                            id="conexaoApiOficialNumber"
+                            name="number"
+                            type="text"
+                            inputmode="numeric"
+                            pattern="[0-9]+"
+                            value="{{ old('number') }}"
+                            class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                    </div>
                 </div>
 
                 <div class="flex items-center justify-end gap-3 pt-2">
@@ -240,7 +265,11 @@
             const placeholderOption = modelOptions.find(option => option.value === '');
             const whatsappApiSelect = document.getElementById('conexaoWhatsappApi');
             const whatsappApiHint = document.getElementById('whatsappApiEditHint');
+            const phoneField = document.getElementById('conexaoPhoneField');
             const phoneInput = document.getElementById('conexaoPhone');
+            const apiOficialFields = document.getElementById('conexaoApiOficialFields');
+            const apiOficialTokenInput = document.getElementById('conexaoApiOficialToken');
+            const apiOficialNumberInput = document.getElementById('conexaoApiOficialNumber');
             const storeRoute = "{{ route('agencia.conexoes.store') }}";
             const baseUrl = "{{ url('/agencia/conexoes') }}";
             const hasErrors = @json($errors->any());
@@ -252,6 +281,7 @@
             const oldModelId = @json(old('model'));
             const oldWhatsappApiId = @json(old('whatsapp_api_id'));
             const oldPhone = @json(old('phone'));
+            const oldNumber = @json(old('number'));
             const statusElements = Array.from(document.querySelectorAll('[data-conexao-status]'));
             const connectButtons = Array.from(document.querySelectorAll('[data-conexao-connect]'));
             const statusUrl = (id) => `${baseUrl}/${id}/status`;
@@ -307,6 +337,53 @@
                 filterModelOptions(platformId);
             };
 
+            const getSelectedWhatsappApiSlug = () => {
+                const selectedOption = whatsappApiSelect?.selectedOptions?.[0];
+                return selectedOption?.dataset?.slug ?? '';
+            };
+
+            const toggleConnectionFields = ({ slug = '', isEditing = false } = {}) => {
+                const isApiOficial = slug === 'api_oficial';
+                const showPhone = !isEditing && !isApiOficial;
+                const showApiOficial = !isEditing && isApiOficial;
+
+                if (phoneField) {
+                    phoneField.classList.toggle('hidden', !showPhone);
+                }
+                if (phoneInput) {
+                    phoneInput.required = showPhone;
+                    phoneInput.disabled = !showPhone;
+                    if (!showPhone) {
+                        phoneInput.value = '';
+                    }
+                }
+
+                if (apiOficialFields) {
+                    apiOficialFields.classList.toggle('hidden', !showApiOficial);
+                }
+                if (apiOficialTokenInput) {
+                    apiOficialTokenInput.required = showApiOficial;
+                    apiOficialTokenInput.disabled = !showApiOficial;
+                    if (!showApiOficial) {
+                        apiOficialTokenInput.value = '';
+                    }
+                }
+                if (apiOficialNumberInput) {
+                    apiOficialNumberInput.required = showApiOficial;
+                    apiOficialNumberInput.disabled = !showApiOficial;
+                    if (!showApiOficial) {
+                        apiOficialNumberInput.value = '';
+                    }
+                }
+            };
+
+            const handleWhatsappApiChange = () => {
+                toggleConnectionFields({
+                    slug: getSelectedWhatsappApiSlug(),
+                    isEditing: methodInput.value === 'PATCH',
+                });
+            };
+
             const getStatusElement = (id) => statusElements.find(el => el.dataset.conexaoId === String(id));
             const getConnectButton = (id) => connectButtons.find(el => el.dataset.conexaoId === String(id));
             const updateConnectVisibility = (id, status) => {
@@ -351,9 +428,17 @@
                 if (phoneInput) {
                     phoneInput.value = '';
                 }
+                if (apiOficialTokenInput) {
+                    apiOficialTokenInput.value = '';
+                }
+                if (apiOficialNumberInput) {
+                    apiOficialNumberInput.value = '';
+                }
+                toggleConnectionFields({ slug: '', isEditing: false });
             };
 
             credentialSelect.addEventListener('change', handleCredentialChange);
+            whatsappApiSelect?.addEventListener('change', handleWhatsappApiChange);
 
             openBtn.addEventListener('click', () => {
                 resetForm();
@@ -388,6 +473,10 @@
                         if (phoneInput) {
                             phoneInput.value = button.dataset.phone || '';
                         }
+                        toggleConnectionFields({
+                            slug: button.dataset.whatsappApiSlug || getSelectedWhatsappApiSlug(),
+                            isEditing: true,
+                        });
                         if (whatsappApiHint) {
                             whatsappApiHint.classList.remove('hidden');
                         }
@@ -414,6 +503,10 @@
                 if (phoneInput) {
                     phoneInput.value = oldPhone ?? '';
                 }
+                toggleConnectionFields({
+                    slug: getSelectedWhatsappApiSlug(),
+                    isEditing: true,
+                });
                 if (whatsappApiHint) {
                     whatsappApiHint.classList.remove('hidden');
                 }
@@ -433,6 +526,13 @@
                 if (phoneInput) {
                     phoneInput.value = oldPhone ?? '';
                 }
+                if (apiOficialNumberInput) {
+                    apiOficialNumberInput.value = oldNumber ?? '';
+                }
+                toggleConnectionFields({
+                    slug: getSelectedWhatsappApiSlug(),
+                    isEditing: false,
+                });
                 if (whatsappApiHint) {
                     whatsappApiHint.classList.add('hidden');
                 }

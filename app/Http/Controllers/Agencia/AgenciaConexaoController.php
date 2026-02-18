@@ -9,18 +9,21 @@ use App\Models\Conexao;
 use App\Models\Credential;
 use App\Models\Iamodelo;
 use App\Models\WhatsappApi;
+use App\Services\EvolutionAPIOficial;
 use App\Services\UazapiService;
 use App\Services\WebshareService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 class AgenciaConexaoController extends Controller
 {
     public function __construct(
         protected WebshareService $webshareService,
-        protected UazapiService $uazapiService
+        protected UazapiService $uazapiService,
+        protected EvolutionAPIOficial $evolutionAPIOficial
     )
     {
     }
@@ -79,8 +82,7 @@ class AgenciaConexaoController extends Controller
                 Rule::exists('clientes', 'id')->where('user_id', $user->id),
             ],
             'model' => ['required', 'exists:iamodelos,id'],
-            'whatsapp_api_id' => ['required', 'exists:whatsapp_api,id'],
-            'phone' => ['required', 'string', 'regex:/^\d{11,}$/'],
+            'whatsapp_api_id' => ['required', Rule::exists('whatsapp_api', 'id')->where('ativo', true)],
         ]);
 
         $whatsappApi = WhatsappApi::findOrFail($data['whatsapp_api_id']);
@@ -92,44 +94,140 @@ class AgenciaConexaoController extends Controller
         $conexao->cliente_id = $data['cliente_id'];
         $conexao->model = $data['model'];
         $conexao->whatsapp_api_id = $data['whatsapp_api_id'];
-        $conexao->phone = $data['phone'];
 
-        if ($whatsappApi->slug === 'uazapi') {
-            $initPayload = [
-                'name' => $data['name'],
-                'systemName' => 'FacilitAI ' . $data['name'],
-            ];
-            $uazapiResponse = $this->uazapiService->instance_init($initPayload);
+        try {
+            if ($whatsappApi->slug === 'uazapi') {
+                $uazapiData = $request->validate([
+                    'phone' => ['required', 'string', 'regex:/^\d{11,}$/'],
+                ]);
 
-            if (!empty($uazapiResponse['error'])) {
-                $message = Arr::get($uazapiResponse['body'], 'message', 'Não foi possível criar a instância uazapi.');
+                $initPayload = [
+                    'name' => $data['name'],
+                    'systemName' => 'FacilitAI ' . $data['name'],
+                ];
+                $uazapiResponse = $this->uazapiService->instance_init($initPayload);
+
+                if (!empty($uazapiResponse['error'])) {
+                    $message = Arr::get($uazapiResponse['body'], 'message', 'Não foi possível criar a instância uazapi.');
+                    return redirect()
+                        ->back()
+                        ->withInput()
+                        ->with('error', $message);
+                }
+
+                $token = $uazapiResponse['token']
+                    ?? Arr::get($uazapiResponse, 'body.token')
+                    ?? Arr::get($uazapiResponse, 'body.data.token');
+
+                if (!$token) {
+                    return redirect()
+                        ->back()
+                        ->withInput()
+                        ->with('error', 'Resposta inesperada da Uazapi: token não encontrado.');
+                }
+
+                $conexao->phone = $uazapiData['phone'];
+                $conexao->whatsapp_api_key = $token;
+                $this->fillProxyData($conexao);
+                $conexao->save();
+
                 return redirect()
-                    ->back()
-                    ->withInput()
-                    ->with('error', $message);
+                    ->route('agencia.conexoes.index')
+                    ->with('success', 'Conexão salva com sucesso.');
             }
 
-            $token = $uazapiResponse['token'] ?? Arr::get($uazapiResponse, 'body.token') ?? Arr::get($uazapiResponse, 'body.data.token');
+            if ($whatsappApi->slug === 'api_oficial') {
+                $officialValidator = Validator::make(
+                    $request->all(),
+                    [
+                        'token' => ['required', 'string', 'max:2048'],
+                        'number' => ['required', 'string', 'regex:/^\d+$/', 'max:30'],
+                    ],
+                    [
+                        'number.regex' => 'O campo number deve conter apenas números.',
+                    ]
+                );
 
-            if (!$token) {
+                if ($officialValidator->fails()) {
+                    return redirect()
+                        ->back()
+                        ->withErrors($officialValidator)
+                        ->withInput($request->except('token'));
+                }
+
+                $officialData = $officialValidator->validated();
+                $this->fillProxyData($conexao);
+                $conexao->status = 'pending';
+                $conexao->save();
+
+                $evolutionResponse = $this->evolutionAPIOficial->instance_create([
+                    'instanceName' => (string) $conexao->id,
+                    'token' => $officialData['token'],
+                    'number' => $officialData['number'],
+                    'proxyHost' => $conexao->proxy_ip,
+                    'proxyPort' => (string) ($conexao->proxy_port ?? ''),
+                    'proxyUsername' => $conexao->proxy_username,
+                    'proxyPassword' => $conexao->proxy_password,
+                    'webhookUrl' => route('api.evolution-api-oficial'),
+                ]);
+
+                if (!empty($evolutionResponse['error'])) {
+                    $conexao->delete();
+                    $message = Arr::get($evolutionResponse, 'body.message')
+                        ?? Arr::get($evolutionResponse, 'body.response.message')
+                        ?? 'Não foi possível criar a instância na Evolution API Oficial.';
+
+                    return redirect()
+                        ->back()
+                        ->withInput($request->except('token'))
+                        ->with('error', $message);
+                }
+
+                $hash = $evolutionResponse['hash']
+                    ?? Arr::get($evolutionResponse, 'body.hash')
+                    ?? Arr::get($evolutionResponse, 'body.instance.hash')
+                    ?? Arr::get($evolutionResponse, 'body.instance.token');
+
+                if (!$hash) {
+                    $conexao->delete();
+
+                    return redirect()
+                        ->back()
+                        ->withInput($request->except('token'))
+                        ->with('error', 'Resposta inesperada da Evolution API Oficial: hash não encontrado.');
+                }
+
+                $conexao->whatsapp_api_key = (string) $hash;
+                $conexao->status = 'active';
+                $conexao->save();
+
                 return redirect()
-                    ->back()
-                    ->withInput()
-                    ->with('error', 'Resposta inesperada da Uazapi: token não encontrado.');
+                    ->route('agencia.conexoes.index')
+                    ->with('success', 'Conexão criada com sucesso na API Oficial.');
             }
 
-            $conexao->whatsapp_api_key = $token;
+            return redirect()
+                ->back()
+                ->withInput($request->except('token'))
+                ->with('error', 'Integração WhatsApp ainda não suportada para criação.');
+        } catch (\Throwable $exception) {
+            Log::error('Falha ao criar conexão da agência.', [
+                'user_id' => $user->id,
+                'whatsapp_api_id' => $data['whatsapp_api_id'] ?? null,
+                'slug' => $whatsappApi->slug ?? null,
+                'conexao_id' => $conexao->id ?? null,
+                'error' => $exception->getMessage(),
+            ]);
+
+            if ($conexao->exists) {
+                $conexao->delete();
+            }
+
+            return redirect()
+                ->back()
+                ->withInput($request->except('token'))
+                ->with('error', 'Ocorreu um erro ao criar a conexão. Tente novamente.');
         }
-        $proxy = $this->webshareService->getNewProxy();
-        $conexao->proxy_ip = $proxy['proxy_address'] ?? null;
-        $conexao->proxy_port = isset($proxy['port']) ? (int) $proxy['port'] : null;
-        $conexao->proxy_username = $proxy['username'] ?? null;
-        $conexao->proxy_password = $proxy['password'] ?? null;
-        $conexao->save();
-
-        return redirect()
-            ->route('agencia.conexoes.index')
-            ->with('success', 'Conexão salva com sucesso.');
     }
 
     public function update(Request $request, Conexao $conexao)
@@ -153,7 +251,6 @@ class AgenciaConexaoController extends Controller
                 Rule::exists('clientes', 'id')->where('user_id', $user->id),
             ],
             'model' => ['required', 'exists:iamodelos,id'],
-            'phone' => ['required', 'string', 'regex:/^\d{11,}$/'],
         ]);
 
         $conexao->name = $data['name'];
@@ -161,7 +258,6 @@ class AgenciaConexaoController extends Controller
         $conexao->assistant_id = $data['assistant_id'];
         $conexao->cliente_id = $data['cliente_id'];
         $conexao->model = $data['model'];
-        $conexao->phone = $data['phone'];
         $conexao->save();
 
         return redirect()
@@ -279,5 +375,15 @@ class AgenciaConexaoController extends Controller
         if ($conexao->cliente?->user_id !== $request->user()->id) {
             abort(403);
         }
+    }
+
+    private function fillProxyData(Conexao $conexao): void
+    {
+        $proxy = $this->webshareService->getNewProxy();
+
+        $conexao->proxy_ip = $proxy['proxy_address'] ?? null;
+        $conexao->proxy_port = isset($proxy['port']) ? (int) $proxy['port'] : null;
+        $conexao->proxy_username = $proxy['username'] ?? null;
+        $conexao->proxy_password = $proxy['password'] ?? null;
     }
 }

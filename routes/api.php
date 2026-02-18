@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\EvolutionApiOficialWebhookController;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\EvolutionWebhookController;
 use App\Http\Controllers\Api\HotmartWebhookController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Api\UazapiWebhookController;
 });*/
 
 Route::post('/webhook/asaas', [PaymentWebhookController::class, 'asaas']);
+Route::post('/evolution-api-oficial', [EvolutionApiOficialWebhookController::class, 'handle'])->name('api.evolution-api-oficial');
 
 //Route::post('/evolution', [EvolutionWebhookController::class, 'handle']);
 
