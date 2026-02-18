@@ -52,10 +52,10 @@
                         <a href="{{ route('cliente.conversas.index') }}" class="{{ request()->routeIs('cliente.conversas.*') ? 'text-white' : 'hover:text-white' }}">
                             Conversas
                         </a>
-                        <a href="{{ route('cliente.sequences.index') }}" class="{{ request()->routeIs('cliente.sequences.*') ? 'text-white' : 'hover:text-white' }}">
-                            Sequencias
-                        </a>
                         @if($hasAssistants)
+                            <a href="{{ route('cliente.sequences.index') }}" class="{{ request()->routeIs('cliente.sequences.*') ? 'text-white' : 'hover:text-white' }}">
+                                Sequencias
+                            </a>
                             <a href="{{ route('cliente.assistant.index') }}" class="{{ request()->routeIs('cliente.assistant.*') ? 'text-white' : 'hover:text-white' }}">
                                 Assistentes
                             </a>
