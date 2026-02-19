@@ -79,7 +79,7 @@ class ImageController extends Controller
     // Salva a nova imagem
     public function store(Request $request)
     {
-        $mimeTypes = 'mimetypes:video/mp4,video/quicktime,image/jpeg,image/png,image/jpg,application/pdf,audio/mpeg,audio/mp3';
+        $mimeTypes = 'mimetypes:video/mp4,video/quicktime,image/jpeg,image/png,image/jpg,application/pdf,audio/mpeg,audio/mp3,audio/ogg,application/ogg';
 
         $validated = $request->validate([
             // Upload único (compatibilidade)
