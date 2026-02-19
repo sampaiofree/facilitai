@@ -317,29 +317,35 @@ class EvolutionService
         
 
         $extensao = pathinfo($fileName, PATHINFO_EXTENSION);
-        
-
-        $mimeTypes = [
-            'jpg' => 'image/jpeg',
-            'jpeg' => 'image/jpeg',
-            'png' => 'image/png',
-            'webp' => 'image/webp',
-            'mp4' => 'video/mp4',
-            'mov' => 'video/quicktime',
-            'avi' => 'video/x-msvideo',
-            'mkv' => 'video/x-matroska',
-            'pdf' => 'application/pdf',
-            'doc' => 'application/msword',
-            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        ];
-
-        $mimetype = $mimeTypes[strtolower($extensao)] ?? 'video';
-        
+        $fileExtension = strtolower($extensao);
 
         $imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
         $videoExtensions = ['mp4', 'mov', 'avi', 'mkv'];
+        $audioExtensions = ['mp3', 'ogg'];
 
-        $fileExtension = strtolower($extensao);
+        if (in_array($fileExtension, $audioExtensions, true)) {
+            $url = config('services.evolution.url') . "/message/sendWhatsAppAudio/{$instance}";
+            $dados = [
+                'number' => $numero,
+                'audio' => $mediaUrl,
+            ];
+
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'apikey' => $apiKey
+            ])->timeout(10)->retry(2, 500)->post($url, $dados);
+
+            if ($response->successful()) {
+                return "Midia enviada";
+            }
+
+            Log::error('EvolutionService:138 Erro ao enviar audio para Evolution', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            return "Midia nao enviada";
+        }
 
         if (in_array($fileExtension, $imageExtensions)) {
             $mediaType = 'image';
@@ -357,11 +363,6 @@ class EvolutionService
             'caption' => '',
             'number' => $numero
         ];
-
-        if ($extensao === 'mp3') {
-            $url = config('services.evolution.url') . "/message/sendWhatsAppAudio/{$instance}";
-            $dados['audio'] = $mediaUrl;
-        }
 
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
@@ -398,12 +399,35 @@ class EvolutionService
         
 
         $extensao = pathinfo($fileName, PATHINFO_EXTENSION);
-        
+        $fileExtension = strtolower($extensao);
 
         $imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
         $videoExtensions = ['mp4', 'mov', 'avi', 'mkv'];
+        $audioExtensions = ['mp3', 'ogg'];
 
-        $fileExtension = strtolower($extensao);
+        if (in_array($fileExtension, $audioExtensions, true)) {
+            $url = config('services.evolution.url') . "/message/sendWhatsAppAudio/{$instance}";
+            $dados = [
+                'number' => $numero,
+                'audio' => $mediaUrl,
+            ];
+
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'apikey' => $apiKey
+            ])->timeout(10)->retry(2, 500)->post($url, $dados);
+
+            if ($response->successful()) {
+                return "Midia enviada";
+            }
+
+            Log::error('EvolutionService:138 Erro ao enviar audio para Evolution', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+
+            return "Midia nao enviada";
+        }
 
         if (in_array($fileExtension, $imageExtensions)) {
             $mediaType = 'image';
