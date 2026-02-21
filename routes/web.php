@@ -175,6 +175,9 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::delete('cliente-lead/{clienteLead}', [ClienteLeadController::class, 'destroy'])->name('cliente-lead.destroy');
     Route::view('payload', 'admin.payload.index')->name('payload.index');
     Route::post('payload', [App\Http\Controllers\Admin\PayloadController::class, 'send'])->name('payload.send');
+    Route::get('agendamentos', [App\Http\Controllers\Admin\ScheduledMessageController::class, 'index'])->name('agendamentos.index');
+    Route::patch('agendamentos/{scheduledMessage}/cancel', [App\Http\Controllers\Admin\ScheduledMessageController::class, 'cancel'])->name('agendamentos.cancel');
+    Route::patch('agendamentos/{scheduledMessage}/retry', [App\Http\Controllers\Admin\ScheduledMessageController::class, 'retry'])->name('agendamentos.retry');
     Route::get('plano', [PlanController::class, 'index'])->name('plano.index');
     Route::post('plano', [PlanController::class, 'store'])->name('plano.store');
     Route::put('plano/{plan}', [PlanController::class, 'update'])->name('plano.update');
@@ -333,6 +336,8 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('conversas', [AgenciaClienteLeadController::class, 'index'])->name('conversas.index');
     Route::post('conversas', [AgenciaClienteLeadController::class, 'store'])->name('conversas.store');
     Route::post('conversas/{clienteLead}/send-message', [AgenciaClienteLeadController::class, 'sendMessage'])->name('conversas.send-message');
+    Route::get('conversas/{clienteLead}/scheduled-messages', [AgenciaClienteLeadController::class, 'scheduledMessages'])->name('conversas.scheduled-messages.index');
+    Route::delete('conversas/scheduled-messages/{scheduledMessage}', [AgenciaClienteLeadController::class, 'cancelScheduledMessage'])->name('conversas.scheduled-messages.cancel');
     Route::post('conversas/import', [AgenciaClienteLeadController::class, 'import'])->name('conversas.import');
     Route::post('conversas/preview', [AgenciaClienteLeadController::class, 'preview'])->name('conversas.preview');
     Route::get('conversas/export', [AgenciaClienteLeadController::class, 'export'])->name('conversas.export');

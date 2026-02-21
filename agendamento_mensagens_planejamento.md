@@ -43,7 +43,7 @@
 - Deve existir conexao valida para cliente + assistente no momento da criacao.
 
 ### 5.4 Fuso horario
-- Fuso oficial de negocio: `America/Sao_Paulo`.
+- Fuso oficial de negocio: `agency_settings.timezone` com fallback `America/Sao_Paulo`.
 - Entradas de data/hora no front devem ser interpretadas nesse fuso.
 - Persistencia recomendada: UTC no banco + conversao em exibicao.
 
@@ -173,13 +173,13 @@
 
 ## 9. Checklist de Execucao
 - [x] Etapa 0 aprovada
-- [ ] Etapa 1 concluida
-- [ ] Etapa 2 concluida
-- [ ] Etapa 3 concluida
-- [ ] Etapa 4 concluida
-- [ ] Etapa 5 concluida
-- [ ] Etapa 6 concluida
-- [ ] Etapa 7 concluida
+- [x] Etapa 1 concluida
+- [x] Etapa 2 concluida
+- [x] Etapa 3 concluida
+- [x] Etapa 4 concluida
+- [x] Etapa 5 concluida
+- [x] Etapa 6 concluida
+- [x] Etapa 7 concluida
 - [ ] Etapa 8 concluida
 
 ## 10. Decisoes Aprovadas

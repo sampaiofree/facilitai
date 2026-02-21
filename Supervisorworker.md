@@ -75,3 +75,30 @@ Nunca devem bloquear a conversa principal.
 
 ---
 
+## 4. Horizon (Operacao)
+
+### 4.1 Pre-requisitos
+
+* `QUEUE_CONNECTION=redis`
+* `CACHE_STORE=redis`
+* Redis ativo
+* Para Linux: extensoes `pcntl` e `posix` habilitadas no PHP CLI
+
+### 4.2 Comandos principais
+
+* Iniciar em foreground:
+  * `php artisan horizon`
+* Ver status:
+  * `php artisan horizon:status`
+* Pausar processamento:
+  * `php artisan horizon:pause`
+* Retomar processamento:
+  * `php artisan horizon:continue`
+* Reinicio seguro no deploy:
+  * `php artisan horizon:terminate`
+
+### 4.3 Painel
+
+* URL: `/adm/horizon`
+* Acesso restrito a usuario admin autenticado.
+

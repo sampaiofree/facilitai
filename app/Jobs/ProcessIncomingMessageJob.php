@@ -162,6 +162,12 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return;
         }
 
+        if (($payload['bypass_debounce'] ?? false) === true) {
+            $payload['is_media'] = false;
+            $this->sendIAResponse($payload, $assistant, $lead, $assistantLead);
+            return;
+        }
+
         if (!$this->cacheDisponivel()) {
             $payload['is_media'] = false;
             $this->sendIAResponse($payload, $assistant, $lead, $assistantLead);
