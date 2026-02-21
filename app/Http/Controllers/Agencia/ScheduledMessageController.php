@@ -1,0 +1,171 @@
+<?php
+
+namespace App\Http\Controllers\Agencia;
+
+use App\Http\Controllers\Controller;
+use App\Models\ScheduledMessage;
+use App\Services\ScheduledMessageService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\View\View;
+
+class ScheduledMessageController extends Controller
+{
+    public function index(Request $request): View
+    {
+        $user = $request->user();
+        $status = trim((string) $request->input('status', ''));
+        $dateStart = trim((string) $request->input('date_start', ''));
+        $dateEnd = trim((string) $request->input('date_end', ''));
+        $search = trim((string) $request->input('q', ''));
+
+        /** @var ScheduledMessageService $scheduledMessageService */
+        $scheduledMessageService = app(ScheduledMessageService::class);
+        $timezone = $scheduledMessageService->resolveTimezoneForUser($user);
+
+        $query = ScheduledMessage::query()
+            ->with(['clienteLead.cliente', 'assistant', 'conexao', 'creator'])
+            ->where('created_by_user_id', (int) $user->id)
+            ->whereHas('clienteLead.cliente', fn ($q) => $q->where('user_id', (int) $user->id))
+            ->orderByDesc('created_at');
+
+        if ($status !== '') {
+            $query->where('status', $status);
+        }
+
+        if ($dateStart !== '') {
+            $query->whereDate('scheduled_for', '>=', $dateStart);
+        }
+
+        if ($dateEnd !== '') {
+            $query->whereDate('scheduled_for', '<=', $dateEnd);
+        }
+
+        if ($search !== '') {
+            $digits = preg_replace('/\D/', '', $search);
+            $query->whereHas('clienteLead', function ($q) use ($search, $digits) {
+                $q->where(function ($inner) use ($search, $digits) {
+                    $inner->where('name', 'like', '%' . $search . '%');
+                    if ($digits !== '') {
+                        $inner->orWhere('phone', 'like', '%' . $digits . '%');
+                    }
+                });
+            });
+        }
+
+        return view('agencia.mensagens-agendadas.index', [
+            'scheduledMessages' => $query->paginate(30)->withQueryString(),
+            'timezone' => $timezone,
+            'filters' => [
+                'status' => $status,
+                'date_start' => $dateStart,
+                'date_end' => $dateEnd,
+                'q' => $search,
+            ],
+        ]);
+    }
+
+    public function show(Request $request, ScheduledMessage $scheduledMessage): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($this->canAccess($scheduledMessage, (int) $user->id), 403);
+
+        /** @var ScheduledMessageService $scheduledMessageService */
+        $scheduledMessageService = app(ScheduledMessageService::class);
+        $timezone = $scheduledMessageService->resolveTimezoneForUser($user);
+
+        $scheduledMessage->loadMissing(['clienteLead.cliente', 'assistant', 'conexao', 'creator']);
+
+        return response()->json([
+            'id' => $scheduledMessage->id,
+            'status' => $scheduledMessage->status,
+            'event_id' => $scheduledMessage->event_id,
+            'mensagem' => $scheduledMessage->mensagem,
+            'attempts' => (int) $scheduledMessage->attempts,
+            'error_message' => $scheduledMessage->error_message,
+            'timezone' => $timezone,
+            'lead' => [
+                'id' => $scheduledMessage->clienteLead?->id,
+                'name' => $scheduledMessage->clienteLead?->name,
+                'phone' => $scheduledMessage->clienteLead?->phone,
+                'cliente' => $scheduledMessage->clienteLead?->cliente?->nome,
+            ],
+            'assistant' => [
+                'id' => $scheduledMessage->assistant?->id,
+                'name' => $scheduledMessage->assistant?->name,
+            ],
+            'conexao' => [
+                'id' => $scheduledMessage->conexao?->id,
+                'name' => $scheduledMessage->conexao?->name,
+                'phone' => $scheduledMessage->conexao?->phone,
+            ],
+            'creator' => [
+                'id' => $scheduledMessage->creator?->id,
+                'name' => $scheduledMessage->creator?->name,
+                'email' => $scheduledMessage->creator?->email,
+            ],
+            'timestamps' => [
+                'scheduled_for' => $scheduledMessage->scheduled_for?->toIso8601String(),
+                'scheduled_for_label' => $this->formatDate($scheduledMessage->scheduled_for, $timezone),
+                'queued_at' => $scheduledMessage->queued_at?->toIso8601String(),
+                'queued_at_label' => $this->formatDate($scheduledMessage->queued_at, $timezone),
+                'sent_at' => $scheduledMessage->sent_at?->toIso8601String(),
+                'sent_at_label' => $this->formatDate($scheduledMessage->sent_at, $timezone),
+                'failed_at' => $scheduledMessage->failed_at?->toIso8601String(),
+                'failed_at_label' => $this->formatDate($scheduledMessage->failed_at, $timezone),
+                'canceled_at' => $scheduledMessage->canceled_at?->toIso8601String(),
+                'canceled_at_label' => $this->formatDate($scheduledMessage->canceled_at, $timezone),
+                'created_at' => $scheduledMessage->created_at?->toIso8601String(),
+                'created_at_label' => $this->formatDate($scheduledMessage->created_at, $timezone),
+                'updated_at' => $scheduledMessage->updated_at?->toIso8601String(),
+                'updated_at_label' => $this->formatDate($scheduledMessage->updated_at, $timezone),
+            ],
+        ]);
+    }
+
+    public function cancel(Request $request, ScheduledMessage $scheduledMessage): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($this->canAccess($scheduledMessage, (int) $user->id), 403);
+
+        $nowUtc = Carbon::now('UTC');
+        $updated = ScheduledMessage::query()
+            ->whereKey($scheduledMessage->id)
+            ->where('status', 'pending')
+            ->update([
+                'status' => 'canceled',
+                'canceled_at' => $nowUtc,
+                'error_message' => null,
+                'updated_at' => $nowUtc,
+            ]);
+
+        if ($updated !== 1) {
+            return back()->with('error', 'Somente agendamentos pendentes podem ser cancelados.');
+        }
+
+        return back()->with('success', 'Agendamento cancelado com sucesso.');
+    }
+
+    private function canAccess(ScheduledMessage $scheduledMessage, int $userId): bool
+    {
+        $scheduledMessage->loadMissing('clienteLead.cliente');
+
+        if ((int) $scheduledMessage->created_by_user_id !== $userId) {
+            return false;
+        }
+
+        return (int) ($scheduledMessage->clienteLead?->cliente?->user_id ?? 0) === $userId;
+    }
+
+    private function formatDate($value, string $timezone): ?string
+    {
+        if (!$value) {
+            return null;
+        }
+
+        return $value->copy()->setTimezone($timezone)->format('d/m/Y H:i');
+    }
+}
+

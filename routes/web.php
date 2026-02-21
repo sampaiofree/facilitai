@@ -38,6 +38,7 @@ use App\Http\Controllers\Agencia\AgenciaCredentialController;
 use App\Http\Controllers\Agencia\AgenciaProfileController;
 use App\Http\Controllers\Agencia\AgenciaSettingsController;
 use App\Http\Controllers\Agencia\AgenciaSequenceController;
+use App\Http\Controllers\Agencia\ScheduledMessageController as AgenciaScheduledMessageController;
 use App\Http\Controllers\Agencia\AgenciaTagController;
 use App\Http\Controllers\Agencia\ClienteLeadController as AgenciaClienteLeadController;
 use App\Http\Controllers\Agencia\ImageController as AgenciaImageController;
@@ -338,6 +339,9 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::post('conversas/{clienteLead}/send-message', [AgenciaClienteLeadController::class, 'sendMessage'])->name('conversas.send-message');
     Route::get('conversas/{clienteLead}/scheduled-messages', [AgenciaClienteLeadController::class, 'scheduledMessages'])->name('conversas.scheduled-messages.index');
     Route::delete('conversas/scheduled-messages/{scheduledMessage}', [AgenciaClienteLeadController::class, 'cancelScheduledMessage'])->name('conversas.scheduled-messages.cancel');
+    Route::get('mensagens-agendadas', [AgenciaScheduledMessageController::class, 'index'])->name('mensagens-agendadas.index');
+    Route::get('mensagens-agendadas/{scheduledMessage}', [AgenciaScheduledMessageController::class, 'show'])->name('mensagens-agendadas.show');
+    Route::patch('mensagens-agendadas/{scheduledMessage}/cancel', [AgenciaScheduledMessageController::class, 'cancel'])->name('mensagens-agendadas.cancel');
     Route::post('conversas/import', [AgenciaClienteLeadController::class, 'import'])->name('conversas.import');
     Route::post('conversas/preview', [AgenciaClienteLeadController::class, 'preview'])->name('conversas.preview');
     Route::get('conversas/export', [AgenciaClienteLeadController::class, 'export'])->name('conversas.export');
