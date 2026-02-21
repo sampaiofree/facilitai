@@ -115,6 +115,14 @@
                                     </button>
 
                                     @if($scheduledMessage->status === 'pending')
+                                        <button
+                                            type="button"
+                                            data-edit-scheduled
+                                            data-scheduled-id="{{ $scheduledMessage->id }}"
+                                            class="rounded-md border border-blue-200 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+                                        >
+                                            Editar
+                                        </button>
                                         <form method="POST" action="{{ route('agencia.mensagens-agendadas.cancel', $scheduledMessage) }}" onsubmit="return confirm('Cancelar este agendamento?');">
                                             @csrf
                                             @method('PATCH')
@@ -140,7 +148,7 @@
         </div>
     </div>
 
-    <div id="scheduledMessageModal" class="fixed inset-0 z-50 hidden items-center justify-center overflow-auto bg-black/50 px-4 py-6">
+    <div id="scheduledMessageModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-auto bg-black/50 px-4 py-6">
         <div class="w-full max-w-4xl rounded-3xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between gap-3">
                 <div>
@@ -243,6 +251,49 @@
             </div>
         </div>
     </div>
+
+    <div id="scheduledEditModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-auto bg-black/50 px-4 py-6">
+        <div class="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900">Editar agendamento</h3>
+                    <p id="scheduledEditTimezone" class="text-xs text-slate-500"></p>
+                </div>
+                <button type="button" data-scheduled-edit-close class="text-slate-500 hover:text-slate-800">x</button>
+            </div>
+
+            <form id="scheduledEditForm" class="mt-4 space-y-4">
+                <input type="hidden" id="scheduledEditId">
+
+                <div>
+                    <label for="scheduledEditMessage" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Mensagem</label>
+                    <textarea
+                        id="scheduledEditMessage"
+                        rows="5"
+                        maxlength="2000"
+                        class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                    ></textarea>
+                </div>
+
+                <div>
+                    <label for="scheduledEditDate" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Data e horario</label>
+                    <input
+                        id="scheduledEditDate"
+                        type="datetime-local"
+                        class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                    >
+                </div>
+
+                <p id="scheduledEditError" class="hidden rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700"></p>
+                <p id="scheduledEditSuccess" class="hidden rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700"></p>
+
+                <div class="flex justify-end gap-3">
+                    <button type="button" data-scheduled-edit-close class="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
+                    <button type="submit" id="scheduledEditSubmit" class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -252,7 +303,18 @@
             const loading = document.getElementById('scheduledModalLoading');
             const fetchError = document.getElementById('scheduledModalFetchError');
             const content = document.getElementById('scheduledModalContent');
+            const editModal = document.getElementById('scheduledEditModal');
+            const editForm = document.getElementById('scheduledEditForm');
+            const editId = document.getElementById('scheduledEditId');
+            const editMessage = document.getElementById('scheduledEditMessage');
+            const editDate = document.getElementById('scheduledEditDate');
+            const editTimezone = document.getElementById('scheduledEditTimezone');
+            const editError = document.getElementById('scheduledEditError');
+            const editSuccess = document.getElementById('scheduledEditSuccess');
+            const editSubmit = document.getElementById('scheduledEditSubmit');
             const showUrlTemplate = @json(route('agencia.mensagens-agendadas.show', ['scheduledMessage' => '__SCHEDULED_ID__']));
+            const updateUrlTemplate = @json(route('agencia.mensagens-agendadas.update', ['scheduledMessage' => '__SCHEDULED_ID__']));
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
             const closeModal = () => {
                 if (!modal) {
@@ -268,6 +330,26 @@
                 modal.classList.remove('hidden');
             };
 
+            const closeEditModal = () => {
+                if (!editModal) {
+                    return;
+                }
+                editModal.classList.add('hidden');
+                if (editError) {
+                    editError.classList.add('hidden');
+                }
+                if (editSuccess) {
+                    editSuccess.classList.add('hidden');
+                }
+            };
+
+            const openEditModal = () => {
+                if (!editModal) {
+                    return;
+                }
+                editModal.classList.remove('hidden');
+            };
+
             const setText = (id, value) => {
                 const element = document.getElementById(id);
                 if (!element) {
@@ -277,9 +359,6 @@
             };
 
             const buildDate = (label, iso) => {
-                if (label && iso) {
-                    return `${label} | ${iso}`;
-                }
                 return label || iso || '-';
             };
 
@@ -315,6 +394,29 @@
                 setText('scheduledModalTimezone', `Timezone: ${payload.timezone || '-'}`);
             };
 
+            const fetchScheduledMessage = async (scheduledId) => {
+                const url = showUrlTemplate.replace('__SCHEDULED_ID__', scheduledId);
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                });
+
+                let payload = {};
+                try {
+                    payload = await response.json();
+                } catch (error) {
+                    payload = {};
+                }
+
+                if (!response.ok) {
+                    throw new Error(payload.message || 'Nao foi possivel carregar os detalhes do agendamento.');
+                }
+
+                return payload;
+            };
+
             const loadDetails = async (scheduledId) => {
                 if (!scheduledId || !loading || !fetchError || !content) {
                     return;
@@ -326,24 +428,7 @@
                 openModal();
 
                 try {
-                    const url = showUrlTemplate.replace('__SCHEDULED_ID__', scheduledId);
-                    const response = await fetch(url, {
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                    });
-
-                    let payload = {};
-                    try {
-                        payload = await response.json();
-                    } catch (error) {
-                        payload = {};
-                    }
-
-                    if (!response.ok) {
-                        throw new Error(payload.message || 'Nao foi possivel carregar os detalhes do agendamento.');
-                    }
-
+                    const payload = await fetchScheduledMessage(scheduledId);
                     renderDetails(payload);
                     content.classList.remove('hidden');
                 } catch (error) {
@@ -354,14 +439,67 @@
                 }
             };
 
+            const loadEditData = async (scheduledId) => {
+                if (!scheduledId || !editForm || !editMessage || !editDate || !editSubmit) {
+                    return;
+                }
+
+                if (editError) {
+                    editError.classList.add('hidden');
+                }
+                if (editSuccess) {
+                    editSuccess.classList.add('hidden');
+                }
+
+                editSubmit.disabled = true;
+                editSubmit.textContent = 'Carregando...';
+                openEditModal();
+
+                try {
+                    const payload = await fetchScheduledMessage(scheduledId);
+                    if (payload.status !== 'pending') {
+                        throw new Error('Somente agendamentos pendentes podem ser editados.');
+                    }
+
+                    if (editId) {
+                        editId.value = String(payload.id || scheduledId);
+                    }
+                    editMessage.value = payload.mensagem || '';
+                    editDate.value = payload.timestamps?.scheduled_for_input || '';
+                    editDate.min = payload.timestamps?.now_input || '';
+
+                    if (editTimezone) {
+                        editTimezone.textContent = `Timezone: ${payload.timezone || '-'}`;
+                    }
+                } catch (error) {
+                    if (editError) {
+                        editError.textContent = error.message || 'Nao foi possivel carregar o agendamento para edicao.';
+                        editError.classList.remove('hidden');
+                    }
+                } finally {
+                    editSubmit.disabled = false;
+                    editSubmit.textContent = 'Salvar';
+                }
+            };
+
             document.querySelectorAll('[data-view-scheduled]').forEach((button) => {
                 button.addEventListener('click', () => {
                     loadDetails(button.dataset.scheduledId || '');
                 });
             });
 
+            document.querySelectorAll('[data-edit-scheduled]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    loadEditData(button.dataset.scheduledId || '');
+                });
+            });
+
             document.querySelectorAll('[data-scheduled-modal-close]').forEach((button) => {
                 button.addEventListener('click', closeModal);
+            });
+
+            document.querySelectorAll('[data-scheduled-edit-close]').forEach((button) => {
+                button.addEventListener('click', closeEditModal);
             });
 
             modal?.addEventListener('click', (event) => {
@@ -370,9 +508,109 @@
                 }
             });
 
+            editModal?.addEventListener('click', (event) => {
+                if (event.target === editModal) {
+                    closeEditModal();
+                }
+            });
+
+            editForm?.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const scheduledId = editId?.value || '';
+                const mensagem = (editMessage?.value || '').trim();
+                const scheduledFor = (editDate?.value || '').trim();
+
+                if (editError) {
+                    editError.classList.add('hidden');
+                }
+                if (editSuccess) {
+                    editSuccess.classList.add('hidden');
+                }
+
+                if (!scheduledId) {
+                    if (editError) {
+                        editError.textContent = 'Agendamento invalido para edicao.';
+                        editError.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                if (mensagem === '') {
+                    if (editError) {
+                        editError.textContent = 'Informe a mensagem.';
+                        editError.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                if (scheduledFor === '') {
+                    if (editError) {
+                        editError.textContent = 'Informe a data e horario.';
+                        editError.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                if (editSubmit) {
+                    editSubmit.disabled = true;
+                    editSubmit.textContent = 'Salvando...';
+                }
+
+                try {
+                    const url = updateUrlTemplate.replace('__SCHEDULED_ID__', scheduledId);
+                    const response = await fetch(url, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            mensagem,
+                            scheduled_for: scheduledFor,
+                        }),
+                    });
+
+                    let payload = {};
+                    try {
+                        payload = await response.json();
+                    } catch (error) {
+                        payload = {};
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'Nao foi possivel salvar as alteracoes.');
+                    }
+
+                    if (editSuccess) {
+                        editSuccess.textContent = payload.message || 'Agendamento atualizado com sucesso.';
+                        editSuccess.classList.remove('hidden');
+                    }
+
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 700);
+                } catch (error) {
+                    if (editError) {
+                        editError.textContent = error.message || 'Falha ao atualizar agendamento.';
+                        editError.classList.remove('hidden');
+                    }
+                } finally {
+                    if (editSubmit) {
+                        editSubmit.disabled = false;
+                        editSubmit.textContent = 'Salvar';
+                    }
+                }
+            });
+
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
                     closeModal();
+                }
+                if (event.key === 'Escape' && editModal && !editModal.classList.contains('hidden')) {
+                    closeEditModal();
                 }
             });
         })();

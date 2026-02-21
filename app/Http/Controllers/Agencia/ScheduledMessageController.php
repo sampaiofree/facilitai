@@ -109,6 +109,7 @@ class ScheduledMessageController extends Controller
             'timestamps' => [
                 'scheduled_for' => $scheduledMessage->scheduled_for?->toIso8601String(),
                 'scheduled_for_label' => $this->formatDate($scheduledMessage->scheduled_for, $timezone),
+                'scheduled_for_input' => $this->formatDateInput($scheduledMessage->scheduled_for, $timezone),
                 'queued_at' => $scheduledMessage->queued_at?->toIso8601String(),
                 'queued_at_label' => $this->formatDate($scheduledMessage->queued_at, $timezone),
                 'sent_at' => $scheduledMessage->sent_at?->toIso8601String(),
@@ -121,7 +122,77 @@ class ScheduledMessageController extends Controller
                 'created_at_label' => $this->formatDate($scheduledMessage->created_at, $timezone),
                 'updated_at' => $scheduledMessage->updated_at?->toIso8601String(),
                 'updated_at_label' => $this->formatDate($scheduledMessage->updated_at, $timezone),
+                'now_input' => now($timezone)->format('Y-m-d\TH:i'),
             ],
+        ]);
+    }
+
+    public function update(Request $request, ScheduledMessage $scheduledMessage): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($this->canAccess($scheduledMessage, (int) $user->id), 403);
+
+        $data = $request->validate([
+            'mensagem' => ['required', 'string', 'max:2000'],
+            'scheduled_for' => ['required', 'string', 'max:50'],
+        ]);
+
+        $mensagem = trim((string) ($data['mensagem'] ?? ''));
+        if ($mensagem === '') {
+            return response()->json([
+                'message' => 'Mensagem vazia.',
+            ], 422);
+        }
+
+        /** @var ScheduledMessageService $scheduledMessageService */
+        $scheduledMessageService = app(ScheduledMessageService::class);
+        $timezone = $scheduledMessageService->resolveTimezoneForUser($user);
+        $scheduledForRaw = trim((string) ($data['scheduled_for'] ?? ''));
+        $scheduledForUtc = $scheduledMessageService->parseScheduledForToUtc($scheduledForRaw, $timezone);
+
+        if (!$scheduledForUtc) {
+            return response()->json([
+                'message' => 'Data/hora de agendamento invalida.',
+            ], 422);
+        }
+
+        $nowUtc = Carbon::now('UTC');
+        if ($scheduledForUtc->lte($nowUtc)) {
+            return response()->json([
+                'message' => 'Agendamento deve ser uma data futura.',
+            ], 422);
+        }
+
+        $maxUtc = Carbon::now($timezone)->addDays(90)->setTimezone('UTC');
+        if ($scheduledForUtc->gt($maxUtc)) {
+            return response()->json([
+                'message' => 'O limite maximo para agendamento e de 90 dias.',
+            ], 422);
+        }
+
+        $updated = ScheduledMessage::query()
+            ->whereKey($scheduledMessage->id)
+            ->where('status', 'pending')
+            ->update([
+                'mensagem' => $mensagem,
+                'scheduled_for' => $scheduledForUtc,
+                'updated_at' => Carbon::now('UTC'),
+            ]);
+
+        if ($updated !== 1) {
+            return response()->json([
+                'message' => 'Somente agendamentos pendentes podem ser editados.',
+            ], 422);
+        }
+
+        $scheduledMessage->refresh();
+
+        return response()->json([
+            'message' => 'Agendamento atualizado com sucesso.',
+            'id' => $scheduledMessage->id,
+            'scheduled_for' => $scheduledMessage->scheduled_for?->toIso8601String(),
+            'scheduled_for_label' => $this->formatDate($scheduledMessage->scheduled_for, $timezone),
+            'timezone' => $timezone,
         ]);
     }
 
@@ -167,5 +238,13 @@ class ScheduledMessageController extends Controller
 
         return $value->copy()->setTimezone($timezone)->format('d/m/Y H:i');
     }
-}
 
+    private function formatDateInput($value, string $timezone): ?string
+    {
+        if (!$value) {
+            return null;
+        }
+
+        return $value->copy()->setTimezone($timezone)->format('Y-m-d\TH:i');
+    }
+}

@@ -341,6 +341,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::delete('conversas/scheduled-messages/{scheduledMessage}', [AgenciaClienteLeadController::class, 'cancelScheduledMessage'])->name('conversas.scheduled-messages.cancel');
     Route::get('mensagens-agendadas', [AgenciaScheduledMessageController::class, 'index'])->name('mensagens-agendadas.index');
     Route::get('mensagens-agendadas/{scheduledMessage}', [AgenciaScheduledMessageController::class, 'show'])->name('mensagens-agendadas.show');
+    Route::patch('mensagens-agendadas/{scheduledMessage}', [AgenciaScheduledMessageController::class, 'update'])->name('mensagens-agendadas.update');
     Route::patch('mensagens-agendadas/{scheduledMessage}/cancel', [AgenciaScheduledMessageController::class, 'cancel'])->name('mensagens-agendadas.cancel');
     Route::post('conversas/import', [AgenciaClienteLeadController::class, 'import'])->name('conversas.import');
     Route::post('conversas/preview', [AgenciaClienteLeadController::class, 'preview'])->name('conversas.preview');
