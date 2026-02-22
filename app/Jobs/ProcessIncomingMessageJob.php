@@ -6,12 +6,14 @@ use App\Models\Assistant;
 use App\Models\AssistantLead;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
+use App\Models\ScheduledMessage;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\EvolutionAPIOficial;
 use App\Services\IAOrchestratorService;
+use App\Services\ScheduledMessageService;
 use App\Services\UazapiService;
 use App\DTOs\IAResult;
 use App\Support\LogContext;
@@ -159,6 +161,12 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         $tipo = Str::lower((string) ($payload['tipo'] ?? 'text'));
         if ($tipo !== 'text') {
             $payload['is_media'] = true;
+            $this->sendIAResponse($payload, $assistant, $lead, $assistantLead);
+            return;
+        }
+
+        if (($payload['bypass_debounce'] ?? false) === true) {
+            $payload['is_media'] = false;
             $this->sendIAResponse($payload, $assistant, $lead, $assistantLead);
             return;
         }
@@ -980,6 +988,9 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             'enviar_post' => function (array $arguments, array $context) use ($payload, $conexao) {
                 return $this->handleEnviarPost($arguments, $payload, $conexao);
             },
+            'agendar_msg' => function (array $arguments, array $context) use ($lead, $conexao, $payload) {
+                return $this->handleAgendarMsg($lead, $conexao, $payload, $arguments);
+            },
             'gerenciar_agenda' => function (array $arguments, array $context) {
                 return 'Funcao nao suportada no Uazapi.';
             },
@@ -1095,6 +1106,147 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                 }
             },
         ];
+    }
+
+    private function handleAgendarMsg(?ClienteLead $lead, ?Conexao $conexao, array $payload, array $arguments): string
+    {
+        try {
+            if (!$lead) {
+                return 'Lead nao encontrado para agendamento.';
+            }
+
+            if (!$conexao) {
+                return 'Conexao nao encontrada para agendamento.';
+            }
+
+            $isScheduledExecution = ($payload['bypass_debounce'] ?? false) === true
+                || Str::startsWith((string) ($payload['event_id'] ?? ''), 'scheduled:');
+
+            if ($isScheduledExecution) {
+                return 'Agendamento bloqueado para evitar recursao.';
+            }
+
+            $mensagem = trim((string) ($arguments['mensagem'] ?? $arguments['instrucao'] ?? ''));
+            $scheduledForRaw = trim((string) ($arguments['scheduled_for'] ?? $arguments['data_hora'] ?? ''));
+
+            if ($mensagem === '') {
+                return 'Mensagem obrigatoria para agendamento.';
+            }
+
+            if (Str::length($mensagem) > 2000) {
+                return 'Mensagem excede limite de 2000 caracteres.';
+            }
+
+            if ($scheduledForRaw === '') {
+                return 'Data/hora obrigatoria para agendamento.';
+            }
+
+            $lead->loadMissing(['cliente', 'assistantLeads']);
+            $ownerUserId = (int) ($lead->cliente->user_id ?? 0);
+            if ($ownerUserId <= 0) {
+                return 'Lead sem usuario associado.';
+            }
+
+            $owner = User::find($ownerUserId);
+            if (!$owner) {
+                return 'Usuario dono do lead nao encontrado.';
+            }
+
+            $assistantId = isset($payload['assistant_id']) && $payload['assistant_id'] !== ''
+                ? (int) $payload['assistant_id']
+                : ($conexao->assistant_id ? (int) $conexao->assistant_id : 0);
+
+            if ($assistantId <= 0) {
+                return 'Assistente nao identificado para agendamento.';
+            }
+
+            /** @var ScheduledMessageService $scheduledMessageService */
+            $scheduledMessageService = app(ScheduledMessageService::class);
+            $timezone = $scheduledMessageService->resolveTimezoneForUser($owner);
+            $scheduledForUtc = $scheduledMessageService->parseScheduledForToUtc($scheduledForRaw, $timezone);
+
+            if (!$scheduledForUtc) {
+                return "Data/hora invalida. Use YYYY-MM-DD HH:mm no fuso {$timezone}.";
+            }
+
+            $nowUtc = Carbon::now('UTC');
+            if ($scheduledForUtc->lte($nowUtc)) {
+                return 'Agendamento deve ser uma data futura.';
+            }
+
+            $maxUtc = Carbon::now($timezone)->addDays(90)->setTimezone('UTC');
+            if ($scheduledForUtc->gt($maxUtc)) {
+                return 'O limite maximo para agendamento e de 90 dias.';
+            }
+
+            $context = $scheduledMessageService->resolveDispatchContext(
+                $lead,
+                $assistantId,
+                $ownerUserId,
+                $conexao->id ? (int) $conexao->id : null
+            );
+
+            if (!($context['ok'] ?? false)) {
+                return (string) ($context['message'] ?? 'Nao foi possivel validar o contexto de envio.');
+            }
+
+            $resolvedConexao = $context['conexao'] ?? null;
+            if (!$resolvedConexao instanceof Conexao) {
+                return 'Conexao nao encontrada para o agendamento.';
+            }
+
+            $scheduledForKey = $scheduledForUtc->copy()->format('Y-m-d H:i:s');
+            $duplicate = ScheduledMessage::query()
+                ->where('cliente_lead_id', $lead->id)
+                ->where('assistant_id', $assistantId)
+                ->where('status', 'pending')
+                ->where('mensagem', $mensagem)
+                ->where('scheduled_for', $scheduledForKey)
+                ->first();
+
+            if ($duplicate) {
+                $scheduledLabel = $duplicate->scheduled_for?->copy()->setTimezone($timezone)->format('d/m/Y H:i')
+                    ?? $scheduledForUtc->copy()->setTimezone($timezone)->format('d/m/Y H:i');
+
+                return "Ja existe um agendamento pendente igual para {$scheduledLabel} (id {$duplicate->id}).";
+            }
+
+            $scheduledMessage = ScheduledMessage::create([
+                'cliente_lead_id' => $lead->id,
+                'assistant_id' => $assistantId,
+                'conexao_id' => $resolvedConexao->id,
+                'mensagem' => $mensagem,
+                'scheduled_for' => $scheduledForUtc,
+                'status' => 'pending',
+                'event_id' => sprintf('scheduled:lead:%d:%s', $lead->id, (string) Str::uuid()),
+                'created_by_user_id' => $ownerUserId,
+            ]);
+
+            Log::channel('process_job')->info('Agendamento criado via tool agendar_msg.', $this->logContext([
+                'scheduled_message_id' => $scheduledMessage->id,
+                'lead_id' => $lead->id,
+                'assistant_id' => $assistantId,
+                'conexao_id' => $resolvedConexao->id,
+                'scheduled_for_utc' => $scheduledForUtc->copy()->toIso8601String(),
+                'timezone' => $timezone,
+            ]));
+
+            return sprintf(
+                'Agendamento criado com sucesso (id %d) para %s (%s).',
+                $scheduledMessage->id,
+                $scheduledForUtc->copy()->setTimezone($timezone)->format('d/m/Y H:i'),
+                $timezone
+            );
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->error('Falha ao criar agendamento via tool agendar_msg.', $this->logContext([
+                'args' => $arguments,
+                'lead_id' => $lead?->id,
+                'conexao_id' => $conexao?->id,
+                'error' => $exception->getMessage(),
+            ]));
+
+            return 'Nao foi possivel criar o agendamento.';
+        }
     }
 
     private function handleEnviarMedia(?string $token, ?string $phone, array $arguments): string

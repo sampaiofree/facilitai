@@ -7,10 +7,12 @@ use App\Models\Assistant;
 use App\Models\Cliente;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
+use App\Models\ScheduledMessage;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\Tag;
 use App\Jobs\ProcessIncomingMessageJob;
+use App\Services\ScheduledMessageService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -158,48 +160,71 @@ class ClienteLeadController extends Controller
         $data = $request->validate([
             'assistant_id' => ['required', 'integer'],
             'mensagem' => ['required', 'string', 'max:2000'],
+            'scheduled_for' => ['nullable', 'string', 'max:50'],
         ]);
 
-        if (!$clienteLead->bot_enabled) {
-            return response()->json([
-                'message' => 'Bot desativado para este lead.',
-            ], 422);
-        }
-
-        $phone = trim((string) ($clienteLead->phone ?? ''));
-        if ($phone === '') {
-            return response()->json([
-                'message' => 'Lead sem telefone valido.',
-            ], 422);
-        }
-
         $assistantId = (int) $data['assistant_id'];
-        $hasAssistant = $clienteLead->assistantLeads()
-            ->where('assistant_id', $assistantId)
-            ->exists();
-        if (!$hasAssistant) {
-            return response()->json([
-                'message' => 'Assistente nao associado ao lead.',
-            ], 422);
-        }
-
-        $conexao = Conexao::where('cliente_id', $clienteLead->cliente_id)
-            ->where('assistant_id', $assistantId)
-            ->whereHas('cliente', fn ($query) => $query->where('user_id', $user->id))
-            ->latest('id')
-            ->first();
-
-        if (!$conexao) {
-            return response()->json([
-                'message' => 'Conexao nao encontrada para este assistente.',
-            ], 422);
-        }
-
         $mensagem = trim((string) $data['mensagem']);
         if ($mensagem === '') {
             return response()->json([
                 'message' => 'Mensagem vazia.',
             ], 422);
+        }
+
+        $scheduledMessageService = app(ScheduledMessageService::class);
+        $context = $scheduledMessageService->resolveDispatchContext($clienteLead, $assistantId, (int) $user->id);
+        if (!$context['ok']) {
+            return response()->json([
+                'message' => $context['message'] ?? 'Nao foi possivel validar o contexto de envio.',
+            ], 422);
+        }
+
+        /** @var Conexao $conexao */
+        $conexao = $context['conexao'];
+        /** @var string $phone */
+        $phone = $context['phone'];
+
+        $timezone = $scheduledMessageService->resolveTimezoneForUser($user);
+        $scheduledForRaw = trim((string) ($data['scheduled_for'] ?? ''));
+        if ($scheduledForRaw !== '') {
+            $scheduledForUtc = $scheduledMessageService->parseScheduledForToUtc($scheduledForRaw, $timezone);
+            if (!$scheduledForUtc) {
+                return response()->json([
+                    'message' => 'Data/hora de agendamento invalida.',
+                ], 422);
+            }
+
+            $nowUtc = Carbon::now('UTC');
+            if ($scheduledForUtc->lte($nowUtc)) {
+                return response()->json([
+                    'message' => 'Agendamento deve ser uma data futura.',
+                ], 422);
+            }
+
+            $maxUtc = Carbon::now($timezone)->addDays(90)->setTimezone('UTC');
+            if ($scheduledForUtc->gt($maxUtc)) {
+                return response()->json([
+                    'message' => 'O limite maximo para agendamento e de 90 dias.',
+                ], 422);
+            }
+
+            $scheduledMessage = ScheduledMessage::create([
+                'cliente_lead_id' => $clienteLead->id,
+                'assistant_id' => $assistantId,
+                'conexao_id' => $conexao->id,
+                'mensagem' => $mensagem,
+                'scheduled_for' => $scheduledForUtc,
+                'status' => 'pending',
+                'event_id' => sprintf('scheduled:lead:%d:%s', $clienteLead->id, (string) Str::uuid()),
+                'created_by_user_id' => $user->id,
+            ]);
+
+            return response()->json([
+                'message' => 'Mensagem agendada com sucesso.',
+                'scheduled_message_id' => $scheduledMessage->id,
+                'scheduled_for' => $scheduledForUtc->toIso8601String(),
+                'timezone' => $timezone,
+            ]);
         }
 
         $agoraUtc = Carbon::now('UTC');
@@ -229,6 +254,117 @@ class ClienteLeadController extends Controller
         return response()->json([
             'message' => 'Mensagem enviada para a fila.',
         ]);
+    }
+
+    public function scheduledMessages(Request $request, ClienteLead $clienteLead): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($clienteLead->cliente && $clienteLead->cliente->user_id === $user->id, 403);
+
+        $timezone = app(ScheduledMessageService::class)->resolveTimezoneForUser($user);
+
+        $query = ScheduledMessage::query()
+            ->with('assistant:id,name')
+            ->where('cliente_lead_id', $clienteLead->id)
+            ->where('status', 'pending')
+            ->orderBy('scheduled_for');
+
+        $pendingCount = (clone $query)->count();
+        $next = (clone $query)->first();
+        $items = (clone $query)->limit(5)->get();
+
+        return response()->json([
+            'pending_count' => $pendingCount,
+            'timezone' => $timezone,
+            'next_scheduled_for' => $this->formatScheduledMessageIso($next, 'scheduled_for'),
+            'next_scheduled_for_label' => $this->formatScheduledMessageDate($next, 'scheduled_for', $timezone),
+            'items' => $items->map(function (ScheduledMessage $scheduledMessage) use ($timezone) {
+                return [
+                    'id' => $scheduledMessage->id,
+                    'assistant' => $scheduledMessage->assistant?->name ?? '-',
+                    'scheduled_for' => $this->formatScheduledMessageIso($scheduledMessage, 'scheduled_for'),
+                    'scheduled_for_label' => $this->formatScheduledMessageDate($scheduledMessage, 'scheduled_for', $timezone),
+                    'mensagem_preview' => Str::limit($scheduledMessage->mensagem, 90),
+                    'status' => $scheduledMessage->status,
+                    'can_cancel' => $scheduledMessage->status === 'pending',
+                ];
+            })->values(),
+        ]);
+    }
+
+    public function cancelScheduledMessage(Request $request, ScheduledMessage $scheduledMessage): JsonResponse
+    {
+        $user = $request->user();
+        $scheduledMessage->loadMissing('clienteLead.cliente');
+
+        abort_unless(
+            $scheduledMessage->clienteLead?->cliente
+            && (int) $scheduledMessage->clienteLead->cliente->user_id === (int) $user->id,
+            403
+        );
+
+        if ($scheduledMessage->status !== 'pending') {
+            return response()->json([
+                'message' => 'Somente agendamentos pendentes podem ser cancelados.',
+            ], 422);
+        }
+
+        $scheduledMessage->update([
+            'status' => 'canceled',
+            'canceled_at' => Carbon::now('UTC'),
+            'error_message' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'Agendamento cancelado com sucesso.',
+        ]);
+    }
+
+    private function scheduledMessageUtcValue(?ScheduledMessage $scheduledMessage, string $column): ?Carbon
+    {
+        if (!$scheduledMessage) {
+            return null;
+        }
+
+        $raw = $scheduledMessage->getRawOriginal($column);
+        if (is_string($raw) && trim($raw) !== '') {
+            try {
+                return Carbon::parse($raw, 'UTC');
+            } catch (\Throwable) {
+                // fallback below
+            }
+        }
+
+        $value = $scheduledMessage->getAttribute($column);
+        if ($value instanceof Carbon) {
+            return $value->copy()->setTimezone('UTC');
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value)->setTimezone('UTC');
+        }
+
+        return null;
+    }
+
+    private function formatScheduledMessageDate(?ScheduledMessage $scheduledMessage, string $column, string $timezone): ?string
+    {
+        $value = $this->scheduledMessageUtcValue($scheduledMessage, $column);
+        if (!$value) {
+            return null;
+        }
+
+        return $value->setTimezone($timezone)->format('d/m/Y H:i');
+    }
+
+    private function formatScheduledMessageIso(?ScheduledMessage $scheduledMessage, string $column): ?string
+    {
+        $value = $this->scheduledMessageUtcValue($scheduledMessage, $column);
+        if (!$value) {
+            return null;
+        }
+
+        return $value->toIso8601String();
     }
 
     public function import(Request $request): RedirectResponse

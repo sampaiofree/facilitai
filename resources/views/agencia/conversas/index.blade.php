@@ -542,6 +542,24 @@
                     placeholder="Digite a mensagem..."
                     class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
                 ></textarea>
+
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <label for="leadMessageScheduledFor" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Agendar para (opcional)
+                    </label>
+                    <input
+                        id="leadMessageScheduledFor"
+                        type="datetime-local"
+                        class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                    >
+                    <p id="leadMessageTimezoneHint" class="mt-1 text-[11px] text-slate-500">Timezone: America/Sao_Paulo</p>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                    <p id="leadScheduledSummary" class="text-xs text-slate-600">Carregando agendamentos...</p>
+                    <div id="leadScheduledList" class="mt-2 space-y-2"></div>
+                </div>
+
                 <p id="leadMessageError" class="hidden rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-600"></p>
                 <p id="leadMessageSuccess" class="hidden rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700"></p>
                 <div class="flex justify-end gap-3">
@@ -592,12 +610,18 @@
             const messageModal = document.getElementById('leadMessageModal');
             const messageForm = document.getElementById('leadMessageForm');
             const messageText = document.getElementById('leadMessageText');
+            const messageScheduledFor = document.getElementById('leadMessageScheduledFor');
+            const messageTimezoneHint = document.getElementById('leadMessageTimezoneHint');
+            const scheduledSummary = document.getElementById('leadScheduledSummary');
+            const scheduledList = document.getElementById('leadScheduledList');
             const messageLeadName = document.getElementById('messageLeadName');
             const messageAssistantName = document.getElementById('messageAssistantName');
             const messageError = document.getElementById('leadMessageError');
             const messageSuccess = document.getElementById('leadMessageSuccess');
             const messageSubmit = document.getElementById('leadMessageSubmit');
             const sendMessageUrlTemplate = @json(route('agencia.conversas.send-message', ['clienteLead' => '__LEAD_ID__']));
+            const scheduledMessagesUrlTemplate = @json(route('agencia.conversas.scheduled-messages.index', ['clienteLead' => '__LEAD_ID__']));
+            const cancelScheduledMessageUrlTemplate = @json(route('agencia.conversas.scheduled-messages.cancel', ['scheduledMessage' => '__SCHEDULE_ID__']));
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
             let previewHeaders = [];
             let previewRows = [];
@@ -750,6 +774,95 @@
 
             const closeMessageModal = () => {
                 messageModal?.classList.add('hidden');
+                if (scheduledList) {
+                    scheduledList.innerHTML = '';
+                }
+                if (scheduledSummary) {
+                    scheduledSummary.textContent = '';
+                }
+            };
+
+            const escapeHtml = (value) => (value ?? '')
+                .toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            const toLocalDatetimeInput = (date) => {
+                const pad = (value) => value.toString().padStart(2, '0');
+                return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+            };
+
+            const renderScheduledMessages = (payload) => {
+                const pendingCount = payload?.pending_count ?? 0;
+                const timezone = payload?.timezone || 'America/Sao_Paulo';
+                const nextLabel = payload?.next_scheduled_for_label || '-';
+                const items = Array.isArray(payload?.items) ? payload.items : [];
+
+                if (messageTimezoneHint) {
+                    messageTimezoneHint.textContent = `Timezone: ${timezone}`;
+                }
+
+                if (scheduledSummary) {
+                    scheduledSummary.textContent = `Pendentes: ${pendingCount} | Proximo: ${nextLabel}`;
+                }
+
+                if (!scheduledList) {
+                    return;
+                }
+
+                if (!items.length) {
+                    scheduledList.innerHTML = '<p class="text-xs text-slate-400">Sem agendamentos pendentes para este lead.</p>';
+                    return;
+                }
+
+                scheduledList.innerHTML = items.map(item => {
+                    const cancelButton = item.can_cancel
+                        ? `<button type="button" data-cancel-scheduled-message data-scheduled-id="${item.id}" class="rounded-md border border-rose-200 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50">Cancelar</button>`
+                        : '';
+
+                    return `
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-xs font-semibold text-slate-700">${escapeHtml(item.scheduled_for_label || '-')} | ${escapeHtml(item.assistant || '-')}</p>
+                                    <p class="mt-1 text-[11px] text-slate-600">${escapeHtml(item.mensagem_preview || '')}</p>
+                                </div>
+                                ${cancelButton}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            };
+
+            const loadScheduledMessages = async () => {
+                if (!currentLead || !scheduledSummary || !scheduledList) {
+                    return;
+                }
+
+                scheduledSummary.textContent = 'Carregando agendamentos...';
+                scheduledList.innerHTML = '';
+
+                const url = scheduledMessagesUrlTemplate.replace('__LEAD_ID__', currentLead.id);
+                try {
+                    const response = await fetch(url, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Request failed');
+                    }
+
+                    const payload = await response.json();
+                    renderScheduledMessages(payload);
+                } catch (error) {
+                    scheduledSummary.textContent = 'Nao foi possivel carregar os agendamentos.';
+                    scheduledList.innerHTML = '';
+                }
             };
 
             const openMessageModal = (assistantId, assistantName) => {
@@ -772,9 +885,14 @@
                 if (messageText) {
                     messageText.value = '';
                 }
+                if (messageScheduledFor) {
+                    messageScheduledFor.value = '';
+                    messageScheduledFor.min = toLocalDatetimeInput(new Date(Date.now() + 60000));
+                }
                 messageError?.classList.add('hidden');
                 messageSuccess?.classList.add('hidden');
                 messageModal.classList.remove('hidden');
+                loadScheduledMessages();
             };
 
             const renderAssistants = (list = []) => {
@@ -884,6 +1002,55 @@
                 }
             });
 
+            scheduledList?.addEventListener('click', async (event) => {
+                const button = event.target.closest('[data-cancel-scheduled-message]');
+                if (!button) {
+                    return;
+                }
+
+                const scheduledId = button.dataset.scheduledId;
+                if (!scheduledId) {
+                    return;
+                }
+
+                const url = cancelScheduledMessageUrlTemplate.replace('__SCHEDULE_ID__', scheduledId);
+                button.disabled = true;
+                try {
+                    const response = await fetch(url, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+
+                    let payload = {};
+                    try {
+                        payload = await response.json();
+                    } catch (error) {
+                        payload = {};
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'Falha ao cancelar agendamento.');
+                    }
+
+                    messageSuccess?.classList.remove('hidden');
+                    if (messageSuccess) {
+                        messageSuccess.textContent = payload.message || 'Agendamento cancelado com sucesso.';
+                    }
+                    messageError?.classList.add('hidden');
+                    await loadScheduledMessages();
+                } catch (error) {
+                    if (messageError) {
+                        messageError.textContent = error.message || 'Nao foi possivel cancelar o agendamento.';
+                        messageError.classList.remove('hidden');
+                    }
+                } finally {
+                    button.disabled = false;
+                }
+            });
+
             messageForm?.addEventListener('submit', async (event) => {
                 event.preventDefault();
                 if (!currentLead || !currentAssistant) {
@@ -891,6 +1058,7 @@
                 }
 
                 const text = messageText?.value?.trim() ?? '';
+                const scheduledFor = messageScheduledFor?.value?.trim() ?? '';
                 if (text === '') {
                     if (messageError) {
                         messageError.textContent = 'Informe a mensagem antes de enviar.';
@@ -905,7 +1073,7 @@
                 const url = sendMessageUrlTemplate.replace('__LEAD_ID__', currentLead.id);
                 if (messageSubmit) {
                     messageSubmit.disabled = true;
-                    messageSubmit.textContent = 'Enviando...';
+                    messageSubmit.textContent = scheduledFor ? 'Agendando...' : 'Enviando...';
                 }
 
                 try {
@@ -919,6 +1087,7 @@
                         body: JSON.stringify({
                             mensagem: text,
                             assistant_id: currentAssistant.id,
+                            scheduled_for: scheduledFor || null,
                         }),
                     });
 
@@ -939,12 +1108,16 @@
                     }
 
                     if (messageSuccess) {
-                        messageSuccess.textContent = payload.message || 'Mensagem enviada para a fila.';
+                        messageSuccess.textContent = payload.message || (scheduledFor ? 'Mensagem agendada com sucesso.' : 'Mensagem enviada para a fila.');
                         messageSuccess.classList.remove('hidden');
                     }
-                    if (messageText) {
+                    if (messageText && !scheduledFor) {
                         messageText.value = '';
                     }
+                    if (messageScheduledFor) {
+                        messageScheduledFor.value = '';
+                    }
+                    await loadScheduledMessages();
                 } catch (error) {
                     if (messageError) {
                         messageError.textContent = 'Nao foi possivel enviar a mensagem.';

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\Cliente;
 use App\Models\AssistantLead;
 use App\Models\SequenceChat;
+use App\Models\ScheduledMessage;
 use App\Models\Tag;
 
 class ClienteLead extends Model
@@ -45,5 +46,10 @@ class ClienteLead extends Model
     public function sequenceChats()
     {
         return $this->hasMany(SequenceChat::class, 'cliente_lead_id');
+    }
+
+    public function scheduledMessages()
+    {
+        return $this->hasMany(ScheduledMessage::class, 'cliente_lead_id');
     }
 }

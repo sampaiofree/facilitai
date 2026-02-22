@@ -301,6 +301,11 @@ class User extends Authenticatable implements MustVerifyEmail
             ->sum('tokens');
     }
 
+    public function scheduledMessages()
+    {
+        return $this->hasMany(\App\Models\ScheduledMessage::class, 'created_by_user_id');
+    }
+
 
 }
  

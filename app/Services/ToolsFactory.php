@@ -192,6 +192,33 @@ TXT,
             ];
         }
 
+        if (str_contains($systemPrompt, 'agendar_msg')) {
+            $tools[] = [
+                'type' => 'function',
+                'name' => 'agendar_msg',
+                'description' => <<<TXT
+Cria um agendamento de mensagem para o lead atual.
+Use apenas quando o usuario pedir para enviar uma instrucao/mensagem em uma data e horario futuros.
+TXT,
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'mensagem' => [
+                            'type' => 'string',
+                            'description' => 'Instrucao/mensagem que sera processada no horario agendado.',
+                        ],
+                        'scheduled_for' => [
+                            'type' => 'string',
+                            'description' => 'Data e horario no formato YYYY-MM-DD HH:mm (fuso da agencia).',
+                        ],
+                    ],
+                    'required' => ['mensagem', 'scheduled_for'],
+                    'additionalProperties' => false,
+                ],
+                'strict' => true,
+            ];
+        }
+
         if (str_contains($systemPrompt, 'gerenciar_agenda')) {
             $tools[] = [
                 'type' => 'function',
