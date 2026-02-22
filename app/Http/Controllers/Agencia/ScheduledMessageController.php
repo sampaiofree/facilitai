@@ -55,8 +55,15 @@ class ScheduledMessageController extends Controller
             });
         }
 
+        $scheduledMessages = $query->paginate(30)->withQueryString();
+        $scheduledMessages->getCollection()->transform(function (ScheduledMessage $item) use ($timezone) {
+            $item->scheduled_for_label = $this->formatColumnDate($item, 'scheduled_for', $timezone);
+            $item->created_at_label = $this->formatColumnDate($item, 'created_at', $timezone);
+            return $item;
+        });
+
         return view('agencia.mensagens-agendadas.index', [
-            'scheduledMessages' => $query->paginate(30)->withQueryString(),
+            'scheduledMessages' => $scheduledMessages,
             'timezone' => $timezone,
             'filters' => [
                 'status' => $status,
@@ -107,21 +114,21 @@ class ScheduledMessageController extends Controller
                 'email' => $scheduledMessage->creator?->email,
             ],
             'timestamps' => [
-                'scheduled_for' => $scheduledMessage->scheduled_for?->toIso8601String(),
-                'scheduled_for_label' => $this->formatDate($scheduledMessage->scheduled_for, $timezone),
-                'scheduled_for_input' => $this->formatDateInput($scheduledMessage->scheduled_for, $timezone),
-                'queued_at' => $scheduledMessage->queued_at?->toIso8601String(),
-                'queued_at_label' => $this->formatDate($scheduledMessage->queued_at, $timezone),
-                'sent_at' => $scheduledMessage->sent_at?->toIso8601String(),
-                'sent_at_label' => $this->formatDate($scheduledMessage->sent_at, $timezone),
-                'failed_at' => $scheduledMessage->failed_at?->toIso8601String(),
-                'failed_at_label' => $this->formatDate($scheduledMessage->failed_at, $timezone),
-                'canceled_at' => $scheduledMessage->canceled_at?->toIso8601String(),
-                'canceled_at_label' => $this->formatDate($scheduledMessage->canceled_at, $timezone),
-                'created_at' => $scheduledMessage->created_at?->toIso8601String(),
-                'created_at_label' => $this->formatDate($scheduledMessage->created_at, $timezone),
-                'updated_at' => $scheduledMessage->updated_at?->toIso8601String(),
-                'updated_at_label' => $this->formatDate($scheduledMessage->updated_at, $timezone),
+                'scheduled_for' => $this->formatColumnIso($scheduledMessage, 'scheduled_for'),
+                'scheduled_for_label' => $this->formatColumnDate($scheduledMessage, 'scheduled_for', $timezone),
+                'scheduled_for_input' => $this->formatColumnInput($scheduledMessage, 'scheduled_for', $timezone),
+                'queued_at' => $this->formatColumnIso($scheduledMessage, 'queued_at'),
+                'queued_at_label' => $this->formatColumnDate($scheduledMessage, 'queued_at', $timezone),
+                'sent_at' => $this->formatColumnIso($scheduledMessage, 'sent_at'),
+                'sent_at_label' => $this->formatColumnDate($scheduledMessage, 'sent_at', $timezone),
+                'failed_at' => $this->formatColumnIso($scheduledMessage, 'failed_at'),
+                'failed_at_label' => $this->formatColumnDate($scheduledMessage, 'failed_at', $timezone),
+                'canceled_at' => $this->formatColumnIso($scheduledMessage, 'canceled_at'),
+                'canceled_at_label' => $this->formatColumnDate($scheduledMessage, 'canceled_at', $timezone),
+                'created_at' => $this->formatColumnIso($scheduledMessage, 'created_at'),
+                'created_at_label' => $this->formatColumnDate($scheduledMessage, 'created_at', $timezone),
+                'updated_at' => $this->formatColumnIso($scheduledMessage, 'updated_at'),
+                'updated_at_label' => $this->formatColumnDate($scheduledMessage, 'updated_at', $timezone),
                 'now_input' => now($timezone)->format('Y-m-d\TH:i'),
             ],
         ]);
@@ -190,8 +197,8 @@ class ScheduledMessageController extends Controller
         return response()->json([
             'message' => 'Agendamento atualizado com sucesso.',
             'id' => $scheduledMessage->id,
-            'scheduled_for' => $scheduledMessage->scheduled_for?->toIso8601String(),
-            'scheduled_for_label' => $this->formatDate($scheduledMessage->scheduled_for, $timezone),
+            'scheduled_for' => $this->formatColumnIso($scheduledMessage, 'scheduled_for'),
+            'scheduled_for_label' => $this->formatColumnDate($scheduledMessage, 'scheduled_for', $timezone),
             'timezone' => $timezone,
         ]);
     }
@@ -230,21 +237,56 @@ class ScheduledMessageController extends Controller
         return (int) ($scheduledMessage->clienteLead?->cliente?->user_id ?? 0) === $userId;
     }
 
-    private function formatDate($value, string $timezone): ?string
+    private function parseColumnAsUtc(ScheduledMessage $scheduledMessage, string $column): ?Carbon
     {
-        if (!$value) {
-            return null;
+        $raw = $scheduledMessage->getRawOriginal($column);
+        if (is_string($raw) && trim($raw) !== '') {
+            try {
+                return Carbon::parse($raw, 'UTC');
+            } catch (\Throwable) {
+                // fallback below
+            }
         }
 
-        return $value->copy()->setTimezone($timezone)->format('d/m/Y H:i');
+        $value = $scheduledMessage->getAttribute($column);
+        if ($value instanceof Carbon) {
+            return $value->copy()->setTimezone('UTC');
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value)->setTimezone('UTC');
+        }
+
+        return null;
     }
 
-    private function formatDateInput($value, string $timezone): ?string
+    private function formatColumnDate(ScheduledMessage $scheduledMessage, string $column, string $timezone): ?string
     {
+        $value = $this->parseColumnAsUtc($scheduledMessage, $column);
         if (!$value) {
             return null;
         }
 
-        return $value->copy()->setTimezone($timezone)->format('Y-m-d\TH:i');
+        return $value->setTimezone($timezone)->format('d/m/Y H:i');
+    }
+
+    private function formatColumnInput(ScheduledMessage $scheduledMessage, string $column, string $timezone): ?string
+    {
+        $value = $this->parseColumnAsUtc($scheduledMessage, $column);
+        if (!$value) {
+            return null;
+        }
+
+        return $value->setTimezone($timezone)->format('Y-m-d\TH:i');
+    }
+
+    private function formatColumnIso(ScheduledMessage $scheduledMessage, string $column): ?string
+    {
+        $value = $this->parseColumnAsUtc($scheduledMessage, $column);
+        if (!$value) {
+            return null;
+        }
+
+        return $value->toIso8601String();
     }
 }

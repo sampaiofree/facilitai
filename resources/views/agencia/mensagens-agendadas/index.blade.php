@@ -100,9 +100,9 @@
                                     {{ $scheduledMessage->status }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3">{{ $scheduledMessage->scheduled_for?->setTimezone($timezone)->format('d/m/Y H:i') ?? '-' }}</td>
+                            <td class="px-4 py-3">{{ $scheduledMessage->scheduled_for_label ?? '-' }}</td>
                             <td class="px-4 py-3">{{ $scheduledMessage->attempts }}</td>
-                            <td class="px-4 py-3">{{ $scheduledMessage->created_at?->setTimezone($timezone)->format('d/m/Y H:i') ?? '-' }}</td>
+                            <td class="px-4 py-3">{{ $scheduledMessage->created_at_label ?? '-' }}</td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center gap-2">
                                     <button
