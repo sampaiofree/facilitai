@@ -276,14 +276,14 @@ class ClienteLeadController extends Controller
         return response()->json([
             'pending_count' => $pendingCount,
             'timezone' => $timezone,
-            'next_scheduled_for' => $next?->scheduled_for?->toIso8601String(),
-            'next_scheduled_for_label' => $next?->scheduled_for?->setTimezone($timezone)->format('d/m/Y H:i'),
+            'next_scheduled_for' => $this->formatScheduledMessageIso($next, 'scheduled_for'),
+            'next_scheduled_for_label' => $this->formatScheduledMessageDate($next, 'scheduled_for', $timezone),
             'items' => $items->map(function (ScheduledMessage $scheduledMessage) use ($timezone) {
                 return [
                     'id' => $scheduledMessage->id,
                     'assistant' => $scheduledMessage->assistant?->name ?? '-',
-                    'scheduled_for' => $scheduledMessage->scheduled_for?->toIso8601String(),
-                    'scheduled_for_label' => $scheduledMessage->scheduled_for?->setTimezone($timezone)->format('d/m/Y H:i'),
+                    'scheduled_for' => $this->formatScheduledMessageIso($scheduledMessage, 'scheduled_for'),
+                    'scheduled_for_label' => $this->formatScheduledMessageDate($scheduledMessage, 'scheduled_for', $timezone),
                     'mensagem_preview' => Str::limit($scheduledMessage->mensagem, 90),
                     'status' => $scheduledMessage->status,
                     'can_cancel' => $scheduledMessage->status === 'pending',
@@ -318,6 +318,53 @@ class ClienteLeadController extends Controller
         return response()->json([
             'message' => 'Agendamento cancelado com sucesso.',
         ]);
+    }
+
+    private function scheduledMessageUtcValue(?ScheduledMessage $scheduledMessage, string $column): ?Carbon
+    {
+        if (!$scheduledMessage) {
+            return null;
+        }
+
+        $raw = $scheduledMessage->getRawOriginal($column);
+        if (is_string($raw) && trim($raw) !== '') {
+            try {
+                return Carbon::parse($raw, 'UTC');
+            } catch (\Throwable) {
+                // fallback below
+            }
+        }
+
+        $value = $scheduledMessage->getAttribute($column);
+        if ($value instanceof Carbon) {
+            return $value->copy()->setTimezone('UTC');
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value)->setTimezone('UTC');
+        }
+
+        return null;
+    }
+
+    private function formatScheduledMessageDate(?ScheduledMessage $scheduledMessage, string $column, string $timezone): ?string
+    {
+        $value = $this->scheduledMessageUtcValue($scheduledMessage, $column);
+        if (!$value) {
+            return null;
+        }
+
+        return $value->setTimezone($timezone)->format('d/m/Y H:i');
+    }
+
+    private function formatScheduledMessageIso(?ScheduledMessage $scheduledMessage, string $column): ?string
+    {
+        $value = $this->scheduledMessageUtcValue($scheduledMessage, $column);
+        if (!$value) {
+            return null;
+        }
+
+        return $value->toIso8601String();
     }
 
     public function import(Request $request): RedirectResponse
