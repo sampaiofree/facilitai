@@ -118,8 +118,11 @@ class UazapiJob implements ShouldQueue
                 ->where('phone', $phone)
                 ->first();
 
-            $tipoNormalizado = $this->normalizeTipo($tipoMensagem, $message);
+            $tipoNormalizado = $this->normalizeTipo($tipoMensagem, $message, $text);
             if ($tipoNormalizado === null) {
+                Log::channel('uazapi_job')->warning('Tipo de mensagem nao suportado em UazapiJob.', $this->logContext(
+                    $this->buildUnsupportedTipoLogContext($payload, $chat, $message, $tipoMensagem, $text, $fromMe, $isGroup === true)
+                ));
                 $status = 'ignored';
                 $reason = 'tipo_nao_suportado';
                 return;
@@ -206,8 +209,10 @@ class UazapiJob implements ShouldQueue
         return $digits;
     }
 
-    private function normalizeTipo(string $tipoMensagem, array $message): ?string
+    private function normalizeTipo(string $tipoMensagem, array $message, mixed $text = null): ?string
     {
+        $hasText = is_string($text) && trim($text) !== '';
+
         // Normaliza o tipo de mensagem recebido para valores canônicos (text/audio/image/video/document).
         $candidates = [
             trim($tipoMensagem),
@@ -224,7 +229,7 @@ class UazapiJob implements ShouldQueue
 
             $lower = Str::lower($value);
 
-            if (in_array($lower, ['text', 'conversation'], true)) {
+            if (in_array($lower, ['text', 'conversation', 'message'], true)) {
                 return 'text';
             }
 
@@ -244,7 +249,11 @@ class UazapiJob implements ShouldQueue
                 return 'document';
             }
 
-            return null;
+            continue;
+        }
+
+        if ($hasText) {
+            return 'text';
         }
 
         return null;
@@ -495,6 +504,157 @@ class UazapiJob implements ShouldQueue
     private function userStatus(Conexao $conexao): bool
     {
         return !empty($conexao->cliente) && !empty($conexao->cliente->user_id);
+    }
+
+    private function buildUnsupportedTipoLogContext(
+        array $payload,
+        array $chat,
+        array $message,
+        string $tipoMensagem,
+        mixed $text,
+        bool $fromMe,
+        bool $isGroup
+    ): array {
+        $content = Arr::get($message, 'content');
+        $contentArray = is_array($content) ? $content : [];
+
+        return [
+            'payload_tipo' => trim($tipoMensagem),
+            'normalize_tipo_candidates' => $this->unsupportedTipoCandidates($tipoMensagem, $message),
+            'from_me' => $fromMe,
+            'is_group' => $isGroup,
+            'message_text_preview' => $this->stringPreview(Arr::get($message, 'text')),
+            'content_text_preview' => $this->stringPreview(Arr::get($message, 'content.text')),
+            'content_caption_preview' => $this->stringPreview(Arr::get($message, 'content.caption')),
+            'resolved_text_preview' => $this->stringPreview($text),
+            'payload_keys' => array_values(array_map('strval', array_keys($payload))),
+            'chat_keys' => array_values(array_map('strval', array_keys($chat))),
+            'message_keys' => array_values(array_map('strval', array_keys($message))),
+            'content_keys' => array_values(array_map('strval', array_keys($contentArray))),
+            'ad_related_hints' => $this->extractAdRelatedHints($payload, $chat, $message),
+            'message_snapshot' => $this->sanitizeUnsupportedTipoSnapshot($message),
+            'chat_snapshot' => $this->sanitizeUnsupportedTipoSnapshot($chat),
+        ];
+    }
+
+    private function unsupportedTipoCandidates(string $tipoMensagem, array $message): array
+    {
+        return [
+            'payload.tipo' => trim($tipoMensagem),
+            'message.messageType' => $this->stringPreview(Arr::get($message, 'messageType')),
+            'message.mediaType' => $this->stringPreview(Arr::get($message, 'mediaType')),
+            'message.type' => $this->stringPreview(Arr::get($message, 'type')),
+            'message.content.type' => $this->stringPreview(Arr::get($message, 'content.type')),
+            'message.content.messageType' => $this->stringPreview(Arr::get($message, 'content.messageType')),
+            'message.content.mediaType' => $this->stringPreview(Arr::get($message, 'content.mediaType')),
+        ];
+    }
+
+    private function extractAdRelatedHints(array $payload, array $chat, array $message): array
+    {
+        $paths = [
+            'payload.source' => Arr::get($payload, 'source'),
+            'payload.origin' => Arr::get($payload, 'origin'),
+            'payload.referral' => Arr::get($payload, 'referral'),
+            'chat.source' => Arr::get($chat, 'source'),
+            'chat.origin' => Arr::get($chat, 'origin'),
+            'chat.referral' => Arr::get($chat, 'referral'),
+            'chat.campaign' => Arr::get($chat, 'campaign'),
+            'message.source' => Arr::get($message, 'source'),
+            'message.origin' => Arr::get($message, 'origin'),
+            'message.referral' => Arr::get($message, 'referral'),
+            'message.referralCtwaClid' => Arr::get($message, 'referralCtwaClid'),
+            'message.contextInfo' => Arr::get($message, 'contextInfo'),
+            'message.content.referral' => Arr::get($message, 'content.referral'),
+            'message.content.contextInfo' => Arr::get($message, 'content.contextInfo'),
+            'message.content.ad' => Arr::get($message, 'content.ad'),
+            'message.content.ads' => Arr::get($message, 'content.ads'),
+        ];
+
+        $filtered = [];
+        foreach ($paths as $key => $value) {
+            if ($value === null || $value === '' || $value === []) {
+                continue;
+            }
+
+            $filtered[$key] = $this->sanitizeUnsupportedTipoSnapshot($value, 0, 6, 2);
+        }
+
+        return $filtered;
+    }
+
+    private function sanitizeUnsupportedTipoSnapshot($value, int $depth = 0, int $maxItems = 12, int $maxDepth = 3)
+    {
+        if ($depth >= $maxDepth) {
+            return '[depth_limit]';
+        }
+
+        if (is_array($value)) {
+            $result = [];
+            $count = 0;
+            foreach ($value as $key => $item) {
+                if ($count >= $maxItems) {
+                    $result['__truncated_keys'] = max(0, count($value) - $count);
+                    break;
+                }
+
+                $keyString = (string) $key;
+                if ($this->shouldRedactUnsupportedTipoKey($keyString)) {
+                    $result[$keyString] = '[redacted]';
+                } else {
+                    $result[$keyString] = $this->sanitizeUnsupportedTipoSnapshot($item, $depth + 1, $maxItems, $maxDepth);
+                }
+
+                $count++;
+            }
+
+            return $result;
+        }
+
+        if (is_object($value)) {
+            return $this->sanitizeUnsupportedTipoSnapshot((array) $value, $depth + 1, $maxItems, $maxDepth);
+        }
+
+        if (is_string($value)) {
+            return $this->stringPreview($value, 240);
+        }
+
+        return $value;
+    }
+
+    private function shouldRedactUnsupportedTipoKey(string $key): bool
+    {
+        $normalized = Str::lower($key);
+
+        return in_array($normalized, [
+            'token',
+            'url',
+            'directpath',
+            'mediakey',
+            'jpegthumbnail',
+            'thumbnail',
+            'base64',
+            'authorization',
+        ], true) || Str::contains($normalized, [
+            'api_key',
+            'apikey',
+            'secret',
+            'signature',
+        ]);
+    }
+
+    private function stringPreview($value, int $limit = 160): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $normalized = preg_replace('/\s+/', ' ', trim($value));
+        if (!is_string($normalized) || $normalized === '') {
+            return null;
+        }
+
+        return Str::limit($normalized, $limit, '...');
     }
 
     private function logContext(array $extra = []): array

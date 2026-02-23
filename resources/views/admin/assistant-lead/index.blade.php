@@ -8,7 +8,7 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('adm.assistant-lead.index') }}" class="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-4">
+    <form method="GET" action="{{ route('adm.assistant-lead.index') }}" class="mb-6 grid grid-cols-1 gap-3 lg:grid-cols-5">
         <div>
             <label for="assistantLeadSearch" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Buscar por nome ou telefone</label>
             <input
@@ -19,6 +19,21 @@
                 placeholder="Ex.: Maria ou 551199999999"
                 class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
             >
+        </div>
+        <div>
+            <label for="assistantLeadUserFilter" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Usuário</label>
+            <select
+                id="assistantLeadUserFilter"
+                name="user_id"
+                class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+                <option value="">Todos</option>
+                @foreach(($users ?? collect()) as $user)
+                    <option value="{{ $user->id }}" @selected((int) ($userId ?? 0) === (int) $user->id)>
+                        {{ $user->name }} ({{ $user->email }})
+                    </option>
+                @endforeach
+            </select>
         </div>
         <div>
             <label for="assistantLeadClienteFilter" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</label>
@@ -48,7 +63,7 @@
         </div>
         <div class="flex items-end gap-2">
             <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Filtrar</button>
-            @if(!empty($search) || !empty($clienteId) || !empty($assistantId))
+            @if(!empty($search) || !empty($userId) || !empty($clienteId) || !empty($assistantId))
                 <a href="{{ route('adm.assistant-lead.index') }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Limpar</a>
             @endif
         </div>
@@ -61,6 +76,7 @@
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">ID</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Lead</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Assistente</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Bot</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Conv ID</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Criado em</th>
                     <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Acoes</th>
@@ -75,6 +91,17 @@
                             <div class="text-xs text-slate-400">{{ $assistantLead->lead?->cliente?->nome ?? '-' }}</div>
                         </td>
                         <td class="px-5 py-4 text-slate-600">{{ $assistantLead->assistant?->name ?? '-' }}</td>
+                        <td class="px-5 py-4">
+                            @if($assistantLead->lead)
+                                @if($assistantLead->lead->bot_enabled)
+                                    <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Ativo</span>
+                                @else
+                                    <span class="inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Desativado</span>
+                                @endif
+                            @else
+                                <span class="text-slate-400">-</span>
+                            @endif
+                        </td>
                         <td class="px-5 py-4 text-slate-600">{{ $assistantLead->conv_id ?? '-' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $assistantLead->created_at?->format('d/m/Y H:i') ?? '-' }}</td>
                         <td class="px-5 py-4">
@@ -105,7 +132,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-6 text-center text-slate-500">Nenhum registro encontrado.</td>
+                        <td colspan="7" class="px-5 py-6 text-center text-slate-500">Nenhum registro encontrado.</td>
                     </tr>
                 @endforelse
             </tbody>
