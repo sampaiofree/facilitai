@@ -70,6 +70,34 @@ class OpenAIOrchestratorService
             return IAResult::error('OpenAI exception.', 'openai');
         }
 
+        if ($response->failed() && $this->isConversationNotFoundResponse($response, $assistantLead->conv_id)) {
+            $recoveredAssistantLead = $this->resetConversationAfterNotFound(
+                $assistantLead,
+                $assistant,
+                $openAiService,
+                $systemPrompt,
+                $logContext,
+                $response
+            );
+
+            if ($recoveredAssistantLead && !empty($recoveredAssistantLead->conv_id)) {
+                $assistantLead = $recoveredAssistantLead;
+                $payload['conversation_id'] = $assistantLead->conv_id;
+                $requestPayload['conversation'] = $assistantLead->conv_id;
+
+                $response = $openAiService->createResponse($requestPayload, $this->openAiRequestOptions($logContext));
+                if (!$response) {
+                    Log::channel('ia_orchestrator')->warning(
+                        'OpenAIService createResponse exception after conversation reset',
+                        $this->logContext($payload, $conexao, array_merge($logContext, [
+                            'conversation_recovery' => 'conv_id_reset_retry',
+                        ]))
+                    );
+                    return IAResult::error('OpenAI exception.', 'openai');
+                }
+            }
+        }
+
         if ($response->failed()) {
             $this->handleOpenAIError($response, 'createResponse', $logContext);
             return IAResult::error('OpenAI error.', 'openai', $response->json());
@@ -538,6 +566,122 @@ class OpenAIOrchestratorService
         }
 
         return null;
+    }
+
+    private function isConversationNotFoundResponse(Response $response, ?string $expectedConversationId = null): bool
+    {
+        if ($response->status() !== 400) {
+            return false;
+        }
+
+        $message = $this->extractOpenAIErrorMessage($response);
+        if (!$message) {
+            return false;
+        }
+
+        $lower = Str::lower($message);
+        if (!str_contains($lower, 'conversation with id') || !str_contains($lower, 'not found')) {
+            return false;
+        }
+
+        $missingConversationId = $this->extractConversationIdFromNotFoundMessage($message);
+        if ($expectedConversationId && $missingConversationId && $missingConversationId !== $expectedConversationId) {
+            Log::channel('ia_orchestrator')->warning('OpenAI conversation not found com conv_id diferente do assistant_lead.', [
+                'expected_conversation_id' => $expectedConversationId,
+                'missing_conversation_id' => $missingConversationId,
+            ]);
+        }
+
+        return true;
+    }
+
+    private function resetConversationAfterNotFound(
+        AssistantLead $assistantLead,
+        Assistant $assistant,
+        OpenAIService $openAiService,
+        string $systemPrompt,
+        array $logContext,
+        Response $failedResponse
+    ): ?AssistantLead {
+        $oldConversationId = is_string($assistantLead->conv_id ?? null) ? (string) $assistantLead->conv_id : null;
+        if (!$oldConversationId) {
+            return null;
+        }
+
+        $errorMessage = $this->extractOpenAIErrorMessage($failedResponse);
+
+        Log::channel('ia_orchestrator')->warning('OpenAI conversation not found; resetando conv_id e tentando novamente.', array_merge(
+            $logContext,
+            [
+                'assistant_lead_id' => $assistantLead->id,
+                'old_conversation_id' => $oldConversationId,
+                'openai_error_message' => $errorMessage,
+            ]
+        ));
+
+        try {
+            $assistantLead->conv_id = null;
+            $assistantLead->save();
+        } catch (\Throwable $e) {
+            Log::channel('ia_orchestrator')->error('Falha ao resetar conv_id após conversation not found.', array_merge(
+                $logContext,
+                [
+                    'assistant_lead_id' => $assistantLead->id,
+                    'old_conversation_id' => $oldConversationId,
+                    'error' => $e->getMessage(),
+                ]
+            ));
+            return null;
+        }
+
+        $refreshed = $assistantLead->fresh();
+        if ($refreshed instanceof AssistantLead) {
+            $assistantLead = $refreshed;
+        }
+
+        $assistantLead = $this->ensureConversation($assistantLead, $assistant, $openAiService, $systemPrompt, $logContext);
+        if (!$assistantLead || empty($assistantLead->conv_id)) {
+            Log::channel('ia_orchestrator')->warning('Nao foi possivel recriar conversation apos reset de conv_id.', array_merge(
+                $logContext,
+                [
+                    'assistant_lead_id' => $refreshed?->id ?? $assistantLead?->id ?? null,
+                    'old_conversation_id' => $oldConversationId,
+                ]
+            ));
+            return null;
+        }
+
+        Log::channel('ia_orchestrator')->info('Conversation recriada apos not found; retry do createResponse sera executado.', array_merge(
+            $logContext,
+            [
+                'assistant_lead_id' => $assistantLead->id,
+                'old_conversation_id' => $oldConversationId,
+                'new_conversation_id' => $assistantLead->conv_id,
+            ]
+        ));
+
+        return $assistantLead;
+    }
+
+    private function extractOpenAIErrorMessage(Response $response): ?string
+    {
+        $message = $response->json('error.message');
+        if (!is_string($message)) {
+            return null;
+        }
+
+        $message = trim($message);
+        return $message !== '' ? $message : null;
+    }
+
+    private function extractConversationIdFromNotFoundMessage(string $message): ?string
+    {
+        if (preg_match('/conversation with id [\'"]([^\'"]+)[\'"] not found/i', $message, $matches) !== 1) {
+            return null;
+        }
+
+        $conversationId = trim((string) ($matches[1] ?? ''));
+        return $conversationId !== '' ? $conversationId : null;
     }
 
     private function handleOpenAIError($response, string $context, array $logContext): void

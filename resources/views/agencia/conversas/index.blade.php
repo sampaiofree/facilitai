@@ -155,13 +155,24 @@
                     id="exportToggle"
                     class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 flex items-center gap-2"
                 >
-                    Exportar
+                    Ações
                     <svg class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </button>
-                <div id="exportMenu" class="hidden absolute right-0 mt-1 w-40 rounded-2xl border border-slate-200 bg-white shadow-lg">
-                    <a href="{{ $exportXlsx }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">XLSX</a>
-                    <a href="{{ $exportCsv }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">CSV</a>
-                    <a href="{{ $exportPdf }}" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">PDF</a>
+                <div id="exportMenu" class="hidden absolute right-0 mt-1 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg">
+                    <p class="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Ações</p>
+                    <button
+                        type="button"
+                        id="activateBotForAllAction"
+                        class="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+                    >
+                        <span>Ativar bot para todos</span>
+                        <span class="text-[11px] font-medium text-emerald-600">Filtros atuais</span>
+                    </button>
+                    <div class="my-2 border-t border-slate-100"></div>
+                    <p class="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Exportar</p>
+                    <a href="{{ $exportXlsx }}" data-export-format="xlsx" class="mt-1 block rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">XLSX</a>
+                    <a href="{{ $exportCsv }}" data-export-format="csv" class="block rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">CSV</a>
+                    <a href="{{ $exportPdf }}" data-export-format="pdf" class="block rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">PDF</a>
                 </div>
             </div>
             <button
@@ -595,6 +606,8 @@
             const csvDelimiterSelect = document.querySelector('[data-csv-delimiter]');
             const exportToggle = document.getElementById('exportToggle');
             const exportMenu = document.getElementById('exportMenu');
+            const activateBotForAllAction = document.getElementById('activateBotForAllAction');
+            const exportMenuLinks = Array.from(document.querySelectorAll('[data-export-format]'));
             const filtersToggle = document.getElementById('filtersToggle');
             const filtersMenu = document.getElementById('filtersMenu');
             const leadSearchInput = document.getElementById('leadSearchInput');
@@ -622,6 +635,8 @@
             const sendMessageUrlTemplate = @json(route('agencia.conversas.send-message', ['clienteLead' => '__LEAD_ID__']));
             const scheduledMessagesUrlTemplate = @json(route('agencia.conversas.scheduled-messages.index', ['clienteLead' => '__LEAD_ID__']));
             const cancelScheduledMessageUrlTemplate = @json(route('agencia.conversas.scheduled-messages.cancel', ['scheduledMessage' => '__SCHEDULE_ID__']));
+            const activateBotForAllUrl = @json(route('agencia.conversas.activate-bot-all'));
+            const exportBaseUrl = @json(route('agencia.conversas.export'));
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
             let previewHeaders = [];
             let previewRows = [];
@@ -630,8 +645,43 @@
             let currentLead = null;
             let currentAssistant = null;
 
+            const buildFilteredActionUrl = (baseUrl, extraParams = {}) => {
+                const url = new URL(baseUrl, window.location.origin);
+                const currentUrl = new URL(window.location.href);
+
+                currentUrl.searchParams.forEach((value, key) => {
+                    if (key === 'page') {
+                        return;
+                    }
+                    url.searchParams.append(key, value);
+                });
+
+                Object.entries(extraParams).forEach(([key, value]) => {
+                    if (value === null || value === undefined || value === '') {
+                        return;
+                    }
+
+                    url.searchParams.delete(key);
+                    url.searchParams.append(key, String(value));
+                });
+
+                return url.toString();
+            };
+
+            const refreshExportMenuLinks = () => {
+                exportMenuLinks.forEach(link => {
+                    const format = link.dataset.exportFormat;
+                    if (!format) {
+                        return;
+                    }
+
+                    link.href = buildFilteredActionUrl(exportBaseUrl, { format });
+                });
+            };
+
             if (exportToggle && exportMenu) {
                 exportToggle.addEventListener('click', () => {
+                    refreshExportMenuLinks();
                     exportMenu.classList.toggle('hidden');
                 });
                 document.addEventListener('click', (event) => {
@@ -640,6 +690,51 @@
                     }
                 });
             }
+
+            activateBotForAllAction?.addEventListener('click', async () => {
+                const confirmed = window.confirm('Ativar o bot para todos os leads encontrados pelos filtros atuais? Esta ação considera todas as páginas.');
+                if (!confirmed) {
+                    return;
+                }
+
+                exportMenu?.classList.add('hidden');
+
+                const originalHtml = activateBotForAllAction.innerHTML;
+                activateBotForAllAction.disabled = true;
+                activateBotForAllAction.classList.add('opacity-60', 'pointer-events-none');
+                activateBotForAllAction.textContent = 'Ativando...';
+
+                try {
+                    const response = await fetch(buildFilteredActionUrl(activateBotForAllUrl), {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                    });
+
+                    let payload = {};
+                    try {
+                        payload = await response.json();
+                    } catch (error) {
+                        payload = {};
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'Nao foi possivel ativar o bot em lote.');
+                    }
+
+                    window.alert(payload.message || 'Bot ativado para os leads filtrados.');
+                    await fetchLeads(window.location.href);
+                } catch (error) {
+                    window.alert(error.message || 'Nao foi possivel ativar o bot em lote.');
+                } finally {
+                    activateBotForAllAction.disabled = false;
+                    activateBotForAllAction.classList.remove('opacity-60', 'pointer-events-none');
+                    activateBotForAllAction.innerHTML = originalHtml || '<span>Ativar bot para todos</span>';
+                }
+            });
 
             if (filtersToggle && filtersMenu) {
                 filtersToggle.addEventListener('click', () => {

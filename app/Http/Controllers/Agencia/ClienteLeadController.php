@@ -71,6 +71,50 @@ class ClienteLeadController extends Controller
             ->with('success', 'Lead removido com sucesso.');
     }
 
+    public function activateBotForAll(Request $request): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        [, , , , , $query] = $this->buildFilteredQuery($request, $user);
+
+        $matchedCount = (clone $query)->count();
+        $updatedCount = 0;
+
+        if ($matchedCount > 0) {
+            $updatedCount = (clone $query)
+                ->where(function ($builder) {
+                    $builder->where('bot_enabled', false)
+                        ->orWhereNull('bot_enabled');
+                })
+                ->update([
+                    'bot_enabled' => true,
+                ]);
+        }
+
+        if ($matchedCount === 0) {
+            $message = 'Nenhum lead encontrado com os filtros atuais.';
+        } elseif ($updatedCount === 0) {
+            $message = 'Todos os leads filtrados já estavam com o bot ativado.';
+        } else {
+            $message = sprintf(
+                'Bot ativado em %d lead(s). Total considerado pelos filtros: %d.',
+                $updatedCount,
+                $matchedCount
+            );
+        }
+
+        if ($request->ajax() || $request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'matched_count' => $matchedCount,
+                'updated_count' => $updatedCount,
+            ]);
+        }
+
+        return redirect()
+            ->route('agencia.conversas.index', $request->query())
+            ->with('success', $message);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $user = $request->user();

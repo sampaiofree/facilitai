@@ -332,6 +332,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('sequence', [AgenciaSequenceController::class, 'index'])->name('sequences.index');
     Route::get('conversas', [AgenciaClienteLeadController::class, 'index'])->name('conversas.index');
     Route::post('conversas', [AgenciaClienteLeadController::class, 'store'])->name('conversas.store');
+    Route::post('conversas/ativar-bot-todos', [AgenciaClienteLeadController::class, 'activateBotForAll'])->name('conversas.activate-bot-all');
     Route::post('conversas/{clienteLead}/send-message', [AgenciaClienteLeadController::class, 'sendMessage'])->name('conversas.send-message');
     Route::get('conversas/{clienteLead}/scheduled-messages', [AgenciaClienteLeadController::class, 'scheduledMessages'])->name('conversas.scheduled-messages.index');
     Route::delete('conversas/scheduled-messages/{scheduledMessage}', [AgenciaClienteLeadController::class, 'cancelScheduledMessage'])->name('conversas.scheduled-messages.cancel');
