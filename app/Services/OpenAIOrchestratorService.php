@@ -57,6 +57,7 @@ class OpenAIOrchestratorService
             'model' => $model,
             'input' => $input,
             'conversation' => $assistantLead->conv_id,
+            'truncation'=> 'auto'
         ];
 
         $tools = ToolsFactory::fromSystemPrompt($systemPrompt);
@@ -472,6 +473,7 @@ class OpenAIOrchestratorService
                 'model' => $context['model'] ?? 'gpt-4.1-mini',
                 'input' => $toolOutputs,
                 'conversation' => $conversationId,
+                'truncation' => 'auto',
             ];
 
             $current = $openAI->createResponse($payload, $requestOptions);
