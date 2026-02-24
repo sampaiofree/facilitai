@@ -3,6 +3,7 @@
   $marketingDemoUrl = $marketingWhatsappNumber !== ''
       ? 'https://wa.me/' . $marketingWhatsappNumber . '?text=' . rawurlencode('Olá quero saber mais sobre o FacilitAI.')
       : '#';
+  $metaPixelId = preg_replace('/\D/', '', (string) config('services.meta.pixel_id')) ?: '';
 @endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -12,6 +13,24 @@
   <title>Assistente IA para WhatsApp - FacilitAI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  @if($metaPixelId !== '')
+  <!-- Meta Pixel -->
+  <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '{{ $metaPixelId }}');
+    fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id={{ $metaPixelId }}&ev=PageView&noscript=1"
+  /></noscript>
+  @endif
   <style>
     html { scroll-behavior: smooth; }
     .gradient-text {
@@ -47,8 +66,9 @@
       </div>
 
       <!-- CTA -->
-      <a href="{{ $marketingDemoUrl }}" 
-         class="inline-block bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-xl py-5 px-12 rounded-full shadow-lg hover:shadow-emerald-500/40 hover:-translate-y-1 transition-all duration-300">
+      <a href="{{ $marketingDemoUrl }}"
+         data-cta-position="hero"
+         class="js-wa-cta inline-block bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-xl py-5 px-12 rounded-full shadow-lg hover:shadow-emerald-500/40 hover:-translate-y-1 transition-all duration-300">
          🗓️ Agendar minha demonstração gratuita
       </a>
       <p class="text-gray-500 text-sm mt-3">Sem custo, sem compromisso — veja ao vivo como seu atendimento pode ser automatizado.</p>
@@ -135,7 +155,8 @@
 
         <a href="{{ $marketingDemoUrl }}"
             target="_blank"
-            class="inline-block w-full rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-4 text-center font-semibold text-white shadow-md hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-500/30 transition-all duration-300">
+            data-cta-position="planos"
+            class="js-wa-cta inline-block w-full rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-4 text-center font-semibold text-white shadow-md hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-500/30 transition-all duration-300">
             💬 Agendar Demonstração via WhatsApp
         </a>
         </div>
@@ -206,13 +227,30 @@
       <p class="text-lg mb-10 opacity-90">
         Clique abaixo e veja na prática o que o <strong>Assistente de IA do FacilitAI</strong> pode fazer pela sua empresa.
       </p>
-      <a href="{{ $marketingDemoUrl }}" 
-         class="inline-block bg-white text-emerald-600 font-bold text-xl py-5 px-12 rounded-full shadow-lg hover:-translate-y-1 hover:bg-gray-100 transition-all duration-300">
+      <a href="{{ $marketingDemoUrl }}"
+         data-cta-position="cta_final"
+         class="js-wa-cta inline-block bg-white text-emerald-600 font-bold text-xl py-5 px-12 rounded-full shadow-lg hover:-translate-y-1 hover:bg-gray-100 transition-all duration-300">
          🚀 Agendar minha demonstração gratuita
       </a>
     </div>
   </section>
 
-  @include('homepage.footer') 
+  <script>
+    (() => {
+      const hasFbq = () => typeof window.fbq === 'function';
+
+      document.querySelectorAll('.js-wa-cta').forEach((cta) => {
+        cta.addEventListener('click', () => {
+          if (!hasFbq()) return;
+
+          window.fbq('track', 'Lead', {
+            lead_source: 'lp4_whatsapp_cta',
+            cta_position: cta.dataset.ctaPosition || 'unknown',
+            page_path: window.location.pathname,
+          });
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
