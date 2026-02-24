@@ -65,5 +65,11 @@ return [
     'dev' => [
         'whatsapp' => env('DEV_WHATSAPP'),
     ],
+    'marketing' => [
+        'whatsapp' => env('WHATSAPP_MARKETING'),
+    ],
+    'meta' => [
+        'pixel_id' => env('META_PIXELID', env('META_PIXEL_ID')),
+    ],
 
 ];

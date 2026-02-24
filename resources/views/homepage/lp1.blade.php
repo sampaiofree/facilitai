@@ -1,3 +1,9 @@
+@php
+    $marketingWhatsappNumber = preg_replace('/\D/', '', (string) config('services.marketing.whatsapp')) ?: '';
+    $marketingDemoUrl = $marketingWhatsappNumber !== ''
+        ? 'https://wa.me/' . $marketingWhatsappNumber . '?text=' . rawurlencode('Olá quero saber mais sobre o FacilitAI.')
+        : '#';
+@endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -200,7 +206,7 @@
             </div>
         </div>
 
-        <a href="https://wa.me/5562995772922?text=Olá quero saber mais sobre o FacilitAI."
+        <a href="{{ $marketingDemoUrl }}"
             target="_blank"
             class="inline-block w-full rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-4 text-center font-semibold text-white shadow-md hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-500/30 transition-all duration-300">
             💬 Agendar Demonstração via WhatsApp

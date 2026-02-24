@@ -1,9 +1,20 @@
+@php
+    $marketingWhatsappNumber = preg_replace('/\D/', '', (string) config('services.marketing.whatsapp')) ?: '';
+    $cidadeWhatsappMelhorarUrl = $marketingWhatsappNumber !== ''
+        ? 'https://wa.me/' . $marketingWhatsappNumber . '?text=' . rawurlencode('Oi Bruno, quero melhorar meu atendimento com IA')
+        : '#';
+    $cidadeWhatsappAnaliseUrl = $marketingWhatsappNumber !== ''
+        ? 'https://wa.me/' . $marketingWhatsappNumber . '?text=' . rawurlencode('Oi Bruno, quero uma análise gratuita para meu negócio')
+        : '#';
+    $metaPixelId = preg_replace('/\D/', '', (string) config('services.meta.pixel_id')) ?: '';
+@endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Não Perca Mais Vendas no WhatsApp | Automação com IA</title>
+    @if($metaPixelId !== '')
     <!-- Meta Pixel -->
     <script>
         !function(f,b,e,v,n,t,s)
@@ -14,12 +25,13 @@
         t.src=v;s=b.getElementsByTagName(e)[0];
         s.parentNode.insertBefore(t,s)}(window, document,'script',
         'https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init', '1339553054499040');
+        fbq('init', '{{ $metaPixelId }}');
         fbq('track', 'PageView');
     </script>
     <noscript><img height="1" width="1" style="display:none"
-        src="https://www.facebook.com/tr?id=1339553054499040&ev=PageView&noscript=1"
+        src="https://www.facebook.com/tr?id={{ $metaPixelId }}&ev=PageView&noscript=1"
     /></noscript>
+    @endif
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html { scroll-behavior: smooth; }
@@ -101,7 +113,7 @@
             </p>
 
             <div class="cta-group">
-                <a href="https://wa.me/5562995772922?text=Oi%20Bruno,%20quero%20melhorar%20meu%20atendimento%20com%20IA" 
+                <a href="{{ $cidadeWhatsappMelhorarUrl }}" 
                    class="whatsapp-btn" 
                    target="_blank">
                     <span class="whatsapp-icon">💬</span>
@@ -226,7 +238,7 @@
                 <p class="about-text">
                     "Olá, eu sou o Bruno. Minha especialidade é ajudar empresários locais como você a usar a tecnologia para vender mais, sem complicação. <strong>Não sou uma grande agência, sou eu quem vai analisar seu negócio</strong> e te ajudar a implementar uma solução que realmente funciona. Vamos conversar?"
                 </p>
-                 <a href="https://wa.me/5562995772922?text=Oi%20Bruno,%20quero%20melhorar%20meu%20atendimento%20com%20IA" 
+                 <a href="{{ $cidadeWhatsappMelhorarUrl }}" 
                    class="whatsapp-btn" 
                    target="_blank">
                     <span class="whatsapp-icon">💬</span>
@@ -237,7 +249,7 @@
     </section>
     
     <div class="sticky-cta">
-        <a href="https://wa.me/5562995772922?text=Oi%20Bruno,%20quero%20uma%20an%C3%A1lise%20gratuita%20para%20meu%20neg%C3%B3cio" 
+        <a href="{{ $cidadeWhatsappAnaliseUrl }}" 
            class="whatsapp-btn" 
            target="_blank">
             <span class="whatsapp-icon">💬</span>

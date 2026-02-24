@@ -1,3 +1,9 @@
+@php
+  $marketingWhatsappNumber = preg_replace('/\D/', '', (string) config('services.marketing.whatsapp')) ?: '';
+  $marketingDemoUrl = $marketingWhatsappNumber !== ''
+      ? 'https://wa.me/' . $marketingWhatsappNumber . '?text=' . rawurlencode('Olá quero saber mais sobre o FacilitAI.')
+      : '#';
+@endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -41,7 +47,7 @@
       </div>
 
       <!-- CTA -->
-      <a href="https://wa.me/5562995772922?text=Olá quero saber mais sobre o FacilitAI." 
+      <a href="{{ $marketingDemoUrl }}" 
          class="inline-block bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-xl py-5 px-12 rounded-full shadow-lg hover:shadow-emerald-500/40 hover:-translate-y-1 transition-all duration-300">
          🗓️ Agendar minha demonstração gratuita
       </a>
@@ -55,7 +61,7 @@
             <!-- VÍDEO DEMONSTRATIVO -->
             <div class="relative w-full max-w-[600px] overflow-hidden rounded-3xl shadow-2xl border border-slate-200">
             <video autoplay muted loop playsinline class="w-full rounded-3xl">
-                <source src="{{ asset('storage/homepage/demontracao_conversa-6.mp4') }}" type="video/mp4">
+                <source src="{{ asset('homepage/demontracao_conversa-6.mp4') }}" type="video/mp4">
                 Seu navegador não suporta vídeos.
             </video>
             </div>
@@ -127,7 +133,7 @@
             </div>
         </div>
 
-        <a href="https://wa.me/5562995772922?text=Olá quero saber mais sobre o FacilitAI."
+        <a href="{{ $marketingDemoUrl }}"
             target="_blank"
             class="inline-block w-full rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-4 text-center font-semibold text-white shadow-md hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-500/30 transition-all duration-300">
             💬 Agendar Demonstração via WhatsApp
@@ -200,7 +206,7 @@
       <p class="text-lg mb-10 opacity-90">
         Clique abaixo e veja na prática o que o <strong>Assistente de IA do FacilitAI</strong> pode fazer pela sua empresa.
       </p>
-      <a href="https://wa.me/5562995772922?text=Olá quero saber mais sobre o FacilitAI." 
+      <a href="{{ $marketingDemoUrl }}" 
          class="inline-block bg-white text-emerald-600 font-bold text-xl py-5 px-12 rounded-full shadow-lg hover:-translate-y-1 hover:bg-gray-100 transition-all duration-300">
          🚀 Agendar minha demonstração gratuita
       </a>

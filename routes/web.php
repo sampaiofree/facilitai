@@ -68,10 +68,8 @@ Route::get('/facilitai', function () {return redirect()->route('lp4');});
 Route::get('/planos', function () {return redirect()->route('lp4');});
 
 //MODELOS DE PÁGINAS COM PLANOS
-Route::get('/lp-1', function () {return view('homepage.lp1');})->name('lp1');
-Route::get('/lp-2', function () {return view('homepage.lp2');})->name('lp2');
-Route::get('/lp-3', function () {return view('homepage.lp3');})->name('lp3');
-Route::get('/lp-4', function () {return view('homepage.lp4');})->name('lp4');
+// Rotas p?blicas de landing pages (arquivo dedicado)
+require __DIR__ . '/lp.php';
 
 // Nova página pública de planos com o layout FacilitAI
 Route::get('/facilitai-pricing', [HomepageController::class, 'facilitaiPricing'])->name('facilitai.pricing');
@@ -411,3 +409,5 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::resource('images', \App\Http\Controllers\Cliente\ClienteImageController::class)->only(['index', 'store', 'destroy', 'update']);
     });
 });
+
+
