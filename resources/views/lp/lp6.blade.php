@@ -482,7 +482,12 @@
 
     document.querySelectorAll('.js-wa-cta').forEach((cta) => {
         cta.addEventListener('click', () => {
-            track('Contact', { cta_position: cta.dataset.ctaPosition || 'unknown' });
+            const ctaPosition = cta.dataset.ctaPosition || 'unknown';
+            track('Contact', { cta_position: ctaPosition });
+            track('Lead', {
+                cta_position: ctaPosition,
+                lead_source: 'lp6_whatsapp_cta',
+            });
         });
     });
 
