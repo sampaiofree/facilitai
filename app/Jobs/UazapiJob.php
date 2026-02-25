@@ -100,6 +100,14 @@ class UazapiJob implements ShouldQueue
                 ], $conexao)
             );
 
+            $messageTypeNormalized = Str::lower(trim((string) $messageType));
+            $tipoMensagemNormalized = Str::lower(trim($tipoMensagem));
+            if ($messageTypeNormalized === 'reactionmessage' || $tipoMensagemNormalized === 'reactionmessage') {
+                $status = 'ignored';
+                $reason = 'reaction_message';
+                return;
+            }
+
             if (!$this->deduplicateEvent($conexao, $phone, $eventId, $messageType, $messageTimestamp, $text)) {
                 $status = 'ignored';
                 $reason = 'duplicado';
