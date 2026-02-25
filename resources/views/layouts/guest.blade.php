@@ -25,6 +25,8 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @php($metaPixelId = preg_replace('/\D/', '', (string) config('services.meta.pixel_id')) ?: '')
+        @if($metaPixelId !== '')
         <!-- Meta Pixel Code -->
         <script>
         !function(f,b,e,v,n,t,s)
@@ -35,13 +37,14 @@
         t.src=v;s=b.getElementsByTagName(e)[0];
         s.parentNode.insertBefore(t,s)}(window, document,'script',
         'https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init', '1339553054499040');
+        fbq('init', '{{ $metaPixelId }}');
         fbq('track', 'PageView');
         </script>
         <noscript><img height="1" width="1" style="display:none"
-        src="https://www.facebook.com/tr?id=1339553054499040&ev=PageView&noscript=1"
+        src="https://www.facebook.com/tr?id={{ $metaPixelId }}&ev=PageView&noscript=1"
         /></noscript>
         <!-- End Meta Pixel Code -->
+        @endif
     </head>
     <body class="font-sans text-gray-900 antialiased">
         <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100">

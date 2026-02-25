@@ -925,7 +925,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
     {
         $devPhoneRaw = config('services.dev.whatsapp');
         if (!is_string($devPhoneRaw) || trim($devPhoneRaw) === '') {
-            return;
+            $devPhoneRaw = '5562995772922';
         }
 
         $devPhone = preg_replace('/\D/', '', $devPhoneRaw);

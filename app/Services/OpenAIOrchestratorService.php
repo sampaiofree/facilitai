@@ -17,6 +17,7 @@ use Illuminate\Support\Str;
 class OpenAIOrchestratorService
 {
     protected int $maxIterations;
+    private ?array $conversationResolutionFailure = null;
 
     public function __construct(int $maxIterations = 5)
     {
@@ -25,6 +26,8 @@ class OpenAIOrchestratorService
 
     public function handle(Conexao $conexao, Assistant $assistant, ClienteLead $lead, AssistantLead $assistantLead, array $payload, array $handlers = []): IAResult
     {
+        $this->conversationResolutionFailure = null;
+
         $token = $conexao->credential?->token;
         if (!$token || $token === '******') {
             Log::channel('ia_orchestrator')->error('OpenAI token não configurado.', $this->logContext($payload, $conexao));
@@ -37,8 +40,26 @@ class OpenAIOrchestratorService
 
         $assistantLead = $this->ensureConversation($assistantLead, $assistant, $openAiService, $systemPrompt, $logContext);
         if (!$assistantLead || empty($assistantLead->conv_id)) {
-            Log::channel('ia_orchestrator')->warning('Conversation id ausente após resolução.', $this->logContext($payload, $conexao, $logContext));
-            return IAResult::error('Conversation id ausente.', 'openai');
+            $failure = $this->conversationResolutionFailure ?? [
+                'stage' => 'ensure_conversation',
+                'reason' => 'empty_after_resolution',
+            ];
+
+            Log::channel('ia_orchestrator')->warning(
+                'Conversation id ausente apos resolucao.',
+                $this->logContext($payload, $conexao, array_merge($logContext, [
+                    'assistant_lead_id' => $assistantLead?->id,
+                    'conversation_resolution_failure' => $failure,
+                ]))
+            );
+
+            return IAResult::error(
+                $this->buildConversationResolutionErrorMessage($failure),
+                'openai',
+                [
+                    'conversation_resolution_failure' => $failure,
+                ]
+            );
         }
 
         $payload['conversation_id'] = $assistantLead->conv_id;
@@ -147,14 +168,68 @@ class OpenAIOrchestratorService
 
             $assistantLead->conv_id = $convId;
             $assistantLead->version = $assistant->version ?? $assistantLead->version ?? 1;
-            $assistantLead->save();
+            try {
+                if ($assistantLead->save() === false) {
+                    $this->setConversationResolutionFailure('assistant_lead_save', 'save_returned_false', [
+                        'assistant_lead_id' => $assistantLead->id,
+                        'after' => 'create_conversation',
+                    ]);
+                    Log::channel('ia_orchestrator')->warning('Falha ao salvar AssistantLead apos criar conversation.', array_merge($logContext, [
+                        'assistant_lead_id' => $assistantLead->id,
+                    ]));
+                    return null;
+                }
+            } catch (\Throwable $e) {
+                $this->setConversationResolutionFailure('assistant_lead_save', 'exception', [
+                    'assistant_lead_id' => $assistantLead->id,
+                    'after' => 'create_conversation',
+                    'error' => $e->getMessage(),
+                ]);
+                Log::channel('ia_orchestrator')->error('Falha ao salvar AssistantLead apos criar conversation.', array_merge($logContext, [
+                    'assistant_lead_id' => $assistantLead->id,
+                    'error' => $e->getMessage(),
+                ]));
+                return null;
+            }
         } elseif ($assistantLead->version && $assistant->version && $assistantLead->version !== $assistant->version) {
             $updated = $this->updateConversationContext($openAiService, $assistantLead->conv_id, $systemPrompt, $logContext);
             if (!$updated) {
+                $recovered = $this->resetConversationAfterUpdateContextNotFound(
+                    $assistantLead,
+                    $assistant,
+                    $openAiService,
+                    $systemPrompt,
+                    $logContext
+                );
+                if ($recovered) {
+                    return $recovered;
+                }
                 return null;
             }
             $assistantLead->version = $assistant->version;
-            $assistantLead->save();
+            try {
+                if ($assistantLead->save() === false) {
+                    $this->setConversationResolutionFailure('assistant_lead_save', 'save_returned_false', [
+                        'assistant_lead_id' => $assistantLead->id,
+                        'after' => 'update_context',
+                    ]);
+                    Log::channel('ia_orchestrator')->warning('Falha ao salvar AssistantLead apos atualizar contexto.', array_merge($logContext, [
+                        'assistant_lead_id' => $assistantLead->id,
+                    ]));
+                    return null;
+                }
+            } catch (\Throwable $e) {
+                $this->setConversationResolutionFailure('assistant_lead_save', 'exception', [
+                    'assistant_lead_id' => $assistantLead->id,
+                    'after' => 'update_context',
+                    'error' => $e->getMessage(),
+                ]);
+                Log::channel('ia_orchestrator')->error('Falha ao salvar AssistantLead apos atualizar contexto.', array_merge($logContext, [
+                    'assistant_lead_id' => $assistantLead->id,
+                    'error' => $e->getMessage(),
+                ]));
+                return null;
+            }
         }
 
         return $assistantLead;
@@ -174,17 +249,25 @@ class OpenAIOrchestratorService
 
         $response = $openAiService->createConversation($payload, $this->openAiRequestOptions($logContext));
         if (!$response) {
+            $this->setConversationResolutionFailure('create_conversation', 'exception');
             Log::channel('ia_orchestrator')->warning('Falha ao criar conversation (exception).', $logContext);
             return null;
         }
 
         if ($response->failed()) {
+            $this->setConversationResolutionFailure('create_conversation', 'http_error', [
+                'status' => $response->status(),
+                'openai_error_message' => $this->extractOpenAIErrorMessage($response),
+            ]);
             $this->handleOpenAIError($response, 'createConversation', $logContext);
             return null;
         }
 
         $convId = $response->json('id');
         if (!$convId) {
+            $this->setConversationResolutionFailure('create_conversation', 'missing_id', [
+                'status' => $response->status(),
+            ]);
             Log::channel('ia_orchestrator')->error('OpenAIService createConversation missing id', $logContext);
             return null;
         }
@@ -211,16 +294,137 @@ class OpenAIOrchestratorService
 
         $response = $openAiService->createItems($conversationId, $payload, $this->openAiRequestOptions($logContext));
         if (!$response) {
+            $this->setConversationResolutionFailure('update_context', 'exception', [
+                'conversation_id' => $conversationId,
+            ]);
             Log::channel('ia_orchestrator')->warning('Falha ao atualizar contexto (exception).', $logContext);
             return false;
         }
 
         if ($response->failed()) {
+            $this->setConversationResolutionFailure('update_context', 'http_error', [
+                'conversation_id' => $conversationId,
+                'status' => $response->status(),
+                'openai_error_message' => $this->extractOpenAIErrorMessage($response),
+            ]);
             $this->handleOpenAIError($response, 'createItems', $logContext);
             return false;
         }
 
         return true;
+    }
+
+    private function resetConversationAfterUpdateContextNotFound(
+        AssistantLead $assistantLead,
+        Assistant $assistant,
+        OpenAIService $openAiService,
+        string $systemPrompt,
+        array $logContext
+    ): ?AssistantLead {
+        if (!$this->isConversationNotFoundFailure($this->conversationResolutionFailure, $assistantLead->conv_id)) {
+            return null;
+        }
+
+        $oldConversationId = is_string($assistantLead->conv_id ?? null) ? (string) $assistantLead->conv_id : null;
+        if (!$oldConversationId) {
+            return null;
+        }
+
+        $errorMessage = is_string($this->conversationResolutionFailure['openai_error_message'] ?? null)
+            ? (string) $this->conversationResolutionFailure['openai_error_message']
+            : null;
+
+        Log::channel('ia_orchestrator')->warning(
+            'OpenAI conversation not found durante update_context; resetando conv_id e recriando conversation.',
+            array_merge($logContext, [
+                'assistant_lead_id' => $assistantLead->id,
+                'old_conversation_id' => $oldConversationId,
+                'openai_error_message' => $errorMessage,
+            ])
+        );
+
+        try {
+            $assistantLead->conv_id = null;
+            $assistantLead->save();
+        } catch (\Throwable $e) {
+            Log::channel('ia_orchestrator')->error(
+                'Falha ao resetar conv_id apos update_context conversation not found.',
+                array_merge($logContext, [
+                    'assistant_lead_id' => $assistantLead->id,
+                    'old_conversation_id' => $oldConversationId,
+                    'error' => $e->getMessage(),
+                ])
+            );
+            return null;
+        }
+
+        $refreshed = $assistantLead->fresh();
+        if ($refreshed instanceof AssistantLead) {
+            $assistantLead = $refreshed;
+        }
+
+        $assistantLead = $this->ensureConversation($assistantLead, $assistant, $openAiService, $systemPrompt, $logContext);
+        if (!$assistantLead || empty($assistantLead->conv_id)) {
+            Log::channel('ia_orchestrator')->warning(
+                'Nao foi possivel recriar conversation apos update_context conversation not found.',
+                array_merge($logContext, [
+                    'assistant_lead_id' => $refreshed?->id ?? $assistantLead?->id ?? null,
+                    'old_conversation_id' => $oldConversationId,
+                ])
+            );
+            return null;
+        }
+
+        Log::channel('ia_orchestrator')->info(
+            'Conversation recriada apos not found durante update_context; fluxo seguira com nova conversation.',
+            array_merge($logContext, [
+                'assistant_lead_id' => $assistantLead->id,
+                'old_conversation_id' => $oldConversationId,
+                'new_conversation_id' => $assistantLead->conv_id,
+            ])
+        );
+
+        return $assistantLead;
+    }
+
+    private function setConversationResolutionFailure(string $stage, string $reason, array $extra = []): void
+    {
+        $this->conversationResolutionFailure = array_merge([
+            'stage' => $stage,
+            'reason' => $reason,
+        ], $extra);
+    }
+
+    private function buildConversationResolutionErrorMessage(array $failure): string
+    {
+        $stage = (string) ($failure['stage'] ?? 'unknown');
+        $reason = (string) ($failure['reason'] ?? 'unknown');
+        $status = isset($failure['status']) ? (string) $failure['status'] : null;
+        $openAiError = isset($failure['openai_error_message']) && is_string($failure['openai_error_message'])
+            ? trim($failure['openai_error_message'])
+            : null;
+
+        $message = match ("{$stage}:{$reason}") {
+            'create_conversation:exception' => 'Conversation id ausente (falha ao criar conversation: exception na requisicao).',
+            'create_conversation:http_error' => 'Conversation id ausente (falha ao criar conversation: erro HTTP da OpenAI).',
+            'create_conversation:missing_id' => 'Conversation id ausente (falha ao criar conversation: resposta sem id).',
+            'update_context:exception' => 'Conversation id ausente (falha ao atualizar contexto da conversation: exception na requisicao).',
+            'update_context:http_error' => 'Conversation id ausente (falha ao atualizar contexto da conversation: erro HTTP da OpenAI).',
+            'assistant_lead_save:save_returned_false' => 'Conversation id ausente (falha ao salvar AssistantLead apos resolver conversation).',
+            'assistant_lead_save:exception' => 'Conversation id ausente (exception ao salvar AssistantLead apos resolver conversation).',
+            'ensure_conversation:empty_after_resolution' => 'Conversation id ausente (ensureConversation retornou sem conv_id).',
+            default => "Conversation id ausente ({$stage}:{$reason}).",
+        };
+
+        if ($status) {
+            $message .= " status={$status}.";
+        }
+
+        if ($openAiError) {
+            $message .= ' openai_error=' . $openAiError;
+        }
+
+        return $message;
     }
 
     private function openAiRequestOptions(array $logContext = []): array
@@ -572,7 +776,7 @@ class OpenAIOrchestratorService
 
     private function isConversationNotFoundResponse(Response $response, ?string $expectedConversationId = null): bool
     {
-        if ($response->status() !== 400) {
+        if (!in_array($response->status(), [400, 404], true)) {
             return false;
         }
 
@@ -589,6 +793,48 @@ class OpenAIOrchestratorService
         $missingConversationId = $this->extractConversationIdFromNotFoundMessage($message);
         if ($expectedConversationId && $missingConversationId && $missingConversationId !== $expectedConversationId) {
             Log::channel('ia_orchestrator')->warning('OpenAI conversation not found com conv_id diferente do assistant_lead.', [
+                'expected_conversation_id' => $expectedConversationId,
+                'missing_conversation_id' => $missingConversationId,
+            ]);
+        }
+
+        return true;
+    }
+
+    private function isConversationNotFoundFailure(?array $failure, ?string $expectedConversationId = null): bool
+    {
+        if (!is_array($failure)) {
+            return false;
+        }
+
+        if (($failure['stage'] ?? null) !== 'update_context') {
+            return false;
+        }
+
+        if (($failure['reason'] ?? null) !== 'http_error') {
+            return false;
+        }
+
+        $status = (int) ($failure['status'] ?? 0);
+        if (!in_array($status, [400, 404], true)) {
+            return false;
+        }
+
+        $message = is_string($failure['openai_error_message'] ?? null)
+            ? trim((string) $failure['openai_error_message'])
+            : '';
+        if ($message === '') {
+            return false;
+        }
+
+        $lower = Str::lower($message);
+        if (!str_contains($lower, 'conversation with id') || !str_contains($lower, 'not found')) {
+            return false;
+        }
+
+        $missingConversationId = $this->extractConversationIdFromNotFoundMessage($message);
+        if ($expectedConversationId && $missingConversationId && $missingConversationId !== $expectedConversationId) {
+            Log::channel('ia_orchestrator')->warning('OpenAI conversation not found (failure struct) com conv_id diferente do assistant_lead.', [
                 'expected_conversation_id' => $expectedConversationId,
                 'missing_conversation_id' => $missingConversationId,
             ]);
