@@ -102,9 +102,14 @@ class UazapiJob implements ShouldQueue
 
             $messageTypeNormalized = Str::lower(trim((string) $messageType));
             $tipoMensagemNormalized = Str::lower(trim($tipoMensagem));
-            if ($messageTypeNormalized === 'reactionmessage' || $tipoMensagemNormalized === 'reactionmessage') {
+            if (
+                in_array($messageTypeNormalized, ['reactionmessage', 'templatemessage'], true) ||
+                in_array($tipoMensagemNormalized, ['reactionmessage', 'templatemessage'], true)
+            ) {
                 $status = 'ignored';
-                $reason = 'reaction_message';
+                $reason = $messageTypeNormalized === 'templatemessage' || $tipoMensagemNormalized === 'templatemessage'
+                    ? 'template_message'
+                    : 'reaction_message';
                 return;
             }
 
