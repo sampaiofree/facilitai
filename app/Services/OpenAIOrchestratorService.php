@@ -194,6 +194,16 @@ class OpenAIOrchestratorService
         } elseif ($assistantLead->version && $assistant->version && $assistantLead->version !== $assistant->version) {
             $updated = $this->updateConversationContext($openAiService, $assistantLead->conv_id, $systemPrompt, $logContext);
             if (!$updated) {
+                $recovered = $this->resetConversationAfterUpdateContextNotFound(
+                    $assistantLead,
+                    $assistant,
+                    $openAiService,
+                    $systemPrompt,
+                    $logContext
+                );
+                if ($recovered) {
+                    return $recovered;
+                }
                 return null;
             }
             $assistantLead->version = $assistant->version;
@@ -302,6 +312,79 @@ class OpenAIOrchestratorService
         }
 
         return true;
+    }
+
+    private function resetConversationAfterUpdateContextNotFound(
+        AssistantLead $assistantLead,
+        Assistant $assistant,
+        OpenAIService $openAiService,
+        string $systemPrompt,
+        array $logContext
+    ): ?AssistantLead {
+        if (!$this->isConversationNotFoundFailure($this->conversationResolutionFailure, $assistantLead->conv_id)) {
+            return null;
+        }
+
+        $oldConversationId = is_string($assistantLead->conv_id ?? null) ? (string) $assistantLead->conv_id : null;
+        if (!$oldConversationId) {
+            return null;
+        }
+
+        $errorMessage = is_string($this->conversationResolutionFailure['openai_error_message'] ?? null)
+            ? (string) $this->conversationResolutionFailure['openai_error_message']
+            : null;
+
+        Log::channel('ia_orchestrator')->warning(
+            'OpenAI conversation not found durante update_context; resetando conv_id e recriando conversation.',
+            array_merge($logContext, [
+                'assistant_lead_id' => $assistantLead->id,
+                'old_conversation_id' => $oldConversationId,
+                'openai_error_message' => $errorMessage,
+            ])
+        );
+
+        try {
+            $assistantLead->conv_id = null;
+            $assistantLead->save();
+        } catch (\Throwable $e) {
+            Log::channel('ia_orchestrator')->error(
+                'Falha ao resetar conv_id apos update_context conversation not found.',
+                array_merge($logContext, [
+                    'assistant_lead_id' => $assistantLead->id,
+                    'old_conversation_id' => $oldConversationId,
+                    'error' => $e->getMessage(),
+                ])
+            );
+            return null;
+        }
+
+        $refreshed = $assistantLead->fresh();
+        if ($refreshed instanceof AssistantLead) {
+            $assistantLead = $refreshed;
+        }
+
+        $assistantLead = $this->ensureConversation($assistantLead, $assistant, $openAiService, $systemPrompt, $logContext);
+        if (!$assistantLead || empty($assistantLead->conv_id)) {
+            Log::channel('ia_orchestrator')->warning(
+                'Nao foi possivel recriar conversation apos update_context conversation not found.',
+                array_merge($logContext, [
+                    'assistant_lead_id' => $refreshed?->id ?? $assistantLead?->id ?? null,
+                    'old_conversation_id' => $oldConversationId,
+                ])
+            );
+            return null;
+        }
+
+        Log::channel('ia_orchestrator')->info(
+            'Conversation recriada apos not found durante update_context; fluxo seguira com nova conversation.',
+            array_merge($logContext, [
+                'assistant_lead_id' => $assistantLead->id,
+                'old_conversation_id' => $oldConversationId,
+                'new_conversation_id' => $assistantLead->conv_id,
+            ])
+        );
+
+        return $assistantLead;
     }
 
     private function setConversationResolutionFailure(string $stage, string $reason, array $extra = []): void
@@ -693,7 +776,7 @@ class OpenAIOrchestratorService
 
     private function isConversationNotFoundResponse(Response $response, ?string $expectedConversationId = null): bool
     {
-        if ($response->status() !== 400) {
+        if (!in_array($response->status(), [400, 404], true)) {
             return false;
         }
 
@@ -710,6 +793,48 @@ class OpenAIOrchestratorService
         $missingConversationId = $this->extractConversationIdFromNotFoundMessage($message);
         if ($expectedConversationId && $missingConversationId && $missingConversationId !== $expectedConversationId) {
             Log::channel('ia_orchestrator')->warning('OpenAI conversation not found com conv_id diferente do assistant_lead.', [
+                'expected_conversation_id' => $expectedConversationId,
+                'missing_conversation_id' => $missingConversationId,
+            ]);
+        }
+
+        return true;
+    }
+
+    private function isConversationNotFoundFailure(?array $failure, ?string $expectedConversationId = null): bool
+    {
+        if (!is_array($failure)) {
+            return false;
+        }
+
+        if (($failure['stage'] ?? null) !== 'update_context') {
+            return false;
+        }
+
+        if (($failure['reason'] ?? null) !== 'http_error') {
+            return false;
+        }
+
+        $status = (int) ($failure['status'] ?? 0);
+        if (!in_array($status, [400, 404], true)) {
+            return false;
+        }
+
+        $message = is_string($failure['openai_error_message'] ?? null)
+            ? trim((string) $failure['openai_error_message'])
+            : '';
+        if ($message === '') {
+            return false;
+        }
+
+        $lower = Str::lower($message);
+        if (!str_contains($lower, 'conversation with id') || !str_contains($lower, 'not found')) {
+            return false;
+        }
+
+        $missingConversationId = $this->extractConversationIdFromNotFoundMessage($message);
+        if ($expectedConversationId && $missingConversationId && $missingConversationId !== $expectedConversationId) {
+            Log::channel('ia_orchestrator')->warning('OpenAI conversation not found (failure struct) com conv_id diferente do assistant_lead.', [
                 'expected_conversation_id' => $expectedConversationId,
                 'missing_conversation_id' => $missingConversationId,
             ]);
