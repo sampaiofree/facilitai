@@ -431,6 +431,7 @@ class UserController extends Controller
                     'value' => $hook->value,
                     'billing_type' => $hook->billing_type,
                     'payment_id' => $hook->payment_id,
+                    'invoice_url' => $hook->invoice_url,
                     'customer_id' => $hook->customer_id,
                     'external_reference' => $hook->external_reference,
                     'payment_at' => $hook->payment_at?->format('d/m/Y'),

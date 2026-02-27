@@ -82,6 +82,7 @@
                                                 'value' => $hook->value,
                                                 'billing_type' => $hook->billing_type,
                                                 'payment_id' => $hook->payment_id,
+                                                'invoice_url' => $hook->invoice_url,
                                                 'customer_id' => $hook->customer_id,
                                                 'external_reference' => $hook->external_reference,
                                                 'payment_at' => $hook->payment_at?->format('d/m/Y'),
@@ -202,12 +203,13 @@
                                 <th class="px-3 py-2 text-left">Status</th>
                                 <th class="px-3 py-2 text-left">Valor</th>
                                 <th class="px-3 py-2 text-left">Pagamento</th>
+                                <th class="px-3 py-2 text-left">Invoice URL</th>
                                 <th class="px-3 py-2 text-left">Criado em</th>
                             </tr>
                         </thead>
                         <tbody id="viewUserWebhooks" class="border-t border-slate-100 text-slate-700">
                             <tr>
-                                <td colspan="6" class="px-3 py-2 text-center text-slate-400">Sem registros.</td>
+                                <td colspan="7" class="px-3 py-2 text-center text-slate-400">Sem registros.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -691,13 +693,14 @@
                             <td class="px-3 py-2">${escapeHtml(item.status)}</td>
                             <td class="px-3 py-2">${escapeHtml(item.value)}</td>
                             <td class="px-3 py-2">${escapeHtml(item.payment_id)}</td>
+                            <td class="px-3 py-2">${escapeHtml(item.invoice_url)}</td>
                             <td class="px-3 py-2">${escapeHtml(item.created_at)}</td>
                         </tr>
                     `).join('');
                     return;
                 }
 
-                viewUserWebhooks.innerHTML = '<tr><td colspan="6" class="px-3 py-2 text-center text-slate-400">Sem registros.</td></tr>';
+                viewUserWebhooks.innerHTML = '<tr><td colspan="7" class="px-3 py-2 text-center text-slate-400">Sem registros.</td></tr>';
             };
 
             const setSubscriptionMode = (mode) => {
