@@ -54,6 +54,11 @@ return [
     'asaas' =>[
         'token' =>env('ASAAS_ACCESS_TOKEN'),
         'url' =>env('ASAAS_BASE_URL'),
+        'webhook_access_token' => env('ASAAS_WEBHOOK_ACCESS_TOKEN'),
+        'webhook_allowed_ips' => array_values(array_filter(array_map(
+            fn ($ip) => trim((string) $ip),
+            explode(',', (string) env('ASAAS_WEBHOOK_ALLOWED_IPS', ''))
+        ))),
     ],
     'google' => [
         'api_key' => env('GOOGLE_API_KEY'),
