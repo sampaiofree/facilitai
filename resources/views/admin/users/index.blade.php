@@ -21,12 +21,16 @@
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Plano</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conexões</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Admin</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Último pagamento</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Data de cadastro</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @forelse($users as $user)
+                    @php
+                        $lastAsaasWebhook = $user->asaasWebhooks->sortByDesc('created_at')->first();
+                    @endphp
                     <tr class="hover:bg-slate-50">
                         <td class="px-5 py-4 font-medium text-slate-800">{{ $user->name }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $user->email }}</td>
@@ -40,6 +44,15 @@
                                 <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Sim</span>
                             @else
                                 <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">Não</span>
+                            @endif
+                        </td>
+                        <td class="px-5 py-4 text-slate-600">
+                            @if($lastAsaasWebhook)
+                                <div class="text-xs font-semibold text-slate-800">{{ $lastAsaasWebhook->event_type ?? '-' }}</div>
+                                <div class="text-xs text-slate-500">{{ $lastAsaasWebhook->status ?? '-' }} · R$ {{ number_format((float) ($lastAsaasWebhook->value ?? 0), 2, ',', '.') }}</div>
+                                <div class="text-xs text-slate-400">{{ $lastAsaasWebhook->created_at?->format('d/m/Y H:i') ?? '-' }}</div>
+                            @else
+                                —
                             @endif
                         </td>
                         <td class="px-5 py-4 text-slate-600">{{ $user->created_at?->format('d/m/Y H:i') }}</td>
@@ -115,7 +128,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" class="px-5 py-6 text-center text-slate-500">Nenhum usuário encontrado.</td>
+                        <td colspan="11" class="px-5 py-6 text-center text-slate-500">Nenhum usuário encontrado.</td>
                     </tr>
                 @endforelse
             </tbody>

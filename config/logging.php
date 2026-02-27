@@ -118,6 +118,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'asaas' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/asaas.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
         'uazapi_webhook' => [
             'driver' => 'daily',
             'path' => storage_path('logs/uazapi_webhook.log'),

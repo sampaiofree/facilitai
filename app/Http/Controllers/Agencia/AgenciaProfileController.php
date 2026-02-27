@@ -52,7 +52,7 @@ class AgenciaProfileController extends Controller
                     ]);
                 }
             } catch (\Exception $e) {
-                Log::error('Erro ao criar cliente Asaas após alteração de CPF/CNPJ.', [
+                Log::channel('asaas')->error('Erro ao criar cliente Asaas após alteração de CPF/CNPJ.', [
                     'error' => $e->getMessage(),
                     'user_id' => $user->id,
                 ]);

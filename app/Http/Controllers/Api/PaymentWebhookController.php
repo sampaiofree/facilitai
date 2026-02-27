@@ -101,7 +101,7 @@ class PaymentWebhookController extends Controller
             return response()->json(['message' => 'Webhook received and stored successfully'], 200);
 
         } catch (\Exception $e) {
-            Log::error('Erro ao processar webhook Asaas:', [
+            Log::channel('asaas')->error('Erro ao processar webhook Asaas:', [
                 'error' => $e->getMessage(),
                 'payload' => $webhookData
             ]);

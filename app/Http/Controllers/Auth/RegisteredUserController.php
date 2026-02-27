@@ -97,7 +97,7 @@ class RegisteredUserController extends Controller
             }
 
         } catch (\Exception $e) {
-            Log::error('Exceção ao tentar criar cliente Asaas no registro:', [
+            Log::channel('asaas')->error('Exceção ao tentar criar cliente Asaas no registro:', [
                 'error' => $e->getMessage(),
                 'email' => $validated['email']
             ]);

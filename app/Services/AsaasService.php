@@ -45,7 +45,7 @@ class AsaasService
 
         } catch (RequestException $e) {
             $errorBody = $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : null;
-            Log::error('Erro ao criar cliente Asaas:', [
+            Log::channel('asaas')->error('Erro ao criar cliente Asaas:', [
                 'message' => $e->getMessage(),
                 'request_body' => json_encode($customerData),
                 'response_body' => $errorBody,
@@ -75,7 +75,7 @@ class AsaasService
             return json_decode($response->getBody()->getContents(), true);
 
         } catch (RequestException $e) {
-            Log::error('Erro ao criar cobrança Asaas:', [
+            Log::channel('asaas')->error('Erro ao criar cobrança Asaas:', [
                 'message' => $e->getMessage(),
                 'request_body' => json_encode($paymentData),
                 'response_body' => $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : 'N/A',
@@ -83,7 +83,7 @@ class AsaasService
             ]);
             return null;
         } catch (\Exception $e) {
-            Log::error('Erro inesperado ao criar cobrança Asaas: ' . $e->getMessage());
+            Log::channel('asaas')->error('Erro inesperado ao criar cobrança Asaas: ' . $e->getMessage());
             return null;
         }
     }
@@ -104,7 +104,7 @@ class AsaasService
             return json_decode($response->getBody()->getContents(), true);
         } catch (RequestException $e) {
             $errorBody = $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : null;
-            Log::error('Erro ao criar assinatura Asaas:', [
+            Log::channel('asaas')->error('Erro ao criar assinatura Asaas:', [
                 'message' => $e->getMessage(),
                 'request_body' => json_encode($subscriptionData),
                 'response_body' => $errorBody,
@@ -115,7 +115,7 @@ class AsaasService
                 'response' => $errorBody ? json_decode($errorBody, true) : null,
             ];
         } catch (\Exception $e) {
-            Log::error('Erro inesperado ao criar assinatura Asaas: ' . $e->getMessage());
+            Log::channel('asaas')->error('Erro inesperado ao criar assinatura Asaas: ' . $e->getMessage());
             return null;
         }
     }
@@ -137,7 +137,7 @@ class AsaasService
             return json_decode($response->getBody()->getContents(), true);
         } catch (RequestException $e) {
             $errorBody = $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : null;
-            Log::error('Erro ao atualizar assinatura Asaas:', [
+            Log::channel('asaas')->error('Erro ao atualizar assinatura Asaas:', [
                 'message' => $e->getMessage(),
                 'subscription_id' => $subscriptionId,
                 'request_body' => json_encode($subscriptionData),
@@ -149,7 +149,7 @@ class AsaasService
                 'response' => $errorBody ? json_decode($errorBody, true) : null,
             ];
         } catch (\Exception $e) {
-            Log::error('Erro inesperado ao atualizar assinatura Asaas: ' . $e->getMessage());
+            Log::channel('asaas')->error('Erro inesperado ao atualizar assinatura Asaas: ' . $e->getMessage());
             return null;
         }
     }
@@ -192,7 +192,7 @@ class AsaasService
             ];
         } catch (RequestException $e) {
             $errorBody = $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : null;
-            Log::error('Erro ao listar cobranças da assinatura Asaas:', [
+            Log::channel('asaas')->error('Erro ao listar cobranças da assinatura Asaas:', [
                 'message' => $e->getMessage(),
                 'subscription_id' => $subscriptionId,
                 'query' => $query,
@@ -204,7 +204,7 @@ class AsaasService
                 'response' => $errorBody ? json_decode($errorBody, true) : null,
             ];
         } catch (\Exception $e) {
-            Log::error('Erro inesperado ao listar cobranças da assinatura Asaas: ' . $e->getMessage());
+            Log::channel('asaas')->error('Erro inesperado ao listar cobranças da assinatura Asaas: ' . $e->getMessage());
             return null;
         }
     }
