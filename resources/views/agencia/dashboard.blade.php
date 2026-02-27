@@ -10,6 +10,9 @@
         $clienteLoginUrl = $customDomain ? "https://{$customDomain}/cliente/login" : null;
         $userPlan = $dashboardUser?->plan;
         $planStorageGb = $userPlan?->storage_limit_mb ? ($userPlan->storage_limit_mb / 1024) : null;
+        $asaasWebhooks = collect($dashboardUser?->asaasWebhooks)->sortByDesc('created_at')->values();
+        $lastAsaasWebhook = $asaasWebhooks->first();
+        $hasAsaasSubscription = !empty($dashboardUser?->asaas_sub);
     @endphp
     <div class="space-y-6">
         <section class="bg-white shadow rounded-2xl p-6 border border-slate-100">
@@ -80,6 +83,72 @@
                         <p class="text-xs uppercase tracking-wide text-slate-500">Última atualização</p>
                         <p class="mt-1 text-base font-semibold text-slate-900">{{ $userPlan->updated_at?->format('d/m/Y H:i') ?? '-' }}</p>
                     </article>
+                    <article class="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <p class="text-xs uppercase tracking-wide text-slate-500">Link de pagamento do plano</p>
+                        @if($hasAsaasSubscription)
+                            <button
+                                type="button"
+                                id="open-plan-payment-link"
+                                data-link-endpoint="{{ route('agencia.dashboard.asaas-subscription-link') }}"
+                                class="mt-2 inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                            >
+                                Abrir link de pagamento
+                            </button>
+                        @else
+                            <p class="mt-1 text-sm text-slate-500">Assinatura Asaas não encontrada.</p>
+                        @endif
+                    </article>
+                    <article class="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <p class="text-xs uppercase tracking-wide text-slate-500">Último pagamento</p>
+                        @if($lastAsaasWebhook)
+                            <p class="mt-1 text-sm font-semibold text-slate-900">{{ $lastAsaasWebhook->event_type ?? '-' }}</p>
+                            <p class="text-xs text-slate-600">{{ $lastAsaasWebhook->status ?? '-' }} · R$ {{ number_format((float) ($lastAsaasWebhook->value ?? 0), 2, ',', '.') }}</p>
+                            <p class="text-xs text-slate-500">{{ $lastAsaasWebhook->created_at?->format('d/m/Y H:i') ?? '-' }}</p>
+                        @else
+                            <p class="mt-1 text-sm text-slate-500">Sem registros de pagamento.</p>
+                        @endif
+                    </article>
+                </div>
+
+                <div class="mt-4">
+                    <button
+                        type="button"
+                        id="toggle-plan-payments"
+                        class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                        Ver pagamentos
+                    </button>
+                </div>
+
+                <div id="plan-payments-list" class="mt-4 hidden overflow-x-auto rounded-xl border border-slate-200">
+                    <table class="min-w-full text-xs text-slate-600">
+                        <thead class="bg-slate-50 text-slate-500 uppercase tracking-wide">
+                            <tr>
+                                <th class="px-3 py-2 text-left">ID</th>
+                                <th class="px-3 py-2 text-left">Evento</th>
+                                <th class="px-3 py-2 text-left">Status</th>
+                                <th class="px-3 py-2 text-left">Valor</th>
+                                <th class="px-3 py-2 text-left">Pagamento</th>
+                                <th class="px-3 py-2 text-left">Criado em</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @forelse($asaasWebhooks as $hook)
+                                <tr>
+                                    <td class="px-3 py-2">{{ $hook->id }}</td>
+                                    <td class="px-3 py-2">{{ $hook->event_type ?? '-' }}</td>
+                                    <td class="px-3 py-2">{{ $hook->status ?? '-' }}</td>
+                                    <td class="px-3 py-2">R$ {{ number_format((float) ($hook->value ?? 0), 2, ',', '.') }}</td>
+                                    <td class="px-3 py-2">{{ $hook->payment_id ?? '-' }}</td>
+                                    <td class="px-3 py-2">{{ $hook->created_at?->format('d/m/Y H:i') ?? '-' }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="px-3 py-3 text-center text-slate-400">Sem registros de webhook Asaas.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
             @else
                 <p class="mt-4 text-sm text-slate-500">
@@ -100,3 +169,49 @@
         </section>
     </div>
 @endsection
+
+@push('scripts')
+    <script>
+        (() => {
+            const openPaymentLinkButton = document.getElementById('open-plan-payment-link');
+            const togglePaymentsButton = document.getElementById('toggle-plan-payments');
+            const paymentsList = document.getElementById('plan-payments-list');
+
+            openPaymentLinkButton?.addEventListener('click', async (event) => {
+                event.preventDefault();
+                const endpoint = openPaymentLinkButton.dataset?.linkEndpoint;
+                if (!endpoint) return;
+
+                const response = await fetch(endpoint, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                });
+
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (error) {
+                    data = null;
+                }
+
+                if (!response.ok || (data && data.error)) {
+                    alert(data?.message || 'Falha ao obter link de cobrança.');
+                    return;
+                }
+
+                if (data?.url) {
+                    window.open(data.url, '_blank');
+                }
+            });
+
+            togglePaymentsButton?.addEventListener('click', () => {
+                if (!paymentsList) return;
+                const isHidden = paymentsList.classList.contains('hidden');
+                paymentsList.classList.toggle('hidden', !isHidden);
+                togglePaymentsButton.textContent = isHidden ? 'Ocultar pagamentos' : 'Ver pagamentos';
+            });
+        })();
+    </script>
+@endpush

@@ -304,6 +304,42 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::get('dashboard', function () {
         return view('agencia.dashboard');
     })->name('dashboard');
+    Route::get('dashboard/asaas-subscription-link', function () {
+        $user = auth()->user();
+
+        if (empty($user?->asaas_sub)) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Assinatura Asaas não encontrada para este usuário.',
+            ], 422);
+        }
+
+        $asaas = new \App\Services\AsaasService();
+        $response = $asaas->getSubscriptionPaymentLink($user->asaas_sub, ['status' => 'PENDING']);
+
+        if (!$response || !empty($response['error'])) {
+            $fallback = $asaas->getSubscriptionPaymentLink($user->asaas_sub);
+            if ($fallback && empty($fallback['error']) && !empty($fallback['invoice_url'])) {
+                return response()->json([
+                    'ok' => true,
+                    'url' => $fallback['invoice_url'],
+                    'payment_id' => $fallback['payment_id'] ?? null,
+                ]);
+            }
+
+            return response()->json([
+                'error' => true,
+                'message' => $response['message'] ?? 'Falha ao obter link de cobrança.',
+                'response' => $response,
+            ], 502);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'url' => $response['invoice_url'] ?? null,
+            'payment_id' => $response['payment_id'] ?? null,
+        ]);
+    })->name('dashboard.asaas-subscription-link');
     Route::get('clientes', [AgenciaClienteController::class, 'index'])->name('clientes.index');
     Route::post('clientes', [AgenciaClienteController::class, 'store'])->name('clientes.store');
     Route::patch('clientes/{cliente}', [AgenciaClienteController::class, 'update'])->name('clientes.update');
@@ -410,4 +446,3 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::resource('images', \App\Http\Controllers\Cliente\ClienteImageController::class)->only(['index', 'store', 'destroy', 'update']);
     });
 });
-

@@ -133,8 +133,14 @@ class AsaasService
             $response = $this->client->put("subscriptions/{$subscriptionId}", [
                 'json' => $subscriptionData,
             ]);
+            $responseData = json_decode($response->getBody()->getContents(), true);
+            Log::channel('asaas')->info('Resposta ao atualizar assinatura Asaas', [
+                'subscription_id' => $subscriptionId,
+                'request_body' => $subscriptionData,
+                'response_body' => $responseData,
+            ]);
 
-            return json_decode($response->getBody()->getContents(), true);
+            return $responseData;
         } catch (RequestException $e) {
             $errorBody = $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : null;
             Log::channel('asaas')->error('Erro ao atualizar assinatura Asaas:', [

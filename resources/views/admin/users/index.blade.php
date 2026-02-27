@@ -261,6 +261,7 @@
                     <input id="subscriptionValue" name="value" type="text" inputmode="decimal" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
                 <p id="subscriptionFormHint" class="text-[11px] text-rose-600 hidden"></p>
+                <pre id="subscriptionAsaasResponse" class="hidden max-h-56 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-700 whitespace-pre-wrap"></pre>
                 <div class="flex items-center justify-end gap-3 pt-2">
                     <button type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" data-close-subscription>Cancelar</button>
                     <button type="submit" id="subscriptionSubmit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Criar</button>
@@ -386,6 +387,7 @@
             const subscriptionCustomer = document.getElementById('subscriptionCustomer');
             const subscriptionValue = document.getElementById('subscriptionValue');
             const subscriptionFormHint = document.getElementById('subscriptionFormHint');
+            const subscriptionAsaasResponse = document.getElementById('subscriptionAsaasResponse');
             const subscriptionSubmit = document.getElementById('subscriptionSubmit');
             const closeSubscriptionButtons = document.querySelectorAll('[data-close-subscription]');
             const createCustomerUrlTemplate = "{{ route('adm.users.asaas-customer', ['user' => '__ID__']) }}";
@@ -404,6 +406,21 @@
                 } else {
                     element.classList.add('hidden');
                 }
+            };
+
+            const renderAsaasResponse = (payload = null) => {
+                if (!subscriptionAsaasResponse) return;
+                if (!payload) {
+                    subscriptionAsaasResponse.textContent = '';
+                    subscriptionAsaasResponse.classList.add('hidden');
+                    return;
+                }
+                try {
+                    subscriptionAsaasResponse.textContent = JSON.stringify(payload, null, 2);
+                } catch (error) {
+                    subscriptionAsaasResponse.textContent = String(payload);
+                }
+                subscriptionAsaasResponse.classList.remove('hidden');
             };
 
             const escapeHtml = (value) => {
@@ -545,6 +562,7 @@
             const closeSubscriptionModal = () => {
                 subscriptionModal?.classList.add('hidden');
                 subscriptionModal?.classList.remove('flex');
+                renderAsaasResponse();
             };
             const openModal = () => { modal.classList.remove('hidden'); modal.classList.add('flex'); };
             const closeModal = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); };
@@ -723,6 +741,7 @@
                     subscriptionValue.value = currentSubscriptionValue;
                 }
                 toggleHint(subscriptionFormHint);
+                renderAsaasResponse();
                 openSubscriptionModal();
             });
 
@@ -833,6 +852,7 @@
                     subscriptionSubmit.textContent = isUpdateMode ? 'Salvando...' : 'Criando...';
                 }
                 toggleHint(subscriptionFormHint);
+                renderAsaasResponse();
 
                 const url = (isUpdateMode ? updateSubscriptionUrlTemplate : createSubscriptionUrlTemplate)
                     .replace('__ID__', currentViewUser.id);
@@ -866,6 +886,7 @@
                         ? 'Falha ao atualizar assinatura no Asaas.'
                         : 'Falha ao criar assinatura no Asaas.');
                     toggleHint(subscriptionFormHint, message);
+                    renderAsaasResponse(data?.asaas_response ?? data?.response ?? data);
                     if (subscriptionSubmit) {
                         subscriptionSubmit.disabled = false;
                         subscriptionSubmit.textContent = isUpdateMode ? 'Salvar' : 'Criar';
@@ -889,7 +910,12 @@
                 }
                 refreshSubscriptionState(currentViewUser);
                 toggleHint(createAsaasSubscriptionHint);
-                closeSubscriptionModal();
+                renderAsaasResponse(data?.asaas_response ?? data);
+                if (isUpdateMode) {
+                    toggleHint(subscriptionFormHint);
+                } else {
+                    closeSubscriptionModal();
+                }
                 if (subscriptionSubmit) {
                     subscriptionSubmit.disabled = false;
                     subscriptionSubmit.textContent = isUpdateMode ? 'Salvar' : 'Criar';

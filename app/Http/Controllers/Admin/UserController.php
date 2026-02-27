@@ -252,13 +252,16 @@ class UserController extends Controller
                 'error' => true,
                 'message' => 'Falha ao atualizar assinatura no Asaas.',
                 'response' => $response,
+                'asaas_response' => $response['response'] ?? $response,
             ], 502);
         }
 
         return response()->json([
             'ok' => true,
+            'message' => 'Assinatura atualizada com sucesso.',
             'subscription_id' => $response['id'] ?? $user->asaas_sub,
             'value' => $response['value'] ?? $value,
+            'asaas_response' => $response,
         ]);
     }
 
