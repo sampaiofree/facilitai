@@ -221,6 +221,47 @@ class UserController extends Controller
         ]);
     }
 
+    public function updateAsaasSubscription(Request $request, User $user)
+    {
+        $data = $request->validate([
+            'value' => ['required'],
+        ]);
+
+        if (empty($user->asaas_sub)) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Assinatura Asaas não encontrada para este usuário.',
+            ], 422);
+        }
+
+        $value = $this->normalizeMoneyValue($data['value']);
+        if ($value === null || $value <= 0) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Valor da assinatura inválido.',
+            ], 422);
+        }
+
+        $asaas = new AsaasService();
+        $response = $asaas->updateSubscription($user->asaas_sub, [
+            'value' => $value,
+        ]);
+
+        if (empty($response) || !empty($response['error'])) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Falha ao atualizar assinatura no Asaas.',
+                'response' => $response,
+            ], 502);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'subscription_id' => $response['id'] ?? $user->asaas_sub,
+            'value' => $response['value'] ?? $value,
+        ]);
+    }
+
     public function getAsaasSubscriptionLink(User $user)
     {
         if (empty($user->asaas_sub)) {
@@ -255,5 +296,45 @@ class UserController extends Controller
             'url' => $response['invoice_url'] ?? null,
             'payment_id' => $response['payment_id'] ?? null,
         ]);
+    }
+
+    private function normalizeMoneyValue(mixed $value): ?float
+    {
+        if (is_int($value) || is_float($value)) {
+            return round((float) $value, 2);
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $normalized = preg_replace('/\s+/', '', trim($value));
+        if ($normalized === '') {
+            return null;
+        }
+        $normalized = preg_replace('/[^\d,.-]/', '', $normalized);
+        if ($normalized === '') {
+            return null;
+        }
+
+        $hasComma = str_contains($normalized, ',');
+        $hasDot = str_contains($normalized, '.');
+
+        if ($hasComma && $hasDot) {
+            if (strrpos($normalized, ',') > strrpos($normalized, '.')) {
+                $normalized = str_replace('.', '', $normalized);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $normalized);
+            }
+        } elseif ($hasComma) {
+            $normalized = str_replace(',', '.', $normalized);
+        }
+
+        if (!is_numeric($normalized)) {
+            return null;
+        }
+
+        return round((float) $normalized, 2);
     }
 }

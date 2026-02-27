@@ -12,7 +12,7 @@
         <form method="POST" action="{{ route('agencia.agency-settings.update') }}" enctype="multipart/form-data" class="space-y-6">
             @csrf
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="grid grid-cols-1 md:grid-cols-1 gap-5">
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="custom_domain">Domínio customizado</label>
                     <input
@@ -29,36 +29,6 @@
                         Valor: <span class="font-semibold text-slate-700">5.78.82.56</span>,
                         Proxy: <span class="font-semibold text-slate-700">ligado (laranja)</span>.
                     </p>
-                </div>
-                <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="plan_id">Plano</label>
-                    <select
-                        id="plan_id"
-                        name="plan_id"
-                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    >
-                        <option value="">Selecione um plano</option>
-                        @foreach ($plans as $plan)
-                            <option value="{{ $plan->id }}" @selected((string) old('plan_id', $user?->plan_id) === (string) $plan->id)>
-                                {{ $plan->name }} · {{ $plan->max_conexoes ?? '-' }} conexões ·
-                                {{ $plan->storage_limit_mb ? number_format($plan->storage_limit_mb / 1024, 1, ',', '') . ' GB' : '-' }} ·
-                                {{ $plan->price_cents ? 'R$ ' . number_format($plan->price_cents, 2, ',', '.') . '/mês' : '-' }}
-                            </option>
-                        @endforeach
-                    </select>
-                    @if($user?->plan)
-                        <div class="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
-                            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-700">
-                                Conexões: {{ $user->plan->max_conexoes ?? '-' }}
-                            </span>
-                            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-700">
-                                Armazenamento: {{ $user->plan->storage_limit_mb ? number_format($user->plan->storage_limit_mb / 1024, 1, ',', '') . ' GB' : '-' }}
-                            </span>
-                            <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-700">
-                                Preço: {{ $user->plan->price_cents ? 'R$ ' . number_format($user->plan->price_cents, 2, ',', '.') . '/mês' : '-' }}
-                            </span>
-                        </div>
-                    @endif
                 </div>
             </div>
 

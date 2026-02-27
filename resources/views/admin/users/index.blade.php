@@ -215,15 +215,15 @@
     <div id="subscriptionModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 backdrop-blur">
         <div class="w-[520px] max-w-[95vw] rounded-2xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-slate-900">Criar assinatura</h3>
+                <h3 id="subscriptionModalTitle" class="text-lg font-semibold text-slate-900">Criar assinatura</h3>
                 <button type="button" class="text-slate-500 hover:text-slate-700" data-close-subscription>x</button>
             </div>
             <form id="subscriptionForm" class="mt-5 space-y-4">
-                <div>
+                <div id="subscriptionNextDueDateField">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="subscriptionNextDueDate">Próximo vencimento</label>
                     <input id="subscriptionNextDueDate" name="next_due_date" type="date" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
-                <div>
+                <div id="subscriptionBillingTypeField">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="subscriptionBillingType">Forma de pagamento</label>
                     <select id="subscriptionBillingType" name="billing_type" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="UNDEFINED">UNDEFINED</option>
@@ -232,7 +232,7 @@
                         <option value="PIX">PIX</option>
                     </select>
                 </div>
-                <div>
+                <div id="subscriptionCycleField">
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="subscriptionCycle">Ciclo</label>
                     <select id="subscriptionCycle" name="cycle" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="MONTHLY">MONTHLY</option>
@@ -244,8 +244,8 @@
                     <input id="subscriptionCustomer" type="text" readonly class="mt-1 w-full rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-sm">
                 </div>
                 <div>
-                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="subscriptionValue">Valor (Plan.price_cents)</label>
-                    <input id="subscriptionValue" type="text" readonly class="mt-1 w-full rounded-lg border-slate-200 bg-slate-50 text-slate-600 shadow-sm">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="subscriptionValue">Valor</label>
+                    <input id="subscriptionValue" name="value" type="text" inputmode="decimal" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
                 <p id="subscriptionFormHint" class="text-[11px] text-rose-600 hidden"></p>
                 <div class="flex items-center justify-end gap-3 pt-2">
@@ -299,7 +299,9 @@
                     <select id="userPlan" name="plan_id" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="">Sem plano</option>
                         @foreach(($plans ?? collect()) as $plan)
-                            <option value="{{ $plan->id }}" {{ (string) old('plan_id') === (string) $plan->id ? 'selected' : '' }}>{{ $plan->name }}</option>
+                            <option value="{{ $plan->id }}" {{ (string) old('plan_id') === (string) $plan->id ? 'selected' : '' }}>
+                                {{ $plan->name }} ({{ $plan->price_cents !== null ? 'R$ ' . number_format($plan->price_cents, 2, ',', '.') : 'sem valor' }})
+                            </option>
                         @endforeach
                     </select>
                 </div>
@@ -360,9 +362,13 @@
             const createAsaasSubscriptionBtn = document.getElementById('createAsaasSubscriptionBtn');
             const createAsaasSubscriptionHint = document.getElementById('createAsaasSubscriptionHint');
             const subscriptionModal = document.getElementById('subscriptionModal');
+            const subscriptionModalTitle = document.getElementById('subscriptionModalTitle');
             const subscriptionForm = document.getElementById('subscriptionForm');
+            const subscriptionNextDueDateField = document.getElementById('subscriptionNextDueDateField');
             const subscriptionNextDueDate = document.getElementById('subscriptionNextDueDate');
+            const subscriptionBillingTypeField = document.getElementById('subscriptionBillingTypeField');
             const subscriptionBillingType = document.getElementById('subscriptionBillingType');
+            const subscriptionCycleField = document.getElementById('subscriptionCycleField');
             const subscriptionCycle = document.getElementById('subscriptionCycle');
             const subscriptionCustomer = document.getElementById('subscriptionCustomer');
             const subscriptionValue = document.getElementById('subscriptionValue');
@@ -371,8 +377,10 @@
             const closeSubscriptionButtons = document.querySelectorAll('[data-close-subscription]');
             const createCustomerUrlTemplate = "{{ route('adm.users.asaas-customer', ['user' => '__ID__']) }}";
             const createSubscriptionUrlTemplate = "{{ route('adm.users.asaas-subscription', ['user' => '__ID__']) }}";
+            const updateSubscriptionUrlTemplate = "{{ route('adm.users.asaas-subscription.update', ['user' => '__ID__']) }}";
             const subscriptionLinkUrlTemplate = "{{ route('adm.users.asaas-subscription-link', ['user' => '__ID__']) }}";
             let currentViewUser = null;
+            let subscriptionMode = 'create';
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
             const toggleHint = (element, message = '') => {
@@ -432,6 +440,56 @@
                 if (state.label) {
                     createAsaasSubscriptionBtn.textContent = state.label;
                 }
+            };
+
+            const setSubscriptionMode = (mode) => {
+                subscriptionMode = mode === 'update' ? 'update' : 'create';
+                const isUpdateMode = subscriptionMode === 'update';
+
+                if (subscriptionModalTitle) {
+                    subscriptionModalTitle.textContent = isUpdateMode ? 'Alterar assinatura' : 'Criar assinatura';
+                }
+                if (subscriptionSubmit) {
+                    subscriptionSubmit.textContent = isUpdateMode ? 'Salvar' : 'Criar';
+                }
+
+                subscriptionNextDueDateField?.classList.toggle('hidden', isUpdateMode);
+                subscriptionBillingTypeField?.classList.toggle('hidden', isUpdateMode);
+                subscriptionCycleField?.classList.toggle('hidden', isUpdateMode);
+
+                if (subscriptionNextDueDate) {
+                    subscriptionNextDueDate.required = !isUpdateMode;
+                }
+                if (subscriptionBillingType) {
+                    subscriptionBillingType.required = !isUpdateMode;
+                }
+                if (subscriptionCycle) {
+                    subscriptionCycle.required = !isUpdateMode;
+                }
+                if (subscriptionValue) {
+                    subscriptionValue.readOnly = !isUpdateMode;
+                    subscriptionValue.classList.toggle('bg-slate-50', !isUpdateMode);
+                    subscriptionValue.classList.toggle('text-slate-600', !isUpdateMode);
+                }
+            };
+
+            const refreshSubscriptionState = (payload) => {
+                const hasPlanPrice = payload?.plan_price_cents !== null && payload?.plan_price_cents !== undefined;
+                const hasSubscription = !!payload?.asaas_sub;
+                let subscriptionHint = '';
+
+                if (!payload?.customer_asaas_id) {
+                    subscriptionHint = 'Customer Asaas obrigatório para criar/alterar assinatura.';
+                } else if (!hasSubscription && !hasPlanPrice) {
+                    subscriptionHint = 'Plano sem valor definido para criar assinatura.';
+                }
+
+                setSubscriptionButtonState({
+                    hidden: false,
+                    disabled: !!subscriptionHint,
+                    label: hasSubscription ? 'Alterar assinatura' : 'Criar assinatura',
+                });
+                toggleHint(createAsaasSubscriptionHint, subscriptionHint);
             };
 
             const requestAsaasCustomer = async (userId) => {
@@ -587,16 +645,7 @@
                         label: 'Criar Customer',
                     });
                     toggleHint(createAsaasCustomerHint);
-                    const hasPlanPrice = payload.plan_price_cents !== null && payload.plan_price_cents !== undefined;
-                    const subscriptionHint = !payload.customer_asaas_id
-                        ? 'Customer Asaas obrigatório para criar assinatura.'
-                        : (!hasPlanPrice ? 'Plano sem valor definido para criar assinatura.' : '');
-                    setSubscriptionButtonState({
-                        hidden: !!payload.asaas_sub,
-                        disabled: !!subscriptionHint,
-                        label: 'Criar assinatura',
-                    });
-                    toggleHint(createAsaasSubscriptionHint, subscriptionHint);
+                    refreshSubscriptionState(payload);
 
                     if (Array.isArray(payload.asaas_webhooks) && payload.asaas_webhooks.length) {
                         viewUserWebhooks.innerHTML = payload.asaas_webhooks.map(item => `
@@ -641,20 +690,24 @@
             createAsaasSubscriptionBtn?.addEventListener('click', () => {
                 if (!currentViewUser) return;
                 if (!currentViewUser.customer_asaas_id) {
-                    toggleHint(createAsaasSubscriptionHint, 'Customer Asaas obrigatório para criar assinatura.');
+                    toggleHint(createAsaasSubscriptionHint, 'Customer Asaas obrigatório para criar/alterar assinatura.');
                     return;
                 }
-                if (currentViewUser.plan_price_cents === null || currentViewUser.plan_price_cents === undefined) {
+
+                const isUpdateMode = !!currentViewUser.asaas_sub;
+                if (!isUpdateMode && (currentViewUser.plan_price_cents === null || currentViewUser.plan_price_cents === undefined)) {
                     toggleHint(createAsaasSubscriptionHint, 'Plano sem valor definido para criar assinatura.');
                     return;
                 }
 
                 subscriptionForm?.reset();
+                setSubscriptionMode(isUpdateMode ? 'update' : 'create');
                 if (subscriptionCustomer) {
                     subscriptionCustomer.value = currentViewUser.customer_asaas_id || '';
                 }
                 if (subscriptionValue) {
-                    subscriptionValue.value = currentViewUser.plan_price_cents ?? '';
+                    const currentSubscriptionValue = currentViewUser.subscription_value ?? currentViewUser.plan_price_cents ?? '';
+                    subscriptionValue.value = currentSubscriptionValue;
                 }
                 toggleHint(subscriptionFormHint);
                 openSubscriptionModal();
@@ -732,50 +785,60 @@
                 viewUserCustomer.textContent = result.customerId || '-';
                 currentViewUser.customer_asaas_id = result.customerId || null;
                 setCreateButtonState({ hidden: true });
-                const hasPlanPrice = currentViewUser.plan_price_cents !== null && currentViewUser.plan_price_cents !== undefined;
-                const subscriptionHint = !currentViewUser.customer_asaas_id
-                    ? 'Customer Asaas obrigatório para criar assinatura.'
-                    : (!hasPlanPrice ? 'Plano sem valor definido para criar assinatura.' : '');
-                setSubscriptionButtonState({
-                    hidden: !!currentViewUser.asaas_sub,
-                    disabled: !!subscriptionHint,
-                    label: 'Criar assinatura',
-                });
-                toggleHint(createAsaasSubscriptionHint, subscriptionHint);
+                refreshSubscriptionState(currentViewUser);
             });
 
             subscriptionForm?.addEventListener('submit', async (event) => {
                 event.preventDefault();
                 if (!currentViewUser?.id) return;
+                const isUpdateMode = subscriptionMode === 'update';
 
                 if (!subscriptionCustomer?.value) {
-                    toggleHint(subscriptionFormHint, 'Customer Asaas obrigatório para criar assinatura.');
+                    toggleHint(subscriptionFormHint, isUpdateMode
+                        ? 'Customer Asaas obrigatório para alterar assinatura.'
+                        : 'Customer Asaas obrigatório para criar assinatura.');
                     return;
                 }
-                if (!subscriptionNextDueDate?.value) {
+
+                if (isUpdateMode && !currentViewUser.asaas_sub) {
+                    toggleHint(subscriptionFormHint, 'Assinatura Asaas não encontrada para este usuário.');
+                    return;
+                }
+
+                if (!subscriptionValue?.value?.trim()) {
+                    toggleHint(subscriptionFormHint, 'Informe o valor da assinatura.');
+                    return;
+                }
+
+                if (!isUpdateMode && !subscriptionNextDueDate?.value) {
                     toggleHint(subscriptionFormHint, 'Informe a data do próximo pagamento.');
                     return;
                 }
 
                 if (subscriptionSubmit) {
                     subscriptionSubmit.disabled = true;
-                    subscriptionSubmit.textContent = 'Criando...';
+                    subscriptionSubmit.textContent = isUpdateMode ? 'Salvando...' : 'Criando...';
                 }
                 toggleHint(subscriptionFormHint);
 
-                const url = createSubscriptionUrlTemplate.replace('__ID__', currentViewUser.id);
+                const url = (isUpdateMode ? updateSubscriptionUrlTemplate : createSubscriptionUrlTemplate)
+                    .replace('__ID__', currentViewUser.id);
+                const requestBody = isUpdateMode
+                    ? { value: subscriptionValue.value }
+                    : {
+                        next_due_date: subscriptionNextDueDate.value,
+                        billing_type: subscriptionBillingType?.value || 'UNDEFINED',
+                        cycle: subscriptionCycle?.value || 'MONTHLY',
+                    };
+
                 const response = await fetch(url, {
-                    method: 'POST',
+                    method: isUpdateMode ? 'PATCH' : 'POST',
                     headers: {
                         'X-CSRF-TOKEN': csrfToken || '',
                         'Accept': 'application/json',
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        next_due_date: subscriptionNextDueDate.value,
-                        billing_type: subscriptionBillingType?.value || 'UNDEFINED',
-                        cycle: subscriptionCycle?.value || 'MONTHLY',
-                    }),
+                    body: JSON.stringify(requestBody),
                 });
 
                 let data = null;
@@ -786,32 +849,37 @@
                 }
 
                 if (!response.ok || (data && data.error)) {
-                    const message = data?.message || 'Falha ao criar assinatura no Asaas.';
+                    const message = data?.message || (isUpdateMode
+                        ? 'Falha ao atualizar assinatura no Asaas.'
+                        : 'Falha ao criar assinatura no Asaas.');
                     toggleHint(subscriptionFormHint, message);
                     if (subscriptionSubmit) {
                         subscriptionSubmit.disabled = false;
-                        subscriptionSubmit.textContent = 'Criar';
+                        subscriptionSubmit.textContent = isUpdateMode ? 'Salvar' : 'Criar';
                     }
                     return;
                 }
 
-                const subscriptionId = data?.subscription_id || '';
-                currentViewUser.asaas_sub = subscriptionId;
+                const subscriptionId = data?.subscription_id || currentViewUser.asaas_sub || '';
+                if (subscriptionId) {
+                    currentViewUser.asaas_sub = subscriptionId;
+                }
+                currentViewUser.subscription_value = data?.value ?? subscriptionValue.value ?? null;
                 if (viewUserAsaasSubLink) {
-                    if (subscriptionId) {
-                        viewUserAsaasSubLink.textContent = subscriptionId;
+                    if (currentViewUser.asaas_sub) {
+                        viewUserAsaasSubLink.textContent = currentViewUser.asaas_sub;
                         viewUserAsaasSubLink.classList.remove('pointer-events-none', 'text-slate-400');
                     } else {
                         viewUserAsaasSubLink.textContent = '-';
                         viewUserAsaasSubLink.classList.add('pointer-events-none', 'text-slate-400');
                     }
                 }
-                setSubscriptionButtonState({ hidden: true });
+                refreshSubscriptionState(currentViewUser);
                 toggleHint(createAsaasSubscriptionHint);
                 closeSubscriptionModal();
                 if (subscriptionSubmit) {
                     subscriptionSubmit.disabled = false;
-                    subscriptionSubmit.textContent = 'Criar';
+                    subscriptionSubmit.textContent = isUpdateMode ? 'Salvar' : 'Criar';
                 }
             });
 
@@ -834,6 +902,3 @@
         })();
     </script>
 @endsection
-
-
-

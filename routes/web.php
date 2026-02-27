@@ -154,6 +154,7 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     Route::post('users/{user}/asaas-customer', [UserController::class, 'createAsaasCustomer'])->name('users.asaas-customer');
     Route::post('users/{user}/asaas-subscription', [UserController::class, 'createAsaasSubscription'])->name('users.asaas-subscription');
+    Route::patch('users/{user}/asaas-subscription', [UserController::class, 'updateAsaasSubscription'])->name('users.asaas-subscription.update');
     Route::get('users/{user}/asaas-subscription-link', [UserController::class, 'getAsaasSubscriptionLink'])->name('users.asaas-subscription-link');
     Route::get('assistant-lead', [AssistantLeadController::class, 'index'])->name('assistant-lead.index');
     Route::delete('assistant-lead/{assistantLead}', [AssistantLeadController::class, 'destroy'])->name('assistant-lead.destroy');
@@ -409,5 +410,4 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::resource('images', \App\Http\Controllers\Cliente\ClienteImageController::class)->only(['index', 'store', 'destroy', 'update']);
     });
 });
-
 
