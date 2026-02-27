@@ -161,41 +161,20 @@ class AsaasService
     }
 
     /**
-     * Retorna o link da cobrança de uma assinatura (invoiceUrl ou bankSlipUrl).
+     * Lista as cobranças de uma assinatura no Asaas.
      *
      * @param string $subscriptionId Identificador da assinatura no Asaas.
      * @param array $query Filtros opcionais (ex: ['status' => 'PENDING']).
-     * @return array|null Link da cobrança ou detalhes de erro.
+     * @return array|null Resposta da API com data/totalCount ou detalhes de erro.
      */
-    public function getSubscriptionPaymentLink(string $subscriptionId, array $query = []): ?array
+    public function listSubscriptionPayments(string $subscriptionId, array $query = []): ?array
     {
         try {
             $response = $this->client->get("subscriptions/{$subscriptionId}/payments", [
                 'query' => $query,
             ]);
 
-            $data = json_decode($response->getBody()->getContents(), true);
-            $payments = $data['data'] ?? [];
-
-            foreach ($payments as $payment) {
-                $invoiceUrl = $payment['invoiceUrl'] ?? null;
-                $bankSlipUrl = $payment['bankSlipUrl'] ?? null;
-                $link = $invoiceUrl ?: $bankSlipUrl;
-
-                if ($link) {
-                    return [
-                        'invoice_url' => $link,
-                        'payment_id' => $payment['id'] ?? null,
-                        'payment' => $payment,
-                    ];
-                }
-            }
-
-            return [
-                'error' => true,
-                'message' => 'Nenhum link de cobrança encontrado para esta assinatura.',
-                'response' => $data,
-            ];
+            return json_decode($response->getBody()->getContents(), true);
         } catch (RequestException $e) {
             $errorBody = $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : null;
             Log::channel('asaas')->error('Erro ao listar cobranças da assinatura Asaas:', [
@@ -213,6 +192,43 @@ class AsaasService
             Log::channel('asaas')->error('Erro inesperado ao listar cobranças da assinatura Asaas: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Retorna o link da cobrança de uma assinatura (invoiceUrl ou bankSlipUrl).
+     *
+     * @param string $subscriptionId Identificador da assinatura no Asaas.
+     * @param array $query Filtros opcionais (ex: ['status' => 'PENDING']).
+     * @return array|null Link da cobrança ou detalhes de erro.
+     */
+    public function getSubscriptionPaymentLink(string $subscriptionId, array $query = []): ?array
+    {
+        $data = $this->listSubscriptionPayments($subscriptionId, $query);
+        if (!$data || !empty($data['error'])) {
+            return $data;
+        }
+
+        $payments = $data['data'] ?? [];
+
+        foreach ($payments as $payment) {
+            $invoiceUrl = $payment['invoiceUrl'] ?? null;
+            $bankSlipUrl = $payment['bankSlipUrl'] ?? null;
+            $link = $invoiceUrl ?: $bankSlipUrl;
+
+            if ($link) {
+                return [
+                    'invoice_url' => $link,
+                    'payment_id' => $payment['id'] ?? null,
+                    'payment' => $payment,
+                ];
+            }
+        }
+
+        return [
+            'error' => true,
+            'message' => 'Nenhum link de cobrança encontrado para esta assinatura.',
+            'response' => $data,
+        ];
     }
 
     // Você pode adicionar outros métodos aqui, como:

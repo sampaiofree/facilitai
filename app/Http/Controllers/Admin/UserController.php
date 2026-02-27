@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AsaasWebhook;
 use App\Services\AsaasService;
 use App\Models\Plan;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -245,6 +247,7 @@ class UserController extends Controller
         $asaas = new AsaasService();
         $response = $asaas->updateSubscription($user->asaas_sub, [
             'value' => $value,
+            'updatePendingPayments' => true,
         ]);
 
         if (empty($response) || !empty($response['error'])) {
@@ -258,7 +261,7 @@ class UserController extends Controller
 
         return response()->json([
             'ok' => true,
-            'message' => 'Assinatura atualizada com sucesso.',
+            'message' => 'Assinatura atualizada com sucesso. Cobranças pendentes foram atualizadas.',
             'subscription_id' => $response['id'] ?? $user->asaas_sub,
             'value' => $response['value'] ?? $value,
             'asaas_response' => $response,
@@ -299,6 +302,161 @@ class UserController extends Controller
             'url' => $response['invoice_url'] ?? null,
             'payment_id' => $response['payment_id'] ?? null,
         ]);
+    }
+
+    public function syncAsaasSubscriptionPayments(User $user)
+    {
+        if (empty($user->asaas_sub)) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Assinatura Asaas nao encontrada para este usuario.',
+            ], 422);
+        }
+
+        $asaas = new AsaasService();
+        $payments = [];
+        $offset = 0;
+        $limit = 100;
+        $hasMore = true;
+        $pagesFetched = 0;
+        $totalCount = null;
+
+        while ($hasMore) {
+            $query = [
+                'offset' => $offset,
+                'limit' => $limit,
+            ];
+            $response = $asaas->listSubscriptionPayments($user->asaas_sub, $query);
+
+            Log::channel('asaas')->info('Resposta ao listar cobrancas da assinatura Asaas', [
+                'user_id' => $user->id,
+                'subscription_id' => $user->asaas_sub,
+                'query' => $query,
+                'response_body' => $response,
+            ]);
+
+            if (empty($response) || !empty($response['error'])) {
+                return response()->json([
+                    'error' => true,
+                    'message' => 'Falha ao listar cobrancas da assinatura no Asaas.',
+                    'response' => $response,
+                    'asaas_response' => $response['response'] ?? $response,
+                ], 502);
+            }
+
+            $currentPagePayments = $response['data'] ?? [];
+            if (!empty($currentPagePayments)) {
+                $payments = array_merge($payments, $currentPagePayments);
+            }
+
+            $hasMore = (bool) ($response['hasMore'] ?? false);
+            $totalCount = $response['totalCount'] ?? $totalCount;
+            $offset += $limit;
+            $pagesFetched++;
+        }
+
+        $created = 0;
+        $updated = 0;
+
+        foreach ($payments as $payment) {
+            $paymentId = $payment['id'] ?? null;
+            if (!$paymentId) {
+                continue;
+            }
+
+            $attributes = $this->mapAsaasPaymentToWebhookAttributes(
+                $payment,
+                $user->asaas_sub,
+                $user->customer_asaas_id
+            );
+            $existingWebhook = AsaasWebhook::query()
+                ->where('payment_id', $paymentId)
+                ->first();
+
+            if ($existingWebhook) {
+                $existingWebhook->fill($attributes);
+                $existingWebhook->save();
+                $updated++;
+                continue;
+            }
+
+            AsaasWebhook::create(array_merge($attributes, [
+                'webhook_id' => $this->buildSyncWebhookId($paymentId),
+            ]));
+            $created++;
+        }
+
+        $webhooks = $user->asaasWebhooks()
+            ->latest()
+            ->get()
+            ->map(function (AsaasWebhook $hook) {
+                return [
+                    'id' => $hook->id,
+                    'event_type' => $hook->event_type,
+                    'status' => $hook->status,
+                    'value' => $hook->value,
+                    'billing_type' => $hook->billing_type,
+                    'payment_id' => $hook->payment_id,
+                    'customer_id' => $hook->customer_id,
+                    'external_reference' => $hook->external_reference,
+                    'payment_at' => $hook->payment_at?->format('d/m/Y'),
+                    'confirmed_at' => $hook->confirmed_at?->format('d/m/Y'),
+                    'created_at' => $hook->created_at?->format('d/m/Y H:i'),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Cobrancas sincronizadas com sucesso.',
+            'summary' => [
+                'created' => $created,
+                'updated' => $updated,
+                'total' => count($payments),
+            ],
+            'asaas_webhooks' => $webhooks,
+            'asaas_response' => [
+                'pages_fetched' => $pagesFetched,
+                'total_count' => $totalCount,
+                'fetched_count' => count($payments),
+            ],
+        ]);
+    }
+
+    private function mapAsaasPaymentToWebhookAttributes(
+        array $payment,
+        string $subscriptionId,
+        ?string $fallbackCustomerId = null
+    ): array
+    {
+        return [
+            'event_type' => 'PAYMENT_SYNC',
+            'webhook_created_at' => $payment['dateCreated'] ?? now()->toDateTimeString(),
+            'payment_id' => $payment['id'] ?? null,
+            'payment_created_at' => $payment['dateCreated'] ?? null,
+            'customer_id' => $payment['customer'] ?? $fallbackCustomerId,
+            'value' => $payment['value'] ?? null,
+            'description' => $payment['description'] ?? null,
+            'billing_type' => $payment['billingType'] ?? null,
+            'confirmed_at' => $payment['confirmedDate'] ?? null,
+            'status' => $payment['status'] ?? null,
+            'payment_at' => $payment['paymentDate'] ?? null,
+            'client_payment_at' => $payment['clientPaymentDate'] ?? null,
+            'invoice_url' => $payment['invoiceUrl'] ?? null,
+            'external_reference' => $payment['externalReference'] ?? null,
+            'transaction_receipt_url' => $payment['transactionReceiptUrl'] ?? null,
+            'nosso_numero' => $payment['nossoNumero'] ?? null,
+            'payload' => [
+                'source' => 'subscription_payments_sync',
+                'subscription_id' => $subscriptionId,
+                'payment' => $payment,
+            ],
+        ];
+    }
+
+    private function buildSyncWebhookId(string $paymentId): string
+    {
+        return 'sync_' . substr(hash('sha256', $paymentId), 0, 24);
     }
 
     private function normalizeMoneyValue(mixed $value): ?float

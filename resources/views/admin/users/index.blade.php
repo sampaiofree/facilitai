@@ -178,7 +178,16 @@
             </div>
 
             <div class="mt-6">
-                <h4 class="text-sm font-semibold text-slate-700">Asaas Webhooks</h4>
+                <div class="flex items-center justify-between gap-3">
+                    <h4 class="text-sm font-semibold text-slate-700">Asaas Webhooks</h4>
+                    <button
+                        type="button"
+                        id="syncAsaasWebhooksBtn"
+                        disabled
+                        class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                    >Atualizar</button>
+                </div>
+                <p id="syncAsaasWebhooksHint" class="mt-1 text-[11px] text-slate-500 hidden"></p>
                 <div class="mt-2 overflow-x-auto rounded-xl border border-slate-200">
                     <table class="min-w-full text-xs text-slate-600">
                         <thead class="bg-slate-50 text-slate-400 uppercase tracking-wide">
@@ -375,6 +384,8 @@
             const createAsaasCustomerHint = document.getElementById('createAsaasCustomerHint');
             const createAsaasSubscriptionBtn = document.getElementById('createAsaasSubscriptionBtn');
             const createAsaasSubscriptionHint = document.getElementById('createAsaasSubscriptionHint');
+            const syncAsaasWebhooksBtn = document.getElementById('syncAsaasWebhooksBtn');
+            const syncAsaasWebhooksHint = document.getElementById('syncAsaasWebhooksHint');
             const subscriptionModal = document.getElementById('subscriptionModal');
             const subscriptionModalTitle = document.getElementById('subscriptionModalTitle');
             const subscriptionForm = document.getElementById('subscriptionForm');
@@ -394,6 +405,7 @@
             const createSubscriptionUrlTemplate = "{{ route('adm.users.asaas-subscription', ['user' => '__ID__']) }}";
             const updateSubscriptionUrlTemplate = "{{ route('adm.users.asaas-subscription.update', ['user' => '__ID__']) }}";
             const subscriptionLinkUrlTemplate = "{{ route('adm.users.asaas-subscription-link', ['user' => '__ID__']) }}";
+            const syncSubscriptionPaymentsUrlTemplate = "{{ route('adm.users.asaas-subscription-payments.sync', ['user' => '__ID__']) }}";
             let currentViewUser = null;
             let subscriptionMode = 'create';
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -470,6 +482,54 @@
                 if (state.label) {
                     createAsaasSubscriptionBtn.textContent = state.label;
                 }
+            };
+
+            const setSyncButtonState = (state) => {
+                if (!syncAsaasWebhooksBtn) return;
+                syncAsaasWebhooksBtn.disabled = !!state.disabled;
+                if (state.label) {
+                    syncAsaasWebhooksBtn.textContent = state.label;
+                }
+            };
+
+            const setSyncHint = (message = '', type = 'info') => {
+                if (!syncAsaasWebhooksHint) return;
+                if (!message) {
+                    syncAsaasWebhooksHint.classList.add('hidden');
+                    syncAsaasWebhooksHint.classList.remove('text-rose-600', 'text-emerald-600', 'text-slate-500');
+                    syncAsaasWebhooksHint.classList.add('text-slate-500');
+                    return;
+                }
+
+                syncAsaasWebhooksHint.textContent = message;
+                syncAsaasWebhooksHint.classList.remove('hidden', 'text-rose-600', 'text-emerald-600', 'text-slate-500');
+                if (type === 'error') {
+                    syncAsaasWebhooksHint.classList.add('text-rose-600');
+                } else if (type === 'success') {
+                    syncAsaasWebhooksHint.classList.add('text-emerald-600');
+                } else {
+                    syncAsaasWebhooksHint.classList.add('text-slate-500');
+                }
+            };
+
+            const renderWebhooksRows = (webhooks = []) => {
+                if (!viewUserWebhooks) return;
+
+                if (Array.isArray(webhooks) && webhooks.length) {
+                    viewUserWebhooks.innerHTML = webhooks.map(item => `
+                        <tr>
+                            <td class="px-3 py-2">${escapeHtml(item.id)}</td>
+                            <td class="px-3 py-2">${escapeHtml(item.event_type)}</td>
+                            <td class="px-3 py-2">${escapeHtml(item.status)}</td>
+                            <td class="px-3 py-2">${escapeHtml(item.value)}</td>
+                            <td class="px-3 py-2">${escapeHtml(item.payment_id)}</td>
+                            <td class="px-3 py-2">${escapeHtml(item.created_at)}</td>
+                        </tr>
+                    `).join('');
+                    return;
+                }
+
+                viewUserWebhooks.innerHTML = '<tr><td colspan="6" class="px-3 py-2 text-center text-slate-400">Sem registros.</td></tr>';
             };
 
             const setSubscriptionMode = (mode) => {
@@ -677,21 +737,10 @@
                     });
                     toggleHint(createAsaasCustomerHint);
                     refreshSubscriptionState(payload);
+                    setSyncButtonState({ disabled: !payload.asaas_sub, label: 'Atualizar' });
+                    setSyncHint();
 
-                    if (Array.isArray(payload.asaas_webhooks) && payload.asaas_webhooks.length) {
-                        viewUserWebhooks.innerHTML = payload.asaas_webhooks.map(item => `
-                            <tr>
-                                <td class="px-3 py-2">${item.id ?? '-'}</td>
-                                <td class="px-3 py-2">${item.event_type ?? '-'}</td>
-                                <td class="px-3 py-2">${item.status ?? '-'}</td>
-                                <td class="px-3 py-2">${item.value ?? '-'}</td>
-                                <td class="px-3 py-2">${item.payment_id ?? '-'}</td>
-                                <td class="px-3 py-2">${item.created_at ?? '-'}</td>
-                            </tr>
-                        `).join('');
-                    } else {
-                        viewUserWebhooks.innerHTML = '<tr><td colspan="6" class="px-3 py-2 text-center text-slate-400">Sem registros.</td></tr>';
-                    }
+                    renderWebhooksRows(payload.asaas_webhooks);
 
                     if (Array.isArray(payload.clientes) && payload.clientes.length) {
                         viewUserClientes.innerHTML = payload.clientes.map(item => {
@@ -773,6 +822,48 @@
                 if (data?.url) {
                     window.open(data.url, '_blank');
                 }
+            });
+
+            syncAsaasWebhooksBtn?.addEventListener('click', async () => {
+                if (!currentViewUser?.id || !currentViewUser?.asaas_sub) {
+                    setSyncHint('Assinatura Asaas obrigatoria para atualizar os registros.', 'error');
+                    return;
+                }
+
+                setSyncButtonState({ disabled: true, label: 'Atualizando...' });
+                setSyncHint();
+
+                const url = syncSubscriptionPaymentsUrlTemplate.replace('__ID__', currentViewUser.id);
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken || '',
+                        'Accept': 'application/json',
+                    },
+                });
+
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (error) {
+                    data = null;
+                }
+
+                if (!response.ok || (data && data.error)) {
+                    const message = data?.message || 'Falha ao atualizar cobrancas da assinatura.';
+                    setSyncHint(message, 'error');
+                    setSyncButtonState({ disabled: false, label: 'Atualizar' });
+                    return;
+                }
+
+                currentViewUser.asaas_webhooks = Array.isArray(data?.asaas_webhooks) ? data.asaas_webhooks : [];
+                renderWebhooksRows(currentViewUser.asaas_webhooks);
+
+                const created = Number(data?.summary?.created || 0);
+                const updated = Number(data?.summary?.updated || 0);
+                const total = Number(data?.summary?.total || 0);
+                setSyncHint(`Atualizacao concluida: ${created} criados, ${updated} atualizados, ${total} cobrancas lidas.`, 'success');
+                setSyncButtonState({ disabled: !currentViewUser?.asaas_sub, label: 'Atualizar' });
             });
 
             registerAsaasCustomerBtn?.addEventListener('click', async () => {
@@ -909,6 +1000,7 @@
                     }
                 }
                 refreshSubscriptionState(currentViewUser);
+                setSyncButtonState({ disabled: !currentViewUser?.asaas_sub, label: 'Atualizar' });
                 toggleHint(createAsaasSubscriptionHint);
                 renderAsaasResponse(data?.asaas_response ?? data);
                 if (isUpdateMode) {
