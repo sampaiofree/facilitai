@@ -205,11 +205,12 @@
                                 <th class="px-3 py-2 text-left">Pagamento</th>
                                 <th class="px-3 py-2 text-left">Invoice URL</th>
                                 <th class="px-3 py-2 text-left">Criado em</th>
+                                <th class="px-3 py-2 text-left">Ações</th>
                             </tr>
                         </thead>
                         <tbody id="viewUserWebhooks" class="border-t border-slate-100 text-slate-700">
                             <tr>
-                                <td colspan="7" class="px-3 py-2 text-center text-slate-400">Sem registros.</td>
+                                <td colspan="8" class="px-3 py-2 text-center text-slate-400">Sem registros.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -474,6 +475,7 @@
             const subscriptionLinkUrlTemplate = "{{ route('adm.users.asaas-subscription-link', ['user' => '__ID__']) }}";
             const subscriptionDetailsUrlTemplate = "{{ route('adm.users.asaas-subscription-details', ['user' => '__ID__']) }}";
             const syncSubscriptionPaymentsUrlTemplate = "{{ route('adm.users.asaas-subscription-payments.sync', ['user' => '__ID__']) }}";
+            const deleteAsaasWebhookUrlTemplate = "{{ route('adm.users.asaas-webhooks.destroy', ['user' => '__USER__', 'webhook' => '__WEBHOOK__']) }}";
             let currentViewUser = null;
             let subscriptionMode = 'create';
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -695,12 +697,20 @@
                             <td class="px-3 py-2">${escapeHtml(item.payment_id)}</td>
                             <td class="px-3 py-2">${escapeHtml(item.invoice_url)}</td>
                             <td class="px-3 py-2">${escapeHtml(item.created_at)}</td>
+                            <td class="px-3 py-2">
+                                <button
+                                    type="button"
+                                    class="rounded-md bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
+                                    data-delete-webhook
+                                    data-webhook-id="${escapeHtml(item.id)}"
+                                >Excluir</button>
+                            </td>
                         </tr>
                     `).join('');
                     return;
                 }
 
-                viewUserWebhooks.innerHTML = '<tr><td colspan="7" class="px-3 py-2 text-center text-slate-400">Sem registros.</td></tr>';
+                viewUserWebhooks.innerHTML = '<tr><td colspan="8" class="px-3 py-2 text-center text-slate-400">Sem registros.</td></tr>';
             };
 
             const setSubscriptionMode = (mode) => {
@@ -1102,6 +1112,56 @@
                 const total = Number(data?.summary?.total || 0);
                 setSyncHint(`Atualizacao concluida: ${created} criados, ${updated} atualizados, ${total} cobrancas lidas.`, 'success');
                 setSyncButtonState({ disabled: !currentViewUser?.asaas_sub, label: 'Atualizar' });
+            });
+
+            viewUserWebhooks?.addEventListener('click', async (event) => {
+                const deleteButton = event.target?.closest?.('[data-delete-webhook]');
+                if (!deleteButton || !currentViewUser?.id) {
+                    return;
+                }
+
+                const webhookId = deleteButton.getAttribute('data-webhook-id');
+                if (!webhookId) {
+                    return;
+                }
+
+                if (!confirm('Deseja excluir este webhook Asaas?')) {
+                    return;
+                }
+
+                deleteButton.disabled = true;
+                const originalLabel = deleteButton.textContent;
+                deleteButton.textContent = 'Excluindo...';
+
+                const url = deleteAsaasWebhookUrlTemplate
+                    .replace('__USER__', String(currentViewUser.id))
+                    .replace('__WEBHOOK__', String(webhookId));
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken || '',
+                        'Accept': 'application/json',
+                    },
+                });
+
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (error) {
+                    data = null;
+                }
+
+                if (!response.ok || (data && data.error)) {
+                    setSyncHint(data?.message || 'Falha ao excluir webhook Asaas.', 'error');
+                    deleteButton.disabled = false;
+                    deleteButton.textContent = originalLabel || 'Excluir';
+                    return;
+                }
+
+                currentViewUser.asaas_webhooks = (currentViewUser.asaas_webhooks || [])
+                    .filter(item => String(item.id) !== String(webhookId));
+                renderWebhooksRows(currentViewUser.asaas_webhooks);
+                setSyncHint(data?.message || 'Webhook Asaas removido com sucesso.', 'success');
             });
 
             registerAsaasCustomerBtn?.addEventListener('click', async () => {

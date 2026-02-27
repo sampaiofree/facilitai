@@ -158,6 +158,7 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::get('users/{user}/asaas-subscription-link', [UserController::class, 'getAsaasSubscriptionLink'])->name('users.asaas-subscription-link');
     Route::get('users/{user}/asaas-subscription-details', [UserController::class, 'getAsaasSubscriptionDetails'])->name('users.asaas-subscription-details');
     Route::post('users/{user}/asaas-subscription-payments/sync', [UserController::class, 'syncAsaasSubscriptionPayments'])->name('users.asaas-subscription-payments.sync');
+    Route::delete('users/{user}/asaas-webhooks/{webhook}', [UserController::class, 'destroyAsaasWebhook'])->name('users.asaas-webhooks.destroy');
     Route::get('assistant-lead', [AssistantLeadController::class, 'index'])->name('assistant-lead.index');
     Route::delete('assistant-lead/{assistantLead}', [AssistantLeadController::class, 'destroy'])->name('assistant-lead.destroy');
     Route::get('openai/conv_id', [App\Http\Controllers\Admin\OpenAIController::class, 'convId'])->name('openai.conv_id');

@@ -99,6 +99,25 @@ class UserController extends Controller
             ->with('success', 'UsuÃ¡rio removido com sucesso.');
     }
 
+    public function destroyAsaasWebhook(User $user, AsaasWebhook $webhook)
+    {
+        if (empty($user->customer_asaas_id) || (string) $webhook->customer_id !== (string) $user->customer_asaas_id) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Webhook Asaas não encontrado para este usuário.',
+            ], 404);
+        }
+
+        $deletedId = $webhook->id;
+        $webhook->delete();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Webhook Asaas removido com sucesso.',
+            'deleted_id' => $deletedId,
+        ]);
+    }
+
     public function createAsaasCustomer(User $user)
     {
         if (empty($user->cpf_cnpj)) {
