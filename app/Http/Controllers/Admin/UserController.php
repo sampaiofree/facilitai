@@ -304,6 +304,40 @@ class UserController extends Controller
         ]);
     }
 
+    public function getAsaasSubscriptionDetails(User $user)
+    {
+        if (empty($user->asaas_sub)) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Assinatura Asaas nao encontrada para este usuario.',
+            ], 422);
+        }
+
+        $asaas = new AsaasService();
+        $response = $asaas->getSubscription($user->asaas_sub);
+
+        Log::channel('asaas')->info('Resposta ao recuperar assinatura Asaas', [
+            'user_id' => $user->id,
+            'subscription_id' => $user->asaas_sub,
+            'response_body' => $response,
+        ]);
+
+        if (empty($response) || !empty($response['error'])) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Falha ao recuperar assinatura no Asaas.',
+                'response' => $response,
+                'asaas_response' => $response['response'] ?? $response,
+            ], 502);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'subscription' => $this->normalizeAsaasSubscriptionDetails($response),
+            'asaas_response' => $response,
+        ]);
+    }
+
     public function syncAsaasSubscriptionPayments(User $user)
     {
         if (empty($user->asaas_sub)) {
@@ -457,6 +491,32 @@ class UserController extends Controller
     private function buildSyncWebhookId(string $paymentId): string
     {
         return 'sync_' . substr(hash('sha256', $paymentId), 0, 24);
+    }
+
+    private function normalizeAsaasSubscriptionDetails(array $subscription): array
+    {
+        return [
+            'id' => $subscription['id'] ?? null,
+            'object' => $subscription['object'] ?? null,
+            'status' => $subscription['status'] ?? null,
+            'customer' => $subscription['customer'] ?? null,
+            'value' => $subscription['value'] ?? null,
+            'billing_type' => $subscription['billingType'] ?? null,
+            'cycle' => $subscription['cycle'] ?? null,
+            'date_created' => $subscription['dateCreated'] ?? null,
+            'next_due_date' => $subscription['nextDueDate'] ?? null,
+            'end_date' => $subscription['endDate'] ?? null,
+            'description' => $subscription['description'] ?? null,
+            'payment_link' => $subscription['paymentLink'] ?? null,
+            'deleted' => $subscription['deleted'] ?? null,
+            'max_payments' => $subscription['maxPayments'] ?? null,
+            'external_reference' => $subscription['externalReference'] ?? null,
+            'checkout_session' => $subscription['checkoutSession'] ?? null,
+            'split_count' => is_array($subscription['split'] ?? null) ? count($subscription['split']) : 0,
+            'fine' => $subscription['fine'] ?? null,
+            'interest' => $subscription['interest'] ?? null,
+            'discount' => $subscription['discount'] ?? null,
+        ];
     }
 
     private function normalizeMoneyValue(mixed $value): ?float

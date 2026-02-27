@@ -161,6 +161,36 @@ class AsaasService
     }
 
     /**
+     * Recupera uma assinatura específica no Asaas.
+     *
+     * @param string $subscriptionId Identificador da assinatura no Asaas.
+     * @return array|null Objeto da assinatura ou detalhes de erro.
+     */
+    public function getSubscription(string $subscriptionId): ?array
+    {
+        try {
+            $response = $this->client->get("subscriptions/{$subscriptionId}");
+
+            return json_decode($response->getBody()->getContents(), true);
+        } catch (RequestException $e) {
+            $errorBody = $e->hasResponse() ? $e->getResponse()->getBody()->getContents() : null;
+            Log::channel('asaas')->error('Erro ao recuperar assinatura Asaas:', [
+                'message' => $e->getMessage(),
+                'subscription_id' => $subscriptionId,
+                'response_body' => $errorBody,
+            ]);
+
+            return [
+                'error' => true,
+                'response' => $errorBody ? json_decode($errorBody, true) : null,
+            ];
+        } catch (\Exception $e) {
+            Log::channel('asaas')->error('Erro inesperado ao recuperar assinatura Asaas: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Lista as cobranças de uma assinatura no Asaas.
      *
      * @param string $subscriptionId Identificador da assinatura no Asaas.

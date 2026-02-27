@@ -164,6 +164,11 @@
                     <div class="mt-1 flex flex-wrap items-center gap-2">
                         <a id="viewUserAsaasSubLink" href="#" class="text-blue-600 hover:underline"></a>
                         <button type="button"
+                            id="viewAsaasSubscriptionDetailsBtn"
+                            disabled
+                            class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                        >Ver</button>
+                        <button type="button"
                             id="createAsaasSubscriptionBtn"
                             class="hidden rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-400 hover:text-slate-900"
                         >Criar assinatura</button>
@@ -229,6 +234,43 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="subscriptionDetailsModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 backdrop-blur">
+        <div class="w-[680px] max-w-[95vw] rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900">Detalhes da assinatura</h3>
+                <button type="button" class="text-slate-500 hover:text-slate-700" data-close-subscription-details>x</button>
+            </div>
+            <p id="subscriptionDetailsHint" class="mt-2 text-[11px] text-rose-600 hidden"></p>
+            <div id="subscriptionDetailsLoading" class="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 hidden">
+                Carregando dados da assinatura...
+            </div>
+            <div id="subscriptionDetailsContent" class="mt-4 hidden">
+                <div class="grid grid-cols-1 gap-3 text-sm text-slate-600 md:grid-cols-2">
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">ID</span><div id="subscriptionDetailsId" class="font-semibold text-slate-900"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Status</span><div id="subscriptionDetailsStatus"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Customer</span><div id="subscriptionDetailsCustomer"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Valor</span><div id="subscriptionDetailsValue"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Forma de pagamento</span><div id="subscriptionDetailsBillingType"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Ciclo</span><div id="subscriptionDetailsCycle"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Criada em</span><div id="subscriptionDetailsDateCreated"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Próximo vencimento</span><div id="subscriptionDetailsNextDueDate"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Data fim</span><div id="subscriptionDetailsEndDate"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Descrição</span><div id="subscriptionDetailsDescription"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Payment Link</span><div id="subscriptionDetailsPaymentLink"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Checkout Session</span><div id="subscriptionDetailsCheckoutSession"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Deleted</span><div id="subscriptionDetailsDeleted"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Max payments</span><div id="subscriptionDetailsMaxPayments"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">External reference</span><div id="subscriptionDetailsExternalReference"></div></div>
+                    <div><span class="text-xs uppercase tracking-wide text-slate-400">Splits</span><div id="subscriptionDetailsSplitCount"></div></div>
+                </div>
+                <div class="mt-4">
+                    <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Resposta Asaas (JSON)</h4>
+                    <pre id="subscriptionDetailsRaw" class="mt-2 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-700 whitespace-pre-wrap"></pre>
                 </div>
             </div>
         </div>
@@ -384,8 +426,31 @@
             const createAsaasCustomerHint = document.getElementById('createAsaasCustomerHint');
             const createAsaasSubscriptionBtn = document.getElementById('createAsaasSubscriptionBtn');
             const createAsaasSubscriptionHint = document.getElementById('createAsaasSubscriptionHint');
+            const viewAsaasSubscriptionDetailsBtn = document.getElementById('viewAsaasSubscriptionDetailsBtn');
             const syncAsaasWebhooksBtn = document.getElementById('syncAsaasWebhooksBtn');
             const syncAsaasWebhooksHint = document.getElementById('syncAsaasWebhooksHint');
+            const subscriptionDetailsModal = document.getElementById('subscriptionDetailsModal');
+            const closeSubscriptionDetailsButtons = document.querySelectorAll('[data-close-subscription-details]');
+            const subscriptionDetailsHint = document.getElementById('subscriptionDetailsHint');
+            const subscriptionDetailsLoading = document.getElementById('subscriptionDetailsLoading');
+            const subscriptionDetailsContent = document.getElementById('subscriptionDetailsContent');
+            const subscriptionDetailsRaw = document.getElementById('subscriptionDetailsRaw');
+            const subscriptionDetailsId = document.getElementById('subscriptionDetailsId');
+            const subscriptionDetailsStatus = document.getElementById('subscriptionDetailsStatus');
+            const subscriptionDetailsCustomer = document.getElementById('subscriptionDetailsCustomer');
+            const subscriptionDetailsValue = document.getElementById('subscriptionDetailsValue');
+            const subscriptionDetailsBillingType = document.getElementById('subscriptionDetailsBillingType');
+            const subscriptionDetailsCycle = document.getElementById('subscriptionDetailsCycle');
+            const subscriptionDetailsDateCreated = document.getElementById('subscriptionDetailsDateCreated');
+            const subscriptionDetailsNextDueDate = document.getElementById('subscriptionDetailsNextDueDate');
+            const subscriptionDetailsEndDate = document.getElementById('subscriptionDetailsEndDate');
+            const subscriptionDetailsDescription = document.getElementById('subscriptionDetailsDescription');
+            const subscriptionDetailsPaymentLink = document.getElementById('subscriptionDetailsPaymentLink');
+            const subscriptionDetailsCheckoutSession = document.getElementById('subscriptionDetailsCheckoutSession');
+            const subscriptionDetailsDeleted = document.getElementById('subscriptionDetailsDeleted');
+            const subscriptionDetailsMaxPayments = document.getElementById('subscriptionDetailsMaxPayments');
+            const subscriptionDetailsExternalReference = document.getElementById('subscriptionDetailsExternalReference');
+            const subscriptionDetailsSplitCount = document.getElementById('subscriptionDetailsSplitCount');
             const subscriptionModal = document.getElementById('subscriptionModal');
             const subscriptionModalTitle = document.getElementById('subscriptionModalTitle');
             const subscriptionForm = document.getElementById('subscriptionForm');
@@ -405,6 +470,7 @@
             const createSubscriptionUrlTemplate = "{{ route('adm.users.asaas-subscription', ['user' => '__ID__']) }}";
             const updateSubscriptionUrlTemplate = "{{ route('adm.users.asaas-subscription.update', ['user' => '__ID__']) }}";
             const subscriptionLinkUrlTemplate = "{{ route('adm.users.asaas-subscription-link', ['user' => '__ID__']) }}";
+            const subscriptionDetailsUrlTemplate = "{{ route('adm.users.asaas-subscription-details', ['user' => '__ID__']) }}";
             const syncSubscriptionPaymentsUrlTemplate = "{{ route('adm.users.asaas-subscription-payments.sync', ['user' => '__ID__']) }}";
             let currentViewUser = null;
             let subscriptionMode = 'create';
@@ -443,6 +509,28 @@
                     .replace(/>/g, '&gt;')
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&#39;');
+            };
+
+            const formatDate = (value) => {
+                if (!value || typeof value !== 'string') return '-';
+                const parsed = value.substring(0, 10).split('-');
+                if (parsed.length !== 3) return value;
+                return `${parsed[2]}/${parsed[1]}/${parsed[0]}`;
+            };
+
+            const formatCurrency = (value) => {
+                const number = Number(value);
+                if (Number.isNaN(number)) return value ?? '-';
+                return new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                }).format(number);
+            };
+
+            const formatBoolean = (value) => {
+                if (value === true) return 'Sim';
+                if (value === false) return 'Não';
+                return '-';
             };
 
             const setRegisterButtonState = (state) => {
@@ -484,11 +572,91 @@
                 }
             };
 
+            const setSubscriptionDetailsButtonState = (state) => {
+                if (!viewAsaasSubscriptionDetailsBtn) return;
+                viewAsaasSubscriptionDetailsBtn.disabled = !!state.disabled;
+                if (state.label) {
+                    viewAsaasSubscriptionDetailsBtn.textContent = state.label;
+                }
+            };
+
             const setSyncButtonState = (state) => {
                 if (!syncAsaasWebhooksBtn) return;
                 syncAsaasWebhooksBtn.disabled = !!state.disabled;
                 if (state.label) {
                     syncAsaasWebhooksBtn.textContent = state.label;
+                }
+            };
+
+            const setSubscriptionDetailsHint = (message = '') => {
+                if (!subscriptionDetailsHint) return;
+                if (message) {
+                    subscriptionDetailsHint.textContent = message;
+                    subscriptionDetailsHint.classList.remove('hidden');
+                } else {
+                    subscriptionDetailsHint.classList.add('hidden');
+                    subscriptionDetailsHint.textContent = '';
+                }
+            };
+
+            const setSubscriptionDetailsLoading = (loading) => {
+                if (!subscriptionDetailsLoading || !subscriptionDetailsContent) return;
+                subscriptionDetailsLoading.classList.toggle('hidden', !loading);
+                subscriptionDetailsContent.classList.toggle('hidden', loading);
+            };
+
+            const clearSubscriptionDetails = () => {
+                [
+                    subscriptionDetailsId,
+                    subscriptionDetailsStatus,
+                    subscriptionDetailsCustomer,
+                    subscriptionDetailsValue,
+                    subscriptionDetailsBillingType,
+                    subscriptionDetailsCycle,
+                    subscriptionDetailsDateCreated,
+                    subscriptionDetailsNextDueDate,
+                    subscriptionDetailsEndDate,
+                    subscriptionDetailsDescription,
+                    subscriptionDetailsPaymentLink,
+                    subscriptionDetailsCheckoutSession,
+                    subscriptionDetailsDeleted,
+                    subscriptionDetailsMaxPayments,
+                    subscriptionDetailsExternalReference,
+                    subscriptionDetailsSplitCount,
+                ].forEach((element) => {
+                    if (element) {
+                        element.textContent = '-';
+                    }
+                });
+                if (subscriptionDetailsRaw) {
+                    subscriptionDetailsRaw.textContent = '';
+                }
+            };
+
+            const renderSubscriptionDetails = (subscription, rawResponse = null) => {
+                if (!subscription) return;
+                if (subscriptionDetailsId) subscriptionDetailsId.textContent = subscription.id ?? '-';
+                if (subscriptionDetailsStatus) subscriptionDetailsStatus.textContent = subscription.status ?? '-';
+                if (subscriptionDetailsCustomer) subscriptionDetailsCustomer.textContent = subscription.customer ?? '-';
+                if (subscriptionDetailsValue) subscriptionDetailsValue.textContent = formatCurrency(subscription.value);
+                if (subscriptionDetailsBillingType) subscriptionDetailsBillingType.textContent = subscription.billing_type ?? '-';
+                if (subscriptionDetailsCycle) subscriptionDetailsCycle.textContent = subscription.cycle ?? '-';
+                if (subscriptionDetailsDateCreated) subscriptionDetailsDateCreated.textContent = formatDate(subscription.date_created);
+                if (subscriptionDetailsNextDueDate) subscriptionDetailsNextDueDate.textContent = formatDate(subscription.next_due_date);
+                if (subscriptionDetailsEndDate) subscriptionDetailsEndDate.textContent = formatDate(subscription.end_date);
+                if (subscriptionDetailsDescription) subscriptionDetailsDescription.textContent = subscription.description ?? '-';
+                if (subscriptionDetailsPaymentLink) subscriptionDetailsPaymentLink.textContent = subscription.payment_link ?? '-';
+                if (subscriptionDetailsCheckoutSession) subscriptionDetailsCheckoutSession.textContent = subscription.checkout_session ?? '-';
+                if (subscriptionDetailsDeleted) subscriptionDetailsDeleted.textContent = formatBoolean(subscription.deleted);
+                if (subscriptionDetailsMaxPayments) subscriptionDetailsMaxPayments.textContent = subscription.max_payments ?? '-';
+                if (subscriptionDetailsExternalReference) subscriptionDetailsExternalReference.textContent = subscription.external_reference ?? '-';
+                if (subscriptionDetailsSplitCount) subscriptionDetailsSplitCount.textContent = subscription.split_count ?? 0;
+                if (subscriptionDetailsRaw) {
+                    try {
+                        subscriptionDetailsRaw.textContent = JSON.stringify(rawResponse ?? subscription, null, 2);
+                    } catch (error) {
+                        subscriptionDetailsRaw.textContent = String(rawResponse ?? subscription);
+                    }
                 }
             };
 
@@ -615,6 +783,17 @@
                 viewModal?.classList.add('hidden');
                 viewModal?.classList.remove('flex');
             };
+            const openSubscriptionDetailsModal = () => {
+                subscriptionDetailsModal?.classList.remove('hidden');
+                subscriptionDetailsModal?.classList.add('flex');
+            };
+            const closeSubscriptionDetailsModal = () => {
+                subscriptionDetailsModal?.classList.add('hidden');
+                subscriptionDetailsModal?.classList.remove('flex');
+                setSubscriptionDetailsHint();
+                clearSubscriptionDetails();
+                setSubscriptionDetailsLoading(true);
+            };
             const openSubscriptionModal = () => {
                 subscriptionModal?.classList.remove('hidden');
                 subscriptionModal?.classList.add('flex');
@@ -678,6 +857,10 @@
             modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
             closeViewButtons.forEach(btn => btn.addEventListener('click', closeViewModal));
             viewModal?.addEventListener('click', (event) => { if (event.target === viewModal) closeViewModal(); });
+            closeSubscriptionDetailsButtons.forEach(btn => btn.addEventListener('click', closeSubscriptionDetailsModal));
+            subscriptionDetailsModal?.addEventListener('click', (event) => {
+                if (event.target === subscriptionDetailsModal) closeSubscriptionDetailsModal();
+            });
             closeSubscriptionButtons.forEach(btn => btn.addEventListener('click', closeSubscriptionModal));
             subscriptionModal?.addEventListener('click', (event) => {
                 if (event.target === subscriptionModal) closeSubscriptionModal();
@@ -737,6 +920,7 @@
                     });
                     toggleHint(createAsaasCustomerHint);
                     refreshSubscriptionState(payload);
+                    setSubscriptionDetailsButtonState({ disabled: !payload.asaas_sub, label: 'Ver' });
                     setSyncButtonState({ disabled: !payload.asaas_sub, label: 'Atualizar' });
                     setSyncHint();
 
@@ -822,6 +1006,57 @@
                 if (data?.url) {
                     window.open(data.url, '_blank');
                 }
+            });
+
+            viewAsaasSubscriptionDetailsBtn?.addEventListener('click', async () => {
+                if (!currentViewUser?.id || !currentViewUser?.asaas_sub) {
+                    toggleHint(createAsaasSubscriptionHint, 'Assinatura Asaas não encontrada para este usuário.');
+                    return;
+                }
+
+                setSubscriptionDetailsButtonState({ disabled: true, label: 'Carregando...' });
+                clearSubscriptionDetails();
+                setSubscriptionDetailsHint();
+                setSubscriptionDetailsLoading(true);
+                openSubscriptionDetailsModal();
+
+                const url = subscriptionDetailsUrlTemplate.replace('__ID__', currentViewUser.id);
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                });
+
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (error) {
+                    data = null;
+                }
+
+                if (!response.ok || (data && data.error)) {
+                    const message = data?.message || 'Falha ao recuperar assinatura no Asaas.';
+                    setSubscriptionDetailsHint(message);
+                    if (subscriptionDetailsRaw) {
+                        try {
+                            subscriptionDetailsRaw.textContent = JSON.stringify(
+                                data?.asaas_response ?? data?.response ?? data ?? { message },
+                                null,
+                                2
+                            );
+                        } catch (error) {
+                            subscriptionDetailsRaw.textContent = String(data?.asaas_response ?? data?.response ?? message);
+                        }
+                    }
+                    setSubscriptionDetailsLoading(false);
+                    setSubscriptionDetailsButtonState({ disabled: false, label: 'Ver' });
+                    return;
+                }
+
+                renderSubscriptionDetails(data?.subscription ?? null, data?.asaas_response ?? data);
+                setSubscriptionDetailsLoading(false);
+                setSubscriptionDetailsButtonState({ disabled: false, label: 'Ver' });
             });
 
             syncAsaasWebhooksBtn?.addEventListener('click', async () => {
@@ -1000,6 +1235,7 @@
                     }
                 }
                 refreshSubscriptionState(currentViewUser);
+                setSubscriptionDetailsButtonState({ disabled: !currentViewUser?.asaas_sub, label: 'Ver' });
                 setSyncButtonState({ disabled: !currentViewUser?.asaas_sub, label: 'Atualizar' });
                 toggleHint(createAsaasSubscriptionHint);
                 renderAsaasResponse(data?.asaas_response ?? data);
