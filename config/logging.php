@@ -154,6 +154,20 @@ return [
             'days' => env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
         ],
+        'whatsapp_cloud_webhook' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/whatsapp_cloud_webhook.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+        'whatsapp_cloud_job' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/whatsapp_cloud_job.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
         'process_job' => [
             'driver' => 'daily',
             'path' => storage_path('logs/process_job.log'),

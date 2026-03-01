@@ -15,6 +15,7 @@ use App\Services\EvolutionAPIOficial;
 use App\Services\IAOrchestratorService;
 use App\Services\ScheduledMessageService;
 use App\Services\UazapiService;
+use App\Services\WhatsappCloudApiService;
 use App\DTOs\IAResult;
 use App\Support\LogContext;
 use Illuminate\Bus\Queueable;
@@ -477,7 +478,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return $this->conexao;
         }
 
-        $conexao = Conexao::with(['cliente', 'assistant', 'credential.iaplataforma', 'iamodelo', 'whatsappApi'])->find($this->conexaoId);
+        $conexao = Conexao::with(['cliente', 'assistant', 'credential.iaplataforma', 'iamodelo', 'whatsappApi', 'whatsappCloudAccount'])->find($this->conexaoId);
         if (!$conexao) {
             Log::channel('process_job')->error('Conexao não encontrada para ProcessIncomingMessageJob.', $this->logContext([
                 'conexao_id' => $this->conexaoId,
@@ -792,6 +793,19 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return;
         }
 
+        if ($providerSlug === 'whatsapp_cloud') {
+            $service = new WhatsappCloudApiService();
+            $sendResult = $service->sendText($phone, $message, $this->resolveWhatsappCloudSendOptions($token));
+            if (!empty($sendResult['error'])) {
+                Log::channel('process_job')->error('Falha ao enviar mensagem via WhatsApp Cloud API.', $this->logContext(array_merge($logContext, [
+                    'response' => $sendResult,
+                ])));
+                $this->throwTransient('Falha ao enviar mensagem via WhatsApp Cloud API.', $logContext);
+            }
+
+            return;
+        }
+
         Log::channel('process_job')->warning('Provedor WhatsApp não suportado para envio de texto.', $this->logContext(array_merge($logContext, [
             'provider_slug' => $providerSlug,
         ])));
@@ -811,6 +825,64 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         }
 
         return (string) $instanceId;
+    }
+
+    private function resolveWhatsappCloudSendOptions(?string $token = null): array
+    {
+        $options = [];
+
+        $accessToken = trim((string) ($token ?: ($this->conexao?->whatsappCloudAccount?->access_token ?? '') ?: ($this->conexao?->whatsapp_api_key ?? '')));
+        if ($accessToken !== '') {
+            $options['access_token'] = $accessToken;
+        }
+
+        $phoneNumberId = $this->resolveWhatsappCloudPhoneNumberId();
+        if ($phoneNumberId !== null) {
+            $options['phone_number_id'] = $phoneNumberId;
+        }
+
+        return $options;
+    }
+
+    private function resolveWhatsappCloudPhoneNumberId(): ?string
+    {
+        $fromAccount = trim((string) ($this->conexao?->whatsappCloudAccount?->phone_number_id ?? ''));
+        if ($fromAccount !== '' && preg_match('/^\d+$/', $fromAccount)) {
+            return $fromAccount;
+        }
+
+        $fromInfo = $this->readConexaoInfoValue('phone_number_id');
+        if ($fromInfo !== null) {
+            return $fromInfo;
+        }
+
+        $fromPhoneField = trim((string) ($this->conexao?->phone ?? ''));
+        if ($fromPhoneField !== '' && preg_match('/^\d+$/', $fromPhoneField)) {
+            return $fromPhoneField;
+        }
+
+        return null;
+    }
+
+    private function readConexaoInfoValue(string $key): ?string
+    {
+        $raw = $this->conexao?->informacoes;
+        if (!is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        $value = $decoded[$key] ?? null;
+        if (!is_scalar($value)) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+        return $value !== '' ? $value : null;
     }
 
     private function handleOpenAIErrorFallback(IAResult $result, array $payload, ClienteLead $lead, array $logContext): void
@@ -1320,6 +1392,37 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             if (!empty($response['error'])) {
                 Log::channel('process_job')->error('Falha ao enviar mídia via API Oficial.', $this->logContext([
                     'response' => $response,
+                ]));
+                return 'Falha ao enviar mídia.';
+            }
+
+            return 'Midia enviada para a fila de envio.';
+        }
+
+        if ($providerSlug === 'whatsapp_cloud') {
+            $service = new WhatsappCloudApiService();
+            $cloudOptions = $this->resolveWhatsappCloudSendOptions($token);
+            $caption = is_string($text) && trim($text) !== '' ? trim($text) : null;
+            $filename = isset($options['docName']) && is_string($options['docName']) && trim($options['docName']) !== ''
+                ? trim($options['docName'])
+                : null;
+
+            $response = match ($finalType) {
+                'image' => $service->sendImage($phone, $url, $caption, $cloudOptions),
+                'video' => $service->sendVideo($phone, $url, $caption, $cloudOptions),
+                'audio', 'ptt' => $service->sendAudioPtt($phone, $url, $cloudOptions),
+                'document' => $service->sendDocumentPdf($phone, $url, $filename, $caption, $cloudOptions),
+                default => [
+                    'error' => true,
+                    'status' => 422,
+                    'body' => ['message' => 'Tipo de mídia não suportado pela WhatsApp Cloud API.'],
+                ],
+            };
+
+            if (!empty($response['error'])) {
+                Log::channel('process_job')->error('Falha ao enviar mídia via WhatsApp Cloud API.', $this->logContext([
+                    'response' => $response,
+                    'type' => $finalType,
                 ]));
                 return 'Falha ao enviar mídia.';
             }

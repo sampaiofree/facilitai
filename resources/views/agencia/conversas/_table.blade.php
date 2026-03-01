@@ -51,6 +51,17 @@
                             ->all(),
                         'tags' => $lead->tags->pluck('name')->all(),
                         'tag_ids' => $lead->tags->pluck('id')->all(),
+                        'custom_fields' => $lead->customFieldValues
+                            ->map(function ($item) {
+                                return [
+                                    'field_id' => (int) $item->whatsapp_cloud_custom_field_id,
+                                    'name' => (string) ($item->customField?->name ?? ''),
+                                    'label' => (string) ($item->customField?->label ?? ''),
+                                    'value' => (string) ($item->value ?? ''),
+                                ];
+                            })
+                            ->values()
+                            ->all(),
                         'bot_enabled' => $lead->bot_enabled,
                     ];
                 @endphp

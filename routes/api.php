@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Http\Controllers\Api\EvolutionWebhookController;
 use App\Http\Controllers\Api\HotmartWebhookController;
 use App\Http\Controllers\Api\UazapiWebhookController;
+use App\Http\Controllers\Api\WhatsappCloudWebhookController;
 
 
 
@@ -29,3 +30,5 @@ Route::post('/evolution-api-oficial', [EvolutionApiOficialWebhookController::cla
 //Route::post('/hotmart-test-simple', [HotmartWebhookController::class, 'testHotmart']);
 
 Route::post('/uazapi/{evento}/{tipodemensagem}', [UazapiWebhookController::class, 'handle'])->name('api.uazapi.handle');
+Route::get('/whatsapp-cloud/{webhookKey}', [WhatsappCloudWebhookController::class, 'verify'])->name('api.whatsapp-cloud.webhook.verify');
+Route::post('/whatsapp-cloud/{webhookKey}', [WhatsappCloudWebhookController::class, 'handle'])->name('api.whatsapp-cloud.webhook');

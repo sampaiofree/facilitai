@@ -45,4 +45,9 @@ class Cliente extends Authenticatable
     {
         return $this->hasMany(Conexao::class, 'cliente_id');
     }
+
+    public function whatsappCloudCampaigns()
+    {
+        return $this->hasMany(WhatsappCloudCampaign::class, 'cliente_id');
+    }
 }

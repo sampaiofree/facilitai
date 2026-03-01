@@ -9,6 +9,8 @@ use App\Models\AssistantLead;
 use App\Models\SequenceChat;
 use App\Models\ScheduledMessage;
 use App\Models\Tag;
+use App\Models\WhatsappCloudConversationWindow;
+use App\Models\ClienteLeadCustomField;
 
 class ClienteLead extends Model
 {
@@ -51,5 +53,20 @@ class ClienteLead extends Model
     public function scheduledMessages()
     {
         return $this->hasMany(ScheduledMessage::class, 'cliente_lead_id');
+    }
+
+    public function whatsappCloudConversationWindows()
+    {
+        return $this->hasMany(WhatsappCloudConversationWindow::class, 'cliente_lead_id');
+    }
+
+    public function customFieldValues()
+    {
+        return $this->hasMany(ClienteLeadCustomField::class, 'cliente_lead_id');
+    }
+
+    public function whatsappCloudCampaignItems()
+    {
+        return $this->hasMany(WhatsappCloudCampaignItem::class, 'cliente_lead_id');
     }
 }

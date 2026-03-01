@@ -306,6 +306,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(\App\Models\ScheduledMessage::class, 'created_by_user_id');
     }
 
+    public function whatsappCloudCampaigns()
+    {
+        return $this->hasMany(\App\Models\WhatsappCloudCampaign::class, 'user_id');
+    }
+
 
 }
  

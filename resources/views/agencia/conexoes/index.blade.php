@@ -85,6 +85,7 @@
                                     data-model-id="{{ $conexao->model }}"
                                     data-whatsapp-api-id="{{ $conexao->whatsapp_api_id }}"
                                     data-whatsapp-api-slug="{{ $conexao->whatsappApi?->slug }}"
+                                    data-whatsapp-cloud-account-id="{{ $conexao->whatsapp_cloud_account_id }}"
                                     data-phone="{{ $conexao->phone }}"
                                 >Editar</button>
                                 <form method="POST" action="{{ route('agencia.conexoes.destroy', $conexao) }}" onsubmit="return confirm('Deseja excluir esta conexão?');">
@@ -232,6 +233,30 @@
                     </div>
                 </div>
 
+                <div id="conexaoCloudFields" class="hidden">
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="conexaoCloudAccount">Conta Cloud</label>
+                    <select id="conexaoCloudAccount" name="whatsapp_cloud_account_id" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">Selecione uma conta cloud</option>
+                        @foreach ($whatsappCloudAccounts as $cloudAccount)
+                            @php
+                                $usage = $cloudAccountUsageById[$cloudAccount->id] ?? null;
+                                $isInUse = $usage !== null;
+                                $usageLabel = $isInUse
+                                    ? 'Em uso por ' . ($usage['conexao_name'] ?? 'outra conexão')
+                                    : 'Disponível';
+                            @endphp
+                            <option
+                                value="{{ $cloudAccount->id }}"
+                                @selected(old('whatsapp_cloud_account_id') == $cloudAccount->id)
+                                @disabled($isInUse)
+                            >
+                                {{ $cloudAccount->name }} ({{ $cloudAccount->phone_number_id }}) - {{ $usageLabel }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-slate-400">A conexão usará as credenciais da conta cloud selecionada. Regra: 1 conta cloud = 1 conexão.</p>
+                </div>
+
                 <div class="flex items-center justify-end gap-3 pt-2">
                     <button type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" data-close-modal>Cancelar</button>
                     <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Salvar</button>
@@ -283,6 +308,8 @@
             const apiOficialTokenInput = document.getElementById('conexaoApiOficialToken');
             const apiOficialBusinessIdInput = document.getElementById('conexaoApiOficialBusinessId');
             const apiOficialNumberInput = document.getElementById('conexaoApiOficialNumber');
+            const cloudFields = document.getElementById('conexaoCloudFields');
+            const cloudAccountSelect = document.getElementById('conexaoCloudAccount');
             const storeRoute = "{{ route('agencia.conexoes.store') }}";
             const baseUrl = "{{ url('/agencia/conexoes') }}";
             const hasErrors = @json($errors->any());
@@ -293,6 +320,7 @@
             const oldClienteId = @json(old('cliente_id'));
             const oldModelId = @json(old('model'));
             const oldWhatsappApiId = @json(old('whatsapp_api_id'));
+            const oldWhatsappCloudAccountId = @json(old('whatsapp_cloud_account_id'));
             const oldPhone = @json(old('phone'));
             const oldBusinessId = @json(old('businessId'));
             const oldNumber = @json(old('number'));
@@ -358,8 +386,10 @@
 
             const toggleConnectionFields = ({ slug = '', isEditing = false } = {}) => {
                 const isApiOficial = slug === 'api_oficial';
-                const showPhone = !isEditing && !isApiOficial;
+                const isCloud = slug === 'whatsapp_cloud';
+                const showPhone = !isEditing && !isApiOficial && !isCloud;
                 const showApiOficial = !isEditing && isApiOficial;
+                const showCloud = !isEditing && isCloud;
 
                 if (phoneField) {
                     phoneField.classList.toggle('hidden', !showPhone);
@@ -394,6 +424,17 @@
                     apiOficialNumberInput.disabled = !showApiOficial;
                     if (!showApiOficial) {
                         apiOficialNumberInput.value = '';
+                    }
+                }
+
+                if (cloudFields) {
+                    cloudFields.classList.toggle('hidden', !showCloud);
+                }
+                if (cloudAccountSelect) {
+                    cloudAccountSelect.required = showCloud;
+                    cloudAccountSelect.disabled = !showCloud;
+                    if (!showCloud) {
+                        cloudAccountSelect.value = '';
                     }
                 }
             };
@@ -458,6 +499,9 @@
                 if (apiOficialNumberInput) {
                     apiOficialNumberInput.value = '';
                 }
+                if (cloudAccountSelect) {
+                    cloudAccountSelect.value = '';
+                }
                 toggleConnectionFields({ slug: '', isEditing: false });
             };
 
@@ -496,6 +540,9 @@
                         }
                         if (phoneInput) {
                             phoneInput.value = button.dataset.phone || '';
+                        }
+                        if (cloudAccountSelect) {
+                            cloudAccountSelect.value = button.dataset.whatsappCloudAccountId || '';
                         }
                         toggleConnectionFields({
                             slug: button.dataset.whatsappApiSlug || getSelectedWhatsappApiSlug(),
@@ -549,6 +596,9 @@
                 }
                 if (phoneInput) {
                     phoneInput.value = oldPhone ?? '';
+                }
+                if (cloudAccountSelect) {
+                    cloudAccountSelect.value = oldWhatsappCloudAccountId ?? '';
                 }
                 if (apiOficialNumberInput) {
                     apiOficialNumberInput.value = oldNumber ?? '';

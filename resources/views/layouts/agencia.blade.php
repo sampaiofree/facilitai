@@ -51,6 +51,7 @@
                     request()->routeIs('agencia.mensagens-agendadas.*') ||
                     request()->routeIs('agencia.images.*') ||
                     request()->routeIs('agencia.tags.*') ||
+                    request()->routeIs('agencia.campos-personalizados.*') ||
                     request()->routeIs('agencia.library.*');
                 $profileActive = request()->routeIs('agencia.profile.*');
             @endphp
@@ -79,6 +80,13 @@
                     </svg>
                     Conexões
                 </a>
+                <a href="{{ route('agencia.whatsapp-cloud.index') }}" class="group flex items-center gap-3 rounded-lg border-l-2 px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.whatsapp-cloud.*') ? 'border-blue-500 bg-slate-800 text-white' : 'border-transparent text-slate-300 hover:bg-slate-800 hover:text-white' }}">
+                    <svg class="h-4 w-4 shrink-0 {{ request()->routeIs('agencia.whatsapp-cloud.*') ? 'text-white' : 'text-slate-400 group-hover:text-slate-200' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 11.5a8.5 8.5 0 0 1-12.22 7.63L3.5 20.5l1.37-4.78A8.5 8.5 0 1 1 20.5 11.5Z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.5 10.5h7m-7 3h4.5"/>
+                    </svg>
+                    WhatsApp Cloud
+                </a>
                 <a href="{{ route('agencia.assistant.index') }}" class="group flex items-center gap-3 rounded-lg border-l-2 px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.assistant.*') ? 'border-blue-500 bg-slate-800 text-white' : 'border-transparent text-slate-300 hover:bg-slate-800 hover:text-white' }}">
                     <svg class="h-4 w-4 shrink-0 {{ request()->routeIs('agencia.assistant.*') ? 'text-white' : 'text-slate-400 group-hover:text-slate-200' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 7.5c1.657 0 3-1.343 3-3S13.657 1.5 12 1.5 9 2.843 9 4.5s1.343 3 3 3Zm-6 13.5a6 6 0 1 1 12 0H6Zm12-9 1.5 1.5L21 12m-3 0 1.5-1.5L21 12"/>
@@ -102,6 +110,7 @@
                         <a href="{{ route('agencia.mensagens-agendadas.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.mensagens-agendadas.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Mensagens agendadas</a>
                         <a href="{{ route('agencia.images.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.images.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Mídias</a>
                         <a href="{{ route('agencia.tags.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.tags.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}" >Tags</a>
+                        <a href="{{ route('agencia.campos-personalizados.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.campos-personalizados.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Campos personalizados</a>
                         <a href="{{ route('agencia.library.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.library.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Library</a>
                     </div>
                 </div>

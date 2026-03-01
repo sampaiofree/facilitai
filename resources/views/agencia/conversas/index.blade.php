@@ -290,6 +290,22 @@
                     ></textarea>
                 </div>
 
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Campos personalizados</span>
+                        <button
+                            type="button"
+                            id="leadCustomFieldAddBtn"
+                            class="rounded-full border border-slate-300 px-3 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-500 hover:text-slate-900"
+                        >Adicionar campo personalizado</button>
+                    </div>
+                    <div
+                        id="leadCustomFieldsEmpty"
+                        class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500"
+                    >Selecione um cliente e adicione os campos personalizados do lead.</div>
+                    <div id="leadCustomFieldsRows" class="space-y-2"></div>
+                </div>
+
                 <div data-chip-select="lead-tags" data-input-name="tags[]">
                     <span class="text-[11px] uppercase tracking-wide text-slate-400">Tags</span>
                     <div class="mt-2 flex flex-wrap gap-2" data-chip-list></div>
@@ -509,6 +525,10 @@
                     <p class="text-[11px] uppercase tracking-wide text-slate-400">Tags</p>
                     <div id="viewLeadTags" class="mt-2 flex flex-wrap gap-2 text-[11px]"></div>
                 </div>
+                <div class="md:col-span-2">
+                    <p class="text-[11px] uppercase tracking-wide text-slate-400">Campos personalizados</p>
+                    <div id="viewLeadCustomFields" class="mt-2 space-y-2"></div>
+                </div>
             </div>
             <div class="mt-6">
                 <h4 class="text-sm font-semibold text-slate-700">Assistentes relacionados</h4>
@@ -535,7 +555,7 @@
     </div>
 
     <div id="leadMessageModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-auto bg-black/50 px-4 py-6">
-        <div class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+        <div class="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-slate-900">Enviar mensagem</h3>
                 <button type="button" data-message-close class="text-slate-500 hover:text-slate-700">x</button>
@@ -545,30 +565,93 @@
                 <span class="mx-1 text-slate-300">|</span>
                 Assistente: <span id="messageAssistantName" class="font-semibold text-slate-700"></span>
             </p>
+            <div class="mt-4 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <button
+                    type="button"
+                    data-message-tab-button="text"
+                    class="rounded-lg px-3 py-1 text-xs font-semibold text-slate-600"
+                >Dentro da janela 24h</button>
+                <button
+                    type="button"
+                    data-message-tab-button="template"
+                    class="rounded-lg px-3 py-1 text-xs font-semibold text-slate-600"
+                >Fora da janela 24h</button>
+            </div>
             <form id="leadMessageForm" class="mt-4 space-y-4">
-                <textarea
-                    id="leadMessageText"
-                    rows="4"
-                    maxlength="2000"
-                    placeholder="Digite a mensagem..."
-                    class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                ></textarea>
+                <div id="leadMessageTabText" class="space-y-4">
+                    <div id="leadMessageConexaoWrap" class="hidden rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <label for="leadMessageConexao" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Conexao (obrigatorio neste caso)
+                        </label>
+                        <select
+                            id="leadMessageConexao"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                        >
+                            <option value="" selected>Selecione a conexao</option>
+                        </select>
+                        <p id="leadMessageConexaoHint" class="mt-1 text-[11px] text-slate-500">Escolha a conexao para definir o assistente.</p>
+                    </div>
 
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <label for="leadMessageScheduledFor" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        Agendar para (opcional)
-                    </label>
-                    <input
-                        id="leadMessageScheduledFor"
-                        type="datetime-local"
-                        class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                    >
-                    <p id="leadMessageTimezoneHint" class="mt-1 text-[11px] text-slate-500">Timezone: America/Sao_Paulo</p>
+                    <textarea
+                        id="leadMessageText"
+                        rows="4"
+                        maxlength="2000"
+                        placeholder="Digite a mensagem..."
+                        class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                    ></textarea>
+
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <label for="leadMessageScheduledFor" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Agendar para (opcional)
+                        </label>
+                        <input
+                            id="leadMessageScheduledFor"
+                            type="datetime-local"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                        >
+                        <p id="leadMessageTimezoneHint" class="mt-1 text-[11px] text-slate-500">Timezone: America/Sao_Paulo</p>
+                    </div>
+
+                    <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                        <p id="leadScheduledSummary" class="text-xs text-slate-600">Carregando agendamentos...</p>
+                        <div id="leadScheduledList" class="mt-2 space-y-2"></div>
+                    </div>
                 </div>
 
-                <div class="rounded-2xl border border-slate-200 bg-white p-3">
-                    <p id="leadScheduledSummary" class="text-xs text-slate-600">Carregando agendamentos...</p>
-                    <div id="leadScheduledList" class="mt-2 space-y-2"></div>
+                <div id="leadMessageTabTemplate" class="hidden space-y-4">
+                    <div class="rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                        Fora da janela de 24h, a WhatsApp Cloud exige envio por modelo aprovado.
+                    </div>
+
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <label for="leadTemplateConexao" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Conexao Cloud
+                        </label>
+                        <select
+                            id="leadTemplateConexao"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                        >
+                            <option value="" selected>Selecione a conexao cloud</option>
+                        </select>
+                        <p id="leadTemplateWindowStatus" class="mt-1 text-[11px] text-slate-500">Carregando status da janela...</p>
+                    </div>
+
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <label for="leadTemplateSelect" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Modelo aprovado
+                        </label>
+                        <select
+                            id="leadTemplateSelect"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                        >
+                            <option value="" selected>Selecione um modelo</option>
+                        </select>
+                    </div>
+
+                    <div id="leadTemplateVariablesWrap" class="hidden rounded-2xl border border-slate-200 bg-white p-3">
+                        <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Variáveis do modelo</p>
+                        <div id="leadTemplateVariables" class="grid gap-3 md:grid-cols-2"></div>
+                    </div>
                 </div>
 
                 <p id="leadMessageError" class="hidden rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-600"></p>
@@ -588,6 +671,7 @@
             const modal = document.getElementById('agenciaClienteLeadModal');
             const assistantBody = document.getElementById('viewLeadAssistants');
             const tagsContainer = document.getElementById('viewLeadTags');
+            const customFieldsContainer = document.getElementById('viewLeadCustomFields');
             const formModal = document.getElementById('agenciaClienteLeadFormModal');
             const clientLeadForm = document.getElementById('clienteLeadForm');
             const importForm = document.getElementById('clienteLeadImportForm');
@@ -599,6 +683,9 @@
             const clientLeadFormName = document.getElementById('clienteLeadFormName');
             const clientLeadFormInfo = document.getElementById('clienteLeadFormInfo');
             const clientLeadFormSelect = document.getElementById('clienteLeadFormClient');
+            const leadCustomFieldAddBtn = document.getElementById('leadCustomFieldAddBtn');
+            const leadCustomFieldsRows = document.getElementById('leadCustomFieldsRows');
+            const leadCustomFieldsEmpty = document.getElementById('leadCustomFieldsEmpty');
             const addLeadBtn = document.getElementById('openClienteLeadForm');
             const formTabs = document.querySelectorAll('[data-form-tab]');
             const importTabButton = document.querySelector('[data-form-tab="import"]');
@@ -620,6 +707,7 @@
             const previewPhoneStatus = document.getElementById('previewPhoneStatus');
             const previewEmptyDefault = previewEmpty?.textContent || '';
             const sequencesUrlTemplate = @json(route('agencia.sequences.cliente.sequences', ['cliente' => '__CLIENT__']));
+            const conexoesUrlTemplate = @json(route('agencia.sequences.cliente.conexoes', ['cliente' => '__CLIENT__']));
             const messageModal = document.getElementById('leadMessageModal');
             const messageForm = document.getElementById('leadMessageForm');
             const messageText = document.getElementById('leadMessageText');
@@ -629,14 +717,27 @@
             const scheduledList = document.getElementById('leadScheduledList');
             const messageLeadName = document.getElementById('messageLeadName');
             const messageAssistantName = document.getElementById('messageAssistantName');
+            const messageConexaoWrap = document.getElementById('leadMessageConexaoWrap');
+            const messageConexaoSelect = document.getElementById('leadMessageConexao');
+            const messageConexaoHint = document.getElementById('leadMessageConexaoHint');
             const messageError = document.getElementById('leadMessageError');
             const messageSuccess = document.getElementById('leadMessageSuccess');
             const messageSubmit = document.getElementById('leadMessageSubmit');
+            const messageTabButtons = document.querySelectorAll('[data-message-tab-button]');
+            const messageTabText = document.getElementById('leadMessageTabText');
+            const messageTabTemplate = document.getElementById('leadMessageTabTemplate');
+            const templateConexaoSelect = document.getElementById('leadTemplateConexao');
+            const templateWindowStatus = document.getElementById('leadTemplateWindowStatus');
+            const templateSelect = document.getElementById('leadTemplateSelect');
+            const templateVariablesWrap = document.getElementById('leadTemplateVariablesWrap');
+            const templateVariablesContainer = document.getElementById('leadTemplateVariables');
             const sendMessageUrlTemplate = @json(route('agencia.conversas.send-message', ['clienteLead' => '__LEAD_ID__']));
+            const cloudSendContextUrlTemplate = @json(route('agencia.conversas.cloud-send-context', ['clienteLead' => '__LEAD_ID__']));
             const scheduledMessagesUrlTemplate = @json(route('agencia.conversas.scheduled-messages.index', ['clienteLead' => '__LEAD_ID__']));
             const cancelScheduledMessageUrlTemplate = @json(route('agencia.conversas.scheduled-messages.cancel', ['scheduledMessage' => '__SCHEDULE_ID__']));
             const activateBotForAllUrl = @json(route('agencia.conversas.activate-bot-all'));
             const exportBaseUrl = @json(route('agencia.conversas.export'));
+            const availableLeadCustomFields = @json($leadCustomFieldsData, JSON_UNESCAPED_UNICODE);
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
             let previewHeaders = [];
             let previewRows = [];
@@ -644,6 +745,10 @@
             const chipSelects = {};
             let currentLead = null;
             let currentAssistant = null;
+            let messageRequiresConexao = false;
+            let messageMode = 'text';
+            const messageConexoesCache = new Map();
+            let currentCloudContext = null;
 
             const buildFilteredActionUrl = (baseUrl, extraParams = {}) => {
                 const url = new URL(baseUrl, window.location.origin);
@@ -869,12 +974,35 @@
 
             const closeMessageModal = () => {
                 messageModal?.classList.add('hidden');
+                messageRequiresConexao = false;
+                currentAssistant = null;
+                currentCloudContext = null;
+                if (messageConexaoSelect) {
+                    messageConexaoSelect.value = '';
+                }
+                if (messageConexaoWrap) {
+                    messageConexaoWrap.classList.add('hidden');
+                }
+                if (templateConexaoSelect) {
+                    templateConexaoSelect.value = '';
+                }
+                if (templateSelect) {
+                    templateSelect.value = '';
+                }
+                if (templateVariablesContainer) {
+                    templateVariablesContainer.innerHTML = '';
+                }
+                templateVariablesWrap?.classList.add('hidden');
+                if (templateWindowStatus) {
+                    templateWindowStatus.textContent = 'Selecione uma conexao para verificar a janela de 24h.';
+                }
                 if (scheduledList) {
                     scheduledList.innerHTML = '';
                 }
                 if (scheduledSummary) {
                     scheduledSummary.textContent = '';
                 }
+                setMessageMode('text');
             };
 
             const escapeHtml = (value) => (value ?? '')
@@ -960,15 +1088,304 @@
                 }
             };
 
-            const openMessageModal = (assistantId, assistantName) => {
+            const populateMessageConexoes = (list = []) => {
+                if (!messageConexaoSelect) {
+                    return;
+                }
+
+                messageConexaoSelect.innerHTML = '';
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = 'Selecione a conexao';
+                placeholder.selected = true;
+                messageConexaoSelect.appendChild(placeholder);
+
+                list.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = String(item.id);
+                    option.textContent = item.name;
+                    messageConexaoSelect.appendChild(option);
+                });
+            };
+
+            const loadMessageConexoes = async (clienteId) => {
+                if (!messageConexaoSelect || !clienteId) {
+                    populateMessageConexoes([]);
+                    return [];
+                }
+
+                const cacheKey = String(clienteId);
+                if (messageConexoesCache.has(cacheKey)) {
+                    const cached = messageConexoesCache.get(cacheKey) || [];
+                    populateMessageConexoes(cached);
+                    if (messageConexaoHint) {
+                        messageConexaoHint.textContent = cached.length
+                            ? 'Escolha a conexao para definir o assistente.'
+                            : 'Nenhuma conexao disponivel para este cliente.';
+                    }
+                    return cached;
+                }
+
+                if (messageConexaoHint) {
+                    messageConexaoHint.textContent = 'Carregando conexoes...';
+                }
+                messageConexaoSelect.disabled = true;
+
+                try {
+                    const url = conexoesUrlTemplate.replace('__CLIENT__', cacheKey);
+                    const response = await fetch(url, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Request failed');
+                    }
+
+                    const payload = await response.json();
+                    const normalized = Array.isArray(payload)
+                        ? payload
+                            .map(item => ({
+                                id: Number(item.id),
+                                name: (item.name ?? '').toString().trim(),
+                            }))
+                            .filter(item => Number.isInteger(item.id) && item.id > 0 && item.name !== '')
+                        : [];
+
+                    messageConexoesCache.set(cacheKey, normalized);
+                    populateMessageConexoes(normalized);
+                    if (messageConexaoHint) {
+                        messageConexaoHint.textContent = normalized.length
+                            ? 'Escolha a conexao para definir o assistente.'
+                            : 'Nenhuma conexao disponivel para este cliente.';
+                    }
+
+                    return normalized;
+                } catch (error) {
+                    populateMessageConexoes([]);
+                    if (messageConexaoHint) {
+                        messageConexaoHint.textContent = 'Nao foi possivel carregar as conexoes deste cliente.';
+                    }
+                    return [];
+                } finally {
+                    messageConexaoSelect.disabled = false;
+                }
+            };
+
+            const setMessageMode = (mode) => {
+                const normalized = mode === 'template' ? 'template' : 'text';
+                messageMode = normalized;
+
+                messageTabButtons.forEach((button) => {
+                    const isActive = button.dataset.messageTabButton === normalized;
+                    button.classList.toggle('bg-white', isActive);
+                    button.classList.toggle('text-slate-900', isActive);
+                    button.classList.toggle('shadow-sm', isActive);
+                    button.classList.toggle('text-slate-600', !isActive);
+                });
+
+                messageTabText?.classList.toggle('hidden', normalized !== 'text');
+                messageTabTemplate?.classList.toggle('hidden', normalized !== 'template');
+            };
+            setMessageMode('text');
+
+            const populateTemplateConexoes = (connections = []) => {
+                if (!templateConexaoSelect) {
+                    return;
+                }
+
+                templateConexaoSelect.innerHTML = '';
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = 'Selecione a conexao cloud';
+                placeholder.selected = true;
+                templateConexaoSelect.appendChild(placeholder);
+
+                connections.forEach((connection) => {
+                    const option = document.createElement('option');
+                    option.value = String(connection.id);
+                    option.textContent = connection.name;
+                    templateConexaoSelect.appendChild(option);
+                });
+            };
+
+            const renderTemplateWindowStatus = (connectionId) => {
+                if (!templateWindowStatus) {
+                    return;
+                }
+
+                if (!connectionId || !currentCloudContext) {
+                    templateWindowStatus.textContent = 'Selecione uma conexao para verificar a janela de 24h.';
+                    return;
+                }
+
+                const connection = (currentCloudContext.connections || []).find(
+                    (item) => Number(item.id) === Number(connectionId)
+                );
+
+                if (!connection?.window) {
+                    templateWindowStatus.textContent = 'Sem dados da janela para esta conexao.';
+                    return;
+                }
+
+                const lastInbound = connection.window.last_inbound_at_label || '-';
+                const expiresAt = connection.window.expires_at_label || '-';
+                templateWindowStatus.textContent = connection.window.is_open
+                    ? `Janela aberta. Última mensagem recebida: ${lastInbound}. Expira em: ${expiresAt}.`
+                    : `Janela fechada. Última mensagem recebida: ${lastInbound}.`;
+            };
+
+            const filteredTemplatesByConnection = (connectionId) => {
+                if (!currentCloudContext || !connectionId) {
+                    return [];
+                }
+
+                const connection = (currentCloudContext.connections || []).find(
+                    (item) => Number(item.id) === Number(connectionId)
+                );
+
+                if (!connection) {
+                    return [];
+                }
+
+                return (currentCloudContext.templates || []).filter((template) => {
+                    const status = (template.status || '').toString().toUpperCase();
+                    if (!['APPROVED', 'ACTIVE'].includes(status)) {
+                        return false;
+                    }
+
+                    if (Number(template.whatsapp_cloud_account_id) !== Number(connection.whatsapp_cloud_account_id)) {
+                        return false;
+                    }
+
+                    if (template.conexao_id && Number(template.conexao_id) !== Number(connection.id)) {
+                        return false;
+                    }
+
+                    return true;
+                });
+            };
+
+            const populateTemplateOptions = (templates = []) => {
+                if (!templateSelect) {
+                    return;
+                }
+
+                templateSelect.innerHTML = '';
+                const placeholder = document.createElement('option');
+                placeholder.value = '';
+                placeholder.textContent = templates.length
+                    ? 'Selecione um modelo'
+                    : 'Nenhum modelo aprovado para esta conexao';
+                placeholder.selected = true;
+                templateSelect.appendChild(placeholder);
+
+                templates.forEach((template) => {
+                    const option = document.createElement('option');
+                    option.value = String(template.id);
+                    option.textContent = `${template.title} (${template.language_code})`;
+                    templateSelect.appendChild(option);
+                });
+            };
+
+            const renderTemplateVariableInputs = () => {
+                if (!templateVariablesContainer || !templateVariablesWrap) {
+                    return;
+                }
+
+                const selectedTemplateId = Number(templateSelect?.value || 0);
+                const templates = filteredTemplatesByConnection(Number(templateConexaoSelect?.value || 0));
+                const selectedTemplate = templates.find((item) => Number(item.id) === selectedTemplateId);
+
+                templateVariablesContainer.innerHTML = '';
+
+                if (!selectedTemplate || !Array.isArray(selectedTemplate.variables) || !selectedTemplate.variables.length) {
+                    templateVariablesWrap.classList.add('hidden');
+                    return;
+                }
+
+                selectedTemplate.variables.forEach((variable) => {
+                    const wrap = document.createElement('div');
+                    const label = document.createElement('label');
+                    const input = document.createElement('input');
+
+                    wrap.className = 'space-y-1';
+                    label.className = 'block text-[11px] font-semibold uppercase tracking-wide text-slate-500';
+                    label.textContent = variable.label
+                        ? `${variable.label} ({${variable.name}})`
+                        : `{${variable.name}}`;
+
+                    input.type = 'text';
+                    input.className = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none';
+                    input.value = (variable.sample_value || '').toString();
+                    input.dataset.templateVariable = variable.name;
+                    input.placeholder = `Valor para {${variable.name}}`;
+
+                    wrap.appendChild(label);
+                    wrap.appendChild(input);
+                    templateVariablesContainer.appendChild(wrap);
+                });
+
+                templateVariablesWrap.classList.remove('hidden');
+            };
+
+            const collectTemplateVariables = () => {
+                const payload = {};
+                templateVariablesContainer?.querySelectorAll('[data-template-variable]').forEach((input) => {
+                    const key = input.dataset.templateVariable;
+                    if (!key) {
+                        return;
+                    }
+
+                    payload[key] = (input.value || '').trim();
+                });
+
+                return payload;
+            };
+
+            const loadCloudContext = async () => {
+                if (!currentLead) {
+                    currentCloudContext = null;
+                    return null;
+                }
+
+                const url = cloudSendContextUrlTemplate.replace('__LEAD_ID__', currentLead.id);
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Nao foi possivel carregar contexto Cloud deste lead.');
+                }
+
+                const payload = await response.json();
+                currentCloudContext = payload;
+
+                return payload;
+            };
+
+            const syncTemplateTabState = () => {
+                const selectedConnectionId = Number(templateConexaoSelect?.value || 0);
+                const templates = filteredTemplatesByConnection(selectedConnectionId);
+
+                populateTemplateOptions(templates);
+                renderTemplateWindowStatus(selectedConnectionId || null);
+                renderTemplateVariableInputs();
+            };
+
+            const openMessageModal = async ({ assistantId = null, assistantName = '-', requireConexao = false } = {}) => {
                 if (!messageModal || !currentLead) {
                     return;
                 }
 
                 currentAssistant = {
-                    id: assistantId,
-                    name: assistantName,
+                    id: assistantId ? String(assistantId) : null,
+                    name: assistantName ?? '-',
                 };
+                messageRequiresConexao = Boolean(requireConexao);
 
                 if (messageLeadName) {
                     const leadLabel = currentLead.name_raw || currentLead.phone_raw || currentLead.phone || '-';
@@ -984,16 +1401,71 @@
                     messageScheduledFor.value = '';
                     messageScheduledFor.min = toLocalDatetimeInput(new Date(Date.now() + 60000));
                 }
+                if (messageConexaoSelect) {
+                    messageConexaoSelect.value = '';
+                }
+                if (messageConexaoWrap) {
+                    messageConexaoWrap.classList.toggle('hidden', !messageRequiresConexao);
+                }
+                if (messageConexaoHint) {
+                    messageConexaoHint.textContent = 'Escolha a conexao para definir o assistente.';
+                }
+                if (templateConexaoSelect) {
+                    templateConexaoSelect.value = '';
+                }
+                if (templateSelect) {
+                    templateSelect.value = '';
+                }
+                if (templateVariablesContainer) {
+                    templateVariablesContainer.innerHTML = '';
+                }
+                templateVariablesWrap?.classList.add('hidden');
+                setMessageMode('text');
+
                 messageError?.classList.add('hidden');
                 messageSuccess?.classList.add('hidden');
                 messageModal.classList.remove('hidden');
                 loadScheduledMessages();
+
+                if (messageRequiresConexao) {
+                    const conexoes = await loadMessageConexoes(currentLead?.cliente?.id);
+                    if (!conexoes.length && messageError) {
+                        messageError.textContent = 'Nao existem conexoes disponiveis para este cliente.';
+                        messageError.classList.remove('hidden');
+                    }
+                }
+
+                try {
+                    const cloudContext = await loadCloudContext();
+                    const cloudConnections = Array.isArray(cloudContext?.connections)
+                        ? cloudContext.connections
+                        : [];
+                    populateTemplateConexoes(cloudConnections);
+                    syncTemplateTabState();
+                } catch (error) {
+                    currentCloudContext = null;
+                    populateTemplateConexoes([]);
+                    populateTemplateOptions([]);
+                    templateVariablesWrap?.classList.add('hidden');
+                    if (templateWindowStatus) {
+                        templateWindowStatus.textContent = 'Nao foi possivel carregar contexto Cloud.';
+                    }
+                }
             };
 
             const renderAssistants = (list = []) => {
                 if (!Array.isArray(list) || list.length === 0) {
                     return `<tr>
-                        <td colspan="5" class="px-3 py-2 text-center text-slate-400">Nenhum assistente associado.</td>
+                        <td colspan="4" class="px-3 py-2 text-center text-slate-400">Nenhum assistente associado.</td>
+                        <td class="px-3 py-2 text-right">
+                            <button
+                                type="button"
+                                class="rounded-full border border-slate-300 px-3 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-500 hover:text-slate-900"
+                                data-send-message
+                                data-require-conexao="1"
+                                data-assistant-name="Definido pela conexao"
+                            >Enviar via conexao</button>
+                        </td>
                     </tr>`;
                 }
 
@@ -1059,6 +1531,26 @@
                         : '<span class="text-[11px] text-slate-400">Sem tags</span>';
                 }
 
+                if (customFieldsContainer) {
+                    const customFields = Array.isArray(data.custom_fields) ? data.custom_fields : [];
+                    customFieldsContainer.innerHTML = customFields.length
+                        ? customFields.map((item) => {
+                            const label = (item?.label || '').toString().trim();
+                            const name = (item?.name || '').toString().trim();
+                            const value = (item?.value || '').toString().trim();
+                            const identifier = name !== '' ? `{${name}}` : '{campo}';
+                            const title = label !== '' ? `${label} (${identifier})` : identifier;
+
+                            return `
+                                <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                    <p class="text-[10px] uppercase tracking-wide text-slate-400">${escapeHtml(title)}</p>
+                                    <p class="mt-1 text-xs text-slate-700">${escapeHtml(value !== '' ? value : '-')}</p>
+                                </div>
+                            `;
+                        }).join('')
+                        : '<span class="text-[11px] text-slate-400">Sem campos personalizados</span>';
+                }
+
                 modal?.classList.remove('hidden');
             };
 
@@ -1070,11 +1562,17 @@
 
                 const assistantId = button.dataset.assistantId;
                 const assistantName = button.dataset.assistantName || '-';
-                if (!assistantId) {
+                const requireConexao = button.dataset.requireConexao === '1';
+
+                if (!assistantId && !requireConexao) {
                     return;
                 }
 
-                openMessageModal(assistantId, assistantName);
+                openMessageModal({
+                    assistantId: assistantId || null,
+                    assistantName,
+                    requireConexao,
+                });
             });
 
             document.querySelectorAll('[data-view-close]').forEach(button => {
@@ -1095,6 +1593,21 @@
                 if (event.target === messageModal) {
                     closeMessageModal();
                 }
+            });
+
+            messageTabButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    const nextMode = button.dataset.messageTabButton === 'template' ? 'template' : 'text';
+                    setMessageMode(nextMode);
+                });
+            });
+
+            templateConexaoSelect?.addEventListener('change', () => {
+                syncTemplateTabState();
+            });
+
+            templateSelect?.addEventListener('change', () => {
+                renderTemplateVariableInputs();
             });
 
             scheduledList?.addEventListener('click', async (event) => {
@@ -1152,23 +1665,102 @@
                     return;
                 }
 
-                const text = messageText?.value?.trim() ?? '';
-                const scheduledFor = messageScheduledFor?.value?.trim() ?? '';
-                if (text === '') {
-                    if (messageError) {
-                        messageError.textContent = 'Informe a mensagem antes de enviar.';
-                        messageError.classList.remove('hidden');
-                    }
-                    return;
-                }
+                const isTemplateMode = messageMode === 'template';
+                const url = sendMessageUrlTemplate.replace('__LEAD_ID__', currentLead.id);
 
                 messageError?.classList.add('hidden');
                 messageSuccess?.classList.add('hidden');
 
-                const url = sendMessageUrlTemplate.replace('__LEAD_ID__', currentLead.id);
+                let requestBody = {};
+                let loadingLabel = 'Enviando...';
+                let scheduledFor = '';
+
+                if (isTemplateMode) {
+                    const templateConexaoId = Number(templateConexaoSelect?.value || 0);
+                    const templateId = Number(templateSelect?.value || 0);
+
+                    if (!Number.isInteger(templateConexaoId) || templateConexaoId <= 0) {
+                        if (messageError) {
+                            messageError.textContent = 'Selecione a conexao cloud para enviar o modelo.';
+                            messageError.classList.remove('hidden');
+                        }
+                        return;
+                    }
+
+                    if (!Number.isInteger(templateId) || templateId <= 0) {
+                        if (messageError) {
+                            messageError.textContent = 'Selecione um modelo aprovado para enviar.';
+                            messageError.classList.remove('hidden');
+                        }
+                        return;
+                    }
+
+                    requestBody = {
+                        mode: 'template_cloud',
+                        conexao_id: templateConexaoId,
+                        template_id: templateId,
+                        template_variables: collectTemplateVariables(),
+                    };
+                    loadingLabel = 'Enviando modelo...';
+                } else {
+                    const text = messageText?.value?.trim() ?? '';
+                    scheduledFor = messageScheduledFor?.value?.trim() ?? '';
+
+                    if (text === '') {
+                        if (messageError) {
+                            messageError.textContent = 'Informe a mensagem antes de enviar.';
+                            messageError.classList.remove('hidden');
+                        }
+                        return;
+                    }
+
+                    let conexaoId = null;
+                    if (messageRequiresConexao) {
+                        const rawConexaoId = messageConexaoSelect?.value ?? '';
+                        if (rawConexaoId === '') {
+                            if (messageError) {
+                                messageError.textContent = 'Selecione uma conexao antes de enviar.';
+                                messageError.classList.remove('hidden');
+                            }
+                            return;
+                        }
+
+                        const parsedConexaoId = Number(rawConexaoId);
+                        if (!Number.isInteger(parsedConexaoId) || parsedConexaoId <= 0) {
+                            if (messageError) {
+                                messageError.textContent = 'Conexao selecionada invalida.';
+                                messageError.classList.remove('hidden');
+                            }
+                            return;
+                        }
+                        conexaoId = parsedConexaoId;
+                    } else if (!currentAssistant.id) {
+                        if (messageError) {
+                            messageError.textContent = 'Assistente nao identificado para este envio.';
+                            messageError.classList.remove('hidden');
+                        }
+                        return;
+                    }
+
+                    requestBody = {
+                        mode: 'text',
+                        mensagem: text,
+                        scheduled_for: scheduledFor || null,
+                    };
+
+                    if (currentAssistant.id) {
+                        requestBody.assistant_id = Number(currentAssistant.id);
+                    }
+                    if (conexaoId) {
+                        requestBody.conexao_id = conexaoId;
+                    }
+
+                    loadingLabel = scheduledFor ? 'Agendando...' : 'Enviando...';
+                }
+
                 if (messageSubmit) {
                     messageSubmit.disabled = true;
-                    messageSubmit.textContent = scheduledFor ? 'Agendando...' : 'Enviando...';
+                    messageSubmit.textContent = loadingLabel;
                 }
 
                 try {
@@ -1179,11 +1771,7 @@
                             'X-CSRF-TOKEN': csrfToken,
                             'X-Requested-With': 'XMLHttpRequest',
                         },
-                        body: JSON.stringify({
-                            mensagem: text,
-                            assistant_id: currentAssistant.id,
-                            scheduled_for: scheduledFor || null,
-                        }),
+                        body: JSON.stringify(requestBody),
                     });
 
                     let payload = {};
@@ -1203,16 +1791,25 @@
                     }
 
                     if (messageSuccess) {
-                        messageSuccess.textContent = payload.message || (scheduledFor ? 'Mensagem agendada com sucesso.' : 'Mensagem enviada para a fila.');
+                        const fallbackMessage = isTemplateMode
+                            ? 'Modelo enviado com sucesso.'
+                            : (scheduledFor ? 'Mensagem agendada com sucesso.' : 'Mensagem enviada para a fila.');
+                        messageSuccess.textContent = payload.message || fallbackMessage;
                         messageSuccess.classList.remove('hidden');
                     }
-                    if (messageText && !scheduledFor) {
-                        messageText.value = '';
+
+                    if (isTemplateMode) {
+                        templateSelect.value = '';
+                        renderTemplateVariableInputs();
+                    } else {
+                        if (messageText && !scheduledFor) {
+                            messageText.value = '';
+                        }
+                        if (messageScheduledFor) {
+                            messageScheduledFor.value = '';
+                        }
+                        await loadScheduledMessages();
                     }
-                    if (messageScheduledFor) {
-                        messageScheduledFor.value = '';
-                    }
-                    await loadScheduledMessages();
                 } catch (error) {
                     if (messageError) {
                         messageError.textContent = 'Nao foi possivel enviar a mensagem.';
@@ -1393,6 +1990,212 @@
                 }
             };
 
+            const getLeadCustomFieldRows = () => Array.from(
+                leadCustomFieldsRows?.querySelectorAll('[data-lead-custom-field-row]') ?? []
+            );
+
+            const resolveAllowedLeadCustomFields = () => {
+                const clienteId = Number(clientLeadFormSelect?.value || 0);
+                if (!Number.isInteger(clienteId) || clienteId <= 0) {
+                    return [];
+                }
+
+                return (Array.isArray(availableLeadCustomFields) ? availableLeadCustomFields : [])
+                    .filter((field) => {
+                        const fieldClienteId = field?.cliente_id ? Number(field.cliente_id) : null;
+                        return fieldClienteId === null || fieldClienteId === clienteId;
+                    });
+            };
+
+            const syncLeadCustomFieldInputNames = () => {
+                getLeadCustomFieldRows().forEach((row, index) => {
+                    const select = row.querySelector('[data-lead-custom-field-select]');
+                    const input = row.querySelector('[data-lead-custom-field-value]');
+                    if (select) {
+                        select.name = `custom_fields[${index}][field_id]`;
+                    }
+                    if (input) {
+                        input.name = `custom_fields[${index}][value]`;
+                    }
+                });
+            };
+
+            const renderLeadCustomFieldsEmptyState = (options = null) => {
+                if (!leadCustomFieldsEmpty) {
+                    return;
+                }
+
+                const rows = getLeadCustomFieldRows();
+                if (rows.length > 0) {
+                    leadCustomFieldsEmpty.classList.add('hidden');
+                    return;
+                }
+
+                const allowed = Array.isArray(options) ? options : resolveAllowedLeadCustomFields();
+                const hasClientSelected = Number(clientLeadFormSelect?.value || 0) > 0;
+
+                if (!hasClientSelected) {
+                    leadCustomFieldsEmpty.textContent = 'Selecione um cliente para ver os campos disponíveis.';
+                } else if (!allowed.length) {
+                    leadCustomFieldsEmpty.textContent = 'Nenhum campo personalizado disponível para este cliente.';
+                } else {
+                    leadCustomFieldsEmpty.textContent = 'Nenhum campo adicionado para este lead.';
+                }
+
+                leadCustomFieldsEmpty.classList.remove('hidden');
+            };
+
+            const buildLeadCustomFieldLabel = (field) => {
+                const baseLabel = (field?.label || '').toString().trim();
+                const name = (field?.name || '').toString().trim();
+                const scope = field?.cliente_id ? 'Cliente' : 'Global';
+
+                if (baseLabel !== '') {
+                    return `${baseLabel} ({${name}}) - ${scope}`;
+                }
+
+                return `{${name}} - ${scope}`;
+            };
+
+            const syncLeadCustomFieldSelectOptions = () => {
+                const options = resolveAllowedLeadCustomFields();
+                const rows = getLeadCustomFieldRows();
+                const selectedIds = rows
+                    .map((row) => Number(row.querySelector('[data-lead-custom-field-select]')?.value || 0))
+                    .filter((value) => Number.isInteger(value) && value > 0);
+
+                rows.forEach((row) => {
+                    const select = row.querySelector('[data-lead-custom-field-select]');
+                    if (!select) {
+                        return;
+                    }
+
+                    const currentValue = Number(select.value || 0);
+                    const hasCurrentInOptions = options.some((field) => Number(field.id) === currentValue);
+                    const normalizedCurrent = hasCurrentInOptions ? currentValue : 0;
+
+                    if (currentValue > 0 && normalizedCurrent === 0) {
+                        const valueInput = row.querySelector('[data-lead-custom-field-value]');
+                        if (valueInput) {
+                            valueInput.value = '';
+                        }
+                    }
+
+                    select.innerHTML = '';
+
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = options.length
+                        ? 'Selecione um campo'
+                        : 'Sem campos disponíveis';
+                    select.appendChild(placeholder);
+
+                    options.forEach((field) => {
+                        const fieldId = Number(field.id);
+                        const option = document.createElement('option');
+                        option.value = String(fieldId);
+                        option.textContent = buildLeadCustomFieldLabel(field);
+
+                        const selectedInOtherRow = selectedIds.includes(fieldId) && fieldId !== normalizedCurrent;
+                        if (selectedInOtherRow) {
+                            option.disabled = true;
+                        }
+
+                        if (fieldId === normalizedCurrent) {
+                            option.selected = true;
+                        }
+
+                        select.appendChild(option);
+                    });
+                });
+
+                renderLeadCustomFieldsEmptyState(options);
+            };
+
+            const addLeadCustomFieldRow = (rowData = {}, { sync = true } = {}) => {
+                if (!leadCustomFieldsRows) {
+                    return;
+                }
+
+                const row = document.createElement('div');
+                row.className = 'grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[2fr_3fr_auto]';
+                row.dataset.leadCustomFieldRow = '1';
+
+                const select = document.createElement('select');
+                select.className = 'rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none';
+                select.dataset.leadCustomFieldSelect = '1';
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none';
+                input.placeholder = 'Valor do campo';
+                input.dataset.leadCustomFieldValue = '1';
+                input.value = (rowData?.value || '').toString();
+
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'rounded-xl border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-500 hover:text-slate-900';
+                removeButton.textContent = 'Remover';
+                removeButton.addEventListener('click', () => {
+                    row.remove();
+                    syncLeadCustomFieldInputNames();
+                    syncLeadCustomFieldSelectOptions();
+                });
+
+                select.addEventListener('change', () => {
+                    syncLeadCustomFieldSelectOptions();
+                });
+
+                row.appendChild(select);
+                row.appendChild(input);
+                row.appendChild(removeButton);
+                leadCustomFieldsRows.appendChild(row);
+
+                const initialFieldId = Number(rowData?.field_id || 0);
+                if (sync) {
+                    syncLeadCustomFieldInputNames();
+                    syncLeadCustomFieldSelectOptions();
+                    if (Number.isInteger(initialFieldId) && initialFieldId > 0) {
+                        select.value = String(initialFieldId);
+                        syncLeadCustomFieldSelectOptions();
+                    }
+                    return;
+                }
+
+                if (Number.isInteger(initialFieldId) && initialFieldId > 0) {
+                    select.dataset.initialValue = String(initialFieldId);
+                }
+            };
+
+            const setLeadCustomFieldRows = (rows = []) => {
+                if (!leadCustomFieldsRows) {
+                    return;
+                }
+
+                leadCustomFieldsRows.innerHTML = '';
+
+                if (!Array.isArray(rows) || rows.length === 0) {
+                    syncLeadCustomFieldInputNames();
+                    syncLeadCustomFieldSelectOptions();
+                    return;
+                }
+
+                rows.forEach((row) => addLeadCustomFieldRow(row, { sync: false }));
+                syncLeadCustomFieldInputNames();
+                syncLeadCustomFieldSelectOptions();
+
+                getLeadCustomFieldRows().forEach((row) => {
+                    const select = row.querySelector('[data-lead-custom-field-select]');
+                    const initialValue = select?.dataset.initialValue;
+                    if (select && initialValue) {
+                        select.value = initialValue;
+                        delete select.dataset.initialValue;
+                    }
+                });
+
+                syncLeadCustomFieldSelectOptions();
+            };
+
             const resetForm = () => {
                 clientLeadForm?.reset();
                 if (clientLeadFormMethod) {
@@ -1412,6 +2215,7 @@
                 }
                 chipSelects['lead-sequences']?.setSelected([]);
                 chipSelects['lead-tags']?.setSelected([]);
+                setLeadCustomFieldRows([]);
             };
 
             const populateSequences = async (clienteId, selected = []) => {
@@ -1474,6 +2278,7 @@
                 if (clientLeadFormSelect) {
                     populateSequences(clientLeadFormSelect.value, data?.sequence_ids ?? []);
                 }
+                setLeadCustomFieldRows(data?.custom_fields ?? []);
             };
 
             const openForm = (mode = 'create', data = null) => {
@@ -1505,6 +2310,11 @@
 
             clientLeadFormSelect?.addEventListener('change', () => {
                 populateSequences(clientLeadFormSelect.value);
+                syncLeadCustomFieldSelectOptions();
+            });
+
+            leadCustomFieldAddBtn?.addEventListener('click', () => {
+                addLeadCustomFieldRow();
             });
 
             const isModifiedClick = (event) => event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;

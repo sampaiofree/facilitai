@@ -44,6 +44,15 @@ return [
         'url' => env('EVOLUTION_URL', 'https://evolution.3f7.org'), // Adicionando a URL também!
         'oficial_integration' => env('EVOLUTION_OFICIAL_INTEGRATION', 'WHATSAPP-BUSINESS'),
     ],
+    'whatsapp_cloud' => [
+        'base_url' => env('WHATSAPP_CLOUD_BASE_URL', 'https://graph.facebook.com'),
+        'version' => env('WHATSAPP_CLOUD_VERSION', 'v23.0'),
+        'phone_number_id' => env('WHATSAPP_CLOUD_PHONE_NUMBER_ID'),
+        'access_token' => env('WHATSAPP_CLOUD_ACCESS_TOKEN'),
+        'timeout' => (int) env('WHATSAPP_CLOUD_TIMEOUT', 15),
+        'retry_times' => (int) env('WHATSAPP_CLOUD_RETRY_TIMES', 2),
+        'retry_sleep_ms' => (int) env('WHATSAPP_CLOUD_RETRY_SLEEP_MS', 300),
+    ],
     'hotmart' => [
         'hottok' => env('HOTMART_HOTTOK'),
     ], 

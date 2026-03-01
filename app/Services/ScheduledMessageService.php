@@ -72,7 +72,17 @@ class ScheduledMessageService
             return ['ok' => false, 'message' => 'Conexao nao encontrada para este assistente.'];
         }
 
-        if (trim((string) ($conexao->whatsapp_api_key ?? '')) === '') {
+        $conexao->loadMissing(['whatsappApi', 'whatsappCloudAccount']);
+        $providerSlug = strtolower((string) ($conexao->whatsappApi?->slug ?? ''));
+
+        if ($providerSlug === 'whatsapp_cloud') {
+            $cloudToken = trim((string) ($conexao->whatsappCloudAccount?->access_token ?? ''));
+            $legacyToken = trim((string) ($conexao->whatsapp_api_key ?? ''));
+
+            if ($cloudToken === '' && $legacyToken === '') {
+                return ['ok' => false, 'message' => 'Conexao cloud sem credenciais validas.'];
+            }
+        } elseif (trim((string) ($conexao->whatsapp_api_key ?? '')) === '') {
             return ['ok' => false, 'message' => 'Conexao sem whatsapp_api_key valida.'];
         }
 
@@ -109,4 +119,3 @@ class ScheduledMessageService
         return $query->latest('id')->first();
     }
 }
-

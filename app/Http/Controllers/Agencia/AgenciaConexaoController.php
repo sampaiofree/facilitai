@@ -9,6 +9,7 @@ use App\Models\Conexao;
 use App\Models\Credential;
 use App\Models\Iamodelo;
 use App\Models\WhatsappApi;
+use App\Models\WhatsappCloudAccount;
 use App\Services\EvolutionAPIOficial;
 use App\Services\UazapiService;
 use App\Services\WebshareService;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Database\QueryException;
 use Illuminate\Validation\Rule;
 
 class AgenciaConexaoController extends Controller
@@ -37,6 +39,31 @@ class AgenciaConexaoController extends Controller
             ->latest()
             ->get();
 
+        $whatsappCloudAccounts = WhatsappCloudAccount::query()
+            ->where('user_id', $user->id)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
+
+        $cloudAccountUsageById = Conexao::query()
+            ->whereNotNull('whatsapp_cloud_account_id')
+            ->whereNull('deleted_at')
+            ->whereHas('cliente', fn ($query) => $query->where('user_id', $user->id))
+            ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'whatsapp_cloud'))
+            ->select(['id', 'name', 'whatsapp_cloud_account_id'])
+            ->get()
+            ->groupBy('whatsapp_cloud_account_id')
+            ->map(function ($rows) {
+                $first = $rows->first();
+
+                return [
+                    'conexao_id' => (int) $first->id,
+                    'conexao_name' => (string) $first->name,
+                    'count' => $rows->count(),
+                ];
+            })
+            ->all();
+
         return view('agencia.conexoes.index', [
             'conexoes' => $conexoes,
             'credentials' => Credential::where('user_id', $user->id)->orderBy('name')->get(),
@@ -44,6 +71,8 @@ class AgenciaConexaoController extends Controller
             'clientes' => Cliente::where('user_id', $user->id)->orderBy('nome')->get(),
             'iamodelos' => Iamodelo::orderBy('nome')->get(),
             'whatsappApis' => WhatsappApi::where('ativo', true)->orderBy('nome')->get(),
+            'whatsappCloudAccounts' => $whatsappCloudAccounts,
+            'cloudAccountUsageById' => $cloudAccountUsageById,
         ]);
     }
 
@@ -208,10 +237,77 @@ class AgenciaConexaoController extends Controller
                     ->with('success', 'Conexão criada com sucesso na API Oficial.');
             }
 
+            if ($whatsappApi->slug === 'whatsapp_cloud') {
+                $cloudValidator = Validator::make(
+                    $request->all(),
+                    [
+                        'whatsapp_cloud_account_id' => [
+                            'required',
+                            Rule::exists('whatsapp_cloud_accounts', 'id')->where('user_id', $user->id),
+                        ],
+                    ]
+                );
+
+                if ($cloudValidator->fails()) {
+                    return redirect()
+                        ->back()
+                        ->withErrors($cloudValidator)
+                        ->withInput();
+                }
+
+                $cloudData = $cloudValidator->validated();
+                $cloudAccount = WhatsappCloudAccount::where('user_id', $user->id)->findOrFail((int) $cloudData['whatsapp_cloud_account_id']);
+
+                $existingCloudConexao = $this->findActiveCloudConexaoByAccountId((int) $cloudAccount->id, $user->id);
+                if ($existingCloudConexao) {
+                    return redirect()
+                        ->back()
+                        ->withInput()
+                        ->withErrors([
+                            'whatsapp_cloud_account_id' => "A conta cloud selecionada já está vinculada à conexão {$existingCloudConexao->name}.",
+                        ]);
+                }
+
+                $conexao->status = 'active';
+                $conexao->whatsapp_cloud_account_id = $cloudAccount->id;
+                $conexao->phone = $cloudAccount->phone_number_id;
+                $conexao->save();
+
+                return redirect()
+                    ->route('agencia.conexoes.index')
+                    ->with('success', 'Conexão criada com sucesso na WhatsApp Cloud API.');
+            }
+
             return redirect()
                 ->back()
                 ->withInput($request->except('token'))
                 ->with('error', 'Integração WhatsApp ainda não suportada para criação.');
+        } catch (QueryException $exception) {
+            if ($this->isCloudAccountUniqueConstraintViolation($exception)) {
+                return redirect()
+                    ->back()
+                    ->withInput($request->except('token'))
+                    ->withErrors([
+                        'whatsapp_cloud_account_id' => 'A conta cloud selecionada já está vinculada a outra conexão.',
+                    ]);
+            }
+
+            Log::error('Falha de banco ao criar conexão da agência.', [
+                'user_id' => $user->id,
+                'whatsapp_api_id' => $data['whatsapp_api_id'] ?? null,
+                'slug' => $whatsappApi->slug ?? null,
+                'conexao_id' => $conexao->id ?? null,
+                'error' => $exception->getMessage(),
+            ]);
+
+            if ($conexao->exists) {
+                $conexao->delete();
+            }
+
+            return redirect()
+                ->back()
+                ->withInput($request->except('token'))
+                ->with('error', 'Ocorreu um erro ao criar a conexão. Tente novamente.');
         } catch (\Throwable $exception) {
             Log::error('Falha ao criar conexão da agência.', [
                 'user_id' => $user->id,
@@ -387,5 +483,25 @@ class AgenciaConexaoController extends Controller
         $conexao->proxy_port = isset($proxy['port']) ? (int) $proxy['port'] : null;
         $conexao->proxy_username = $proxy['username'] ?? null;
         $conexao->proxy_password = $proxy['password'] ?? null;
+    }
+
+    private function findActiveCloudConexaoByAccountId(int $accountId, int $userId): ?Conexao
+    {
+        return Conexao::query()
+            ->where('whatsapp_cloud_account_id', $accountId)
+            ->whereNull('deleted_at')
+            ->whereHas('cliente', fn ($query) => $query->where('user_id', $userId))
+            ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'whatsapp_cloud'))
+            ->latest('id')
+            ->first();
+    }
+
+    private function isCloudAccountUniqueConstraintViolation(QueryException $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'conexoes_whatsapp_cloud_account_id_unique')
+            || str_contains($message, 'unique constraint failed: conexoes.whatsapp_cloud_account_id')
+            || str_contains($message, 'for key \'conexoes_whatsapp_cloud_account_id_unique\'');
     }
 }

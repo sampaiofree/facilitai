@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Agencia;
 
 use App\Http\Controllers\Controller;
 use App\Models\Assistant;
+use App\Models\AssistantLead;
 use App\Models\Cliente;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
@@ -11,14 +12,23 @@ use App\Models\ScheduledMessage;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\Tag;
+use App\Models\WhatsappCloudConversationWindow;
+use App\Models\WhatsappCloudCustomField;
+use App\Models\WhatsappCloudTemplate;
 use App\Jobs\ProcessIncomingMessageJob;
+use App\Jobs\SyncCloudTemplateContextJob;
 use App\Services\ScheduledMessageService;
+use App\Services\WhatsappCloudConversationWindowService;
+use App\Services\WhatsappCloudTemplateSendService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -34,6 +44,18 @@ class ClienteLeadController extends Controller
         $clients = Cliente::where('user_id', $user->id)->orderBy('nome')->get();
         $assistants = Assistant::where('user_id', $user->id)->orderBy('name')->get();
         $tags = Tag::where('user_id', $user->id)->orderBy('name')->get();
+        $leadCustomFieldsData = WhatsappCloudCustomField::query()
+            ->where('user_id', $user->id)
+            ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('name')
+            ->get(['id', 'cliente_id', 'name', 'label'])
+            ->map(fn (WhatsappCloudCustomField $field) => [
+                'id' => (int) $field->id,
+                'cliente_id' => $field->cliente_id ? (int) $field->cliente_id : null,
+                'name' => (string) $field->name,
+                'label' => (string) ($field->label ?? ''),
+            ])
+            ->values();
 
         [$clientFilter, $assistantFilter, $tagFilter, $dateStart, $dateEnd, $query] = $this->buildFilteredQuery($request, $user);
 
@@ -53,6 +75,7 @@ class ClienteLeadController extends Controller
             'tagFilter',
             'dateStart',
             'dateEnd',
+            'leadCustomFieldsData',
         ));
     }
 
@@ -131,7 +154,16 @@ class ClienteLeadController extends Controller
             'tags.*' => ['integer'],
             'sequence_ids' => ['nullable', 'array'],
             'sequence_ids.*' => ['integer'],
+            'custom_fields' => ['nullable', 'array'],
+            'custom_fields.*.field_id' => ['nullable', 'integer'],
+            'custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
         ]);
+
+        $customFields = $this->resolveLeadCustomFieldsForPersist(
+            (array) ($data['custom_fields'] ?? []),
+            (int) $user->id,
+            (int) $cliente->id
+        );
 
         if (!empty($data['phone'])) {
             $exists = ClienteLead::where('cliente_id', $cliente->id)
@@ -144,16 +176,21 @@ class ClienteLeadController extends Controller
             }
         }
 
-        $lead = ClienteLead::create([
-            'cliente_id' => $cliente->id,
-            'bot_enabled' => $request->boolean('bot_enabled'),
-            'phone' => $data['phone'] ?? null,
-            'name' => $data['name'] ?? null,
-            'info' => $data['info'] ?? null,
-        ]);
+        $lead = DB::transaction(function () use ($request, $data, $cliente, $user, $customFields) {
+            $lead = ClienteLead::create([
+                'cliente_id' => $cliente->id,
+                'bot_enabled' => $request->boolean('bot_enabled'),
+                'phone' => $data['phone'] ?? null,
+                'name' => $data['name'] ?? null,
+                'info' => $data['info'] ?? null,
+            ]);
 
-        $lead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $user->id));
-        $this->attachLeadToSequence($lead, $data['sequence_ids'] ?? [], $user->id, $request->has('sequence_ids'));
+            $lead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $user->id));
+            $this->attachLeadToSequence($lead, $data['sequence_ids'] ?? [], $user->id, $request->has('sequence_ids'));
+            $this->syncLeadCustomFields($lead, $customFields);
+
+            return $lead;
+        });
 
         return redirect()
             ->route('agencia.conversas.index')
@@ -178,18 +215,29 @@ class ClienteLeadController extends Controller
             'tags.*' => ['integer'],
             'sequence_ids' => ['nullable', 'array'],
             'sequence_ids.*' => ['integer'],
+            'custom_fields' => ['nullable', 'array'],
+            'custom_fields.*.field_id' => ['nullable', 'integer'],
+            'custom_fields.*.value' => ['nullable', 'string', 'max:5000'],
         ]);
+        $customFields = $this->resolveLeadCustomFieldsForPersist(
+            (array) ($data['custom_fields'] ?? []),
+            (int) $user->id,
+            (int) $cliente->id
+        );
 
-        $clienteLead->update([
-            'cliente_id' => $cliente->id,
-            'bot_enabled' => $request->boolean('bot_enabled'),
-            'phone' => $data['phone'] ?? null,
-            'name' => $data['name'] ?? null,
-            'info' => $data['info'] ?? null,
-        ]);
+        DB::transaction(function () use ($request, $data, $clienteLead, $cliente, $user, $customFields) {
+            $clienteLead->update([
+                'cliente_id' => $cliente->id,
+                'bot_enabled' => $request->boolean('bot_enabled'),
+                'phone' => $data['phone'] ?? null,
+                'name' => $data['name'] ?? null,
+                'info' => $data['info'] ?? null,
+            ]);
 
-        $clienteLead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $user->id));
-        $this->attachLeadToSequence($clienteLead, $data['sequence_ids'] ?? [], $user->id, $request->has('sequence_ids'));
+            $clienteLead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $user->id));
+            $this->attachLeadToSequence($clienteLead, $data['sequence_ids'] ?? [], $user->id, $request->has('sequence_ids'));
+            $this->syncLeadCustomFields($clienteLead, $customFields);
+        });
 
         return redirect()
             ->route('agencia.conversas.index')
@@ -201,13 +249,79 @@ class ClienteLeadController extends Controller
         $user = $request->user();
         abort_unless($clienteLead->cliente && $clienteLead->cliente->user_id === $user->id, 403);
 
+        $mode = Str::lower(trim((string) $request->input('mode', 'text')));
+        if (!in_array($mode, ['text', 'template_cloud'], true)) {
+            return response()->json([
+                'message' => 'Modo de envio inválido.',
+            ], 422);
+        }
+
+        if ($mode === 'template_cloud') {
+            return $this->sendCloudTemplateMessage($request, $clienteLead);
+        }
+
         $data = $request->validate([
-            'assistant_id' => ['required', 'integer'],
+            'assistant_id' => ['nullable', 'integer'],
+            'conexao_id' => ['nullable', 'integer'],
             'mensagem' => ['required', 'string', 'max:2000'],
             'scheduled_for' => ['nullable', 'string', 'max:50'],
         ]);
 
-        $assistantId = (int) $data['assistant_id'];
+        $assistantId = (int) ($data['assistant_id'] ?? 0);
+        $conexaoId = (int) ($data['conexao_id'] ?? 0);
+
+        $selectedConexao = null;
+        if ($conexaoId > 0) {
+            $selectedConexao = Conexao::query()
+                ->whereKey($conexaoId)
+                ->whereNull('deleted_at')
+                ->whereHas('cliente', fn ($query) => $query->where('user_id', $user->id))
+                ->first();
+
+            if (!$selectedConexao) {
+                return response()->json([
+                    'message' => 'Conexao selecionada nao encontrada.',
+                ], 422);
+            }
+
+            if ((int) $selectedConexao->cliente_id !== (int) $clienteLead->cliente_id) {
+                return response()->json([
+                    'message' => 'Conexao selecionada nao pertence ao cliente deste lead.',
+                ], 422);
+            }
+
+            $assistantFromConexao = (int) ($selectedConexao->assistant_id ?? 0);
+            if ($assistantFromConexao <= 0) {
+                return response()->json([
+                    'message' => 'Conexao selecionada sem assistente vinculado.',
+                ], 422);
+            }
+
+            if ($assistantId > 0 && $assistantId !== $assistantFromConexao) {
+                return response()->json([
+                    'message' => 'Assistente informado nao corresponde ao assistente da conexao.',
+                ], 422);
+            }
+
+            $assistantId = $assistantFromConexao;
+        }
+
+        if ($assistantId <= 0) {
+            return response()->json([
+                'message' => 'Selecione um assistente ou uma conexao para enviar a mensagem.',
+            ], 422);
+        }
+
+        $assistant = Assistant::query()
+            ->where('user_id', $user->id)
+            ->find($assistantId);
+
+        if (!$assistant) {
+            return response()->json([
+                'message' => 'Assistente selecionado nao encontrado.',
+            ], 422);
+        }
+
         $mensagem = trim((string) $data['mensagem']);
         if ($mensagem === '') {
             return response()->json([
@@ -215,8 +329,15 @@ class ClienteLeadController extends Controller
             ], 422);
         }
 
+        $this->ensureAssistantLeadAssociation($clienteLead, $assistant);
+
         $scheduledMessageService = app(ScheduledMessageService::class);
-        $context = $scheduledMessageService->resolveDispatchContext($clienteLead, $assistantId, (int) $user->id);
+        $context = $scheduledMessageService->resolveDispatchContext(
+            $clienteLead,
+            $assistantId,
+            (int) $user->id,
+            $selectedConexao?->id
+        );
         if (!$context['ok']) {
             return response()->json([
                 'message' => $context['message'] ?? 'Nao foi possivel validar o contexto de envio.',
@@ -230,6 +351,24 @@ class ClienteLeadController extends Controller
 
         $timezone = $scheduledMessageService->resolveTimezoneForUser($user);
         $scheduledForRaw = trim((string) ($data['scheduled_for'] ?? ''));
+
+        if ($this->isWhatsappCloudConexao($conexao)) {
+            if ($scheduledForRaw !== '') {
+                return response()->json([
+                    'message' => 'Agendamento de texto livre não é suportado para WhatsApp Cloud. Use envio imediato ou template.',
+                ], 422);
+            }
+
+            $isInsideWindow = app(WhatsappCloudConversationWindowService::class)
+                ->isInsideWindow((int) $clienteLead->id, (int) $conexao->id);
+
+            if (!$isInsideWindow) {
+                return response()->json([
+                    'message' => 'Esta conversa está fora da janela de 24h. Use um modelo da WhatsApp Cloud.',
+                ], 422);
+            }
+        }
+
         if ($scheduledForRaw !== '') {
             $scheduledForUtc = $scheduledMessageService->parseScheduledForToUtc($scheduledForRaw, $timezone);
             if (!$scheduledForUtc) {
@@ -295,9 +434,309 @@ class ClienteLeadController extends Controller
         ProcessIncomingMessageJob::dispatch($conexao->id, $clienteLead->id, $payload)
             ->onQueue('processarconversa');
 
+        if ($this->isWhatsappCloudConexao($conexao)) {
+            app(WhatsappCloudConversationWindowService::class)
+                ->touchOutbound((int) $clienteLead->id, (int) $conexao->id, $agoraUtc);
+        }
+
         return response()->json([
             'message' => 'Mensagem enviada para a fila.',
         ]);
+    }
+
+    public function cloudSendContext(Request $request, ClienteLead $clienteLead): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($clienteLead->cliente && $clienteLead->cliente->user_id === $user->id, 403);
+
+        $conexoes = Conexao::query()
+            ->where('cliente_id', $clienteLead->cliente_id)
+            ->whereNull('deleted_at')
+            ->whereNotNull('whatsapp_cloud_account_id')
+            ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'whatsapp_cloud'))
+            ->orderBy('name')
+            ->get(['id', 'name', 'whatsapp_cloud_account_id']);
+
+        $accountIds = $conexoes->pluck('whatsapp_cloud_account_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $templates = WhatsappCloudTemplate::query()
+            ->where('user_id', $user->id)
+            ->whereIn('whatsapp_cloud_account_id', $accountIds)
+            ->where(function ($query) use ($clienteLead) {
+                $query->whereNull('conexao_id')
+                    ->orWhereHas('conexao', fn ($subQuery) => $subQuery
+                        ->whereNull('deleted_at')
+                        ->where('cliente_id', $clienteLead->cliente_id));
+            })
+            ->orderBy('title')
+            ->orderBy('template_name')
+            ->get([
+                'id',
+                'conexao_id',
+                'whatsapp_cloud_account_id',
+                'title',
+                'template_name',
+                'language_code',
+                'status',
+                'variables',
+            ]);
+
+        $customFields = WhatsappCloudCustomField::query()
+            ->where('user_id', $user->id)
+            ->where(function ($query) use ($clienteLead) {
+                $query->whereNull('cliente_id')
+                    ->orWhere('cliente_id', $clienteLead->cliente_id);
+            })
+            ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('name')
+            ->get(['id', 'name', 'label', 'sample_value', 'cliente_id']);
+
+        $customFieldLeadValues = $clienteLead->customFieldValues()
+            ->whereIn('whatsapp_cloud_custom_field_id', $customFields->pluck('id')->all())
+            ->get(['whatsapp_cloud_custom_field_id', 'value'])
+            ->mapWithKeys(fn ($row) => [
+                (int) $row->whatsapp_cloud_custom_field_id => trim((string) ($row->value ?? '')),
+            ])
+            ->all();
+
+        $fieldMap = [];
+        foreach ($customFields as $field) {
+            if (!array_key_exists($field->name, $fieldMap)) {
+                $fieldMap[$field->name] = [
+                    'name' => $field->name,
+                    'label' => $field->label,
+                    'sample_value' => $field->sample_value,
+                    'lead_value' => $customFieldLeadValues[(int) $field->id] ?? '',
+                    'cliente_id' => $field->cliente_id,
+                ];
+            }
+        }
+
+        $windows = WhatsappCloudConversationWindow::query()
+            ->where('cliente_lead_id', $clienteLead->id)
+            ->whereIn('conexao_id', $conexoes->pluck('id')->all())
+            ->get()
+            ->keyBy('conexao_id');
+
+        $nowUtc = Carbon::now('UTC');
+
+        return response()->json([
+            'connections' => $conexoes->map(function (Conexao $conexao) use ($windows, $nowUtc) {
+                /** @var WhatsappCloudConversationWindow|null $window */
+                $window = $windows->get($conexao->id);
+                $lastInboundAt = $window?->last_inbound_at?->copy()->setTimezone('UTC');
+                $expiresAt = $lastInboundAt?->copy()->addHours(24);
+                $isOpen = $expiresAt?->gt($nowUtc) ?? false;
+
+                return [
+                    'id' => (int) $conexao->id,
+                    'name' => (string) $conexao->name,
+                    'whatsapp_cloud_account_id' => $conexao->whatsapp_cloud_account_id ? (int) $conexao->whatsapp_cloud_account_id : null,
+                    'window' => [
+                        'is_open' => $isOpen,
+                        'last_inbound_at' => $lastInboundAt?->toIso8601String(),
+                        'expires_at' => $expiresAt?->toIso8601String(),
+                        'last_inbound_at_label' => $lastInboundAt?->setTimezone(config('app.timezone', 'America/Sao_Paulo'))->format('d/m/Y H:i'),
+                        'expires_at_label' => $expiresAt?->setTimezone(config('app.timezone', 'America/Sao_Paulo'))->format('d/m/Y H:i'),
+                    ],
+                ];
+            })->values(),
+            'templates' => $templates->map(function (WhatsappCloudTemplate $template) use ($fieldMap) {
+                $variables = collect((array) ($template->variables ?? []))
+                    ->map(fn ($value) => trim((string) $value))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->map(function (string $name) use ($fieldMap) {
+                        $field = $fieldMap[$name] ?? null;
+
+                        return [
+                            'name' => $name,
+                            'label' => is_array($field) ? ($field['label'] ?: null) : null,
+                            'sample_value' => is_array($field)
+                                ? (($field['lead_value'] !== '' ? $field['lead_value'] : ($field['sample_value'] ?? '')) ?: null)
+                                : null,
+                        ];
+                    })
+                    ->values();
+
+                return [
+                    'id' => (int) $template->id,
+                    'title' => (string) ($template->title ?: $template->template_name),
+                    'template_name' => (string) $template->template_name,
+                    'language_code' => (string) $template->language_code,
+                    'status' => Str::upper(trim((string) $template->status)),
+                    'conexao_id' => $template->conexao_id ? (int) $template->conexao_id : null,
+                    'whatsapp_cloud_account_id' => (int) $template->whatsapp_cloud_account_id,
+                    'variables' => $variables,
+                ];
+            })->values(),
+        ]);
+    }
+
+    private function sendCloudTemplateMessage(Request $request, ClienteLead $clienteLead): JsonResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'conexao_id' => ['required', 'integer'],
+            'template_id' => ['required', 'integer'],
+            'template_variables' => ['nullable', 'array'],
+            'template_variables.*' => ['nullable', 'string', 'max:1000'],
+            'scheduled_for' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $scheduledFor = trim((string) ($data['scheduled_for'] ?? ''));
+        if ($scheduledFor !== '') {
+            return response()->json([
+                'message' => 'Agendamento de template Cloud será adicionado em uma próxima etapa.',
+            ], 422);
+        }
+
+        $conexao = Conexao::query()
+            ->with(['whatsappApi', 'whatsappCloudAccount'])
+            ->whereKey((int) $data['conexao_id'])
+            ->whereNull('deleted_at')
+            ->whereHas('cliente', fn ($query) => $query->where('user_id', $user->id))
+            ->first();
+
+        if (!$conexao) {
+            return response()->json([
+                'message' => 'Conexao selecionada nao encontrada.',
+            ], 422);
+        }
+
+        if ((int) $conexao->cliente_id !== (int) $clienteLead->cliente_id) {
+            return response()->json([
+                'message' => 'Conexao selecionada nao pertence ao cliente deste lead.',
+            ], 422);
+        }
+
+        if (!$this->isWhatsappCloudConexao($conexao)) {
+            return response()->json([
+                'message' => 'A conexao selecionada nao e do tipo WhatsApp Cloud.',
+            ], 422);
+        }
+
+        $accountId = (int) ($conexao->whatsapp_cloud_account_id ?? 0);
+        if ($accountId <= 0) {
+            return response()->json([
+                'message' => 'Conexao Cloud sem conta vinculada.',
+            ], 422);
+        }
+
+        $template = WhatsappCloudTemplate::query()
+            ->where('user_id', $user->id)
+            ->find((int) $data['template_id']);
+
+        if (!$template) {
+            return response()->json([
+                'message' => 'Modelo selecionado nao encontrado.',
+            ], 422);
+        }
+
+        $templateStatus = Str::upper(trim((string) ($template->status ?? '')));
+        if (!in_array($templateStatus, ['APPROVED', 'ACTIVE'], true)) {
+            return response()->json([
+                'message' => 'Somente modelos aprovados podem ser enviados fora da janela de 24h.',
+            ], 422);
+        }
+
+        if ((int) $template->whatsapp_cloud_account_id !== $accountId) {
+            return response()->json([
+                'message' => 'O modelo selecionado nao pertence a conta Cloud desta conexao.',
+            ], 422);
+        }
+
+        if ($template->conexao_id !== null && (int) $template->conexao_id !== (int) $conexao->id) {
+            return response()->json([
+                'message' => 'O modelo selecionado esta restrito a outra conexao.',
+            ], 422);
+        }
+
+        $phone = preg_replace('/\D/', '', (string) ($clienteLead->phone ?? ''));
+        if (!is_string($phone) || $phone === '' || strlen($phone) < 8) {
+            return response()->json([
+                'message' => 'Lead sem telefone valido para envio.',
+            ], 422);
+        }
+
+        /** @var WhatsappCloudTemplateSendService $templateSendService */
+        $templateSendService = app(WhatsappCloudTemplateSendService::class);
+        $sendResult = $templateSendService->sendToLead([
+            'user_id' => (int) $user->id,
+            'conexao' => $conexao,
+            'template' => $template,
+            'lead' => $clienteLead,
+            'template_variables' => (array) ($data['template_variables'] ?? []),
+        ]);
+
+        if (!$sendResult['ok']) {
+            return response()->json([
+                'message' => (string) ($sendResult['message'] ?? 'Falha ao enviar template pela WhatsApp Cloud API.'),
+            ], 422);
+        }
+
+        $response = is_array($sendResult['response'] ?? null)
+            ? $sendResult['response']
+            : [];
+        $variableValues = is_array($sendResult['resolved_variables'] ?? null)
+            ? $sendResult['resolved_variables']
+            : [];
+
+        app(WhatsappCloudConversationWindowService::class)->touchOutbound(
+            (int) $clienteLead->id,
+            (int) $conexao->id,
+            Carbon::now('UTC')
+        );
+
+        // O sync de contexto é assíncrono para não bloquear o envio do template.
+        // Mesmo que o job falhe, o template já foi enviado ao WhatsApp.
+        try {
+            $metaMessageId = trim((string) data_get($response, 'body.messages.0.id', ''));
+
+            SyncCloudTemplateContextJob::dispatch([
+                'conexao_id' => (int) $conexao->id,
+                'cliente_lead_id' => (int) $clienteLead->id,
+                'template_id' => (int) $template->id,
+                'template_variables' => $variableValues,
+                'meta_message_id' => $metaMessageId !== '' ? $metaMessageId : null,
+                'sent_at' => Carbon::now('UTC')->toIso8601String(),
+            ])->onQueue('processarconversa');
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->warning('Falha ao enfileirar SyncCloudTemplateContextJob.', [
+                'conexao_id' => (int) $conexao->id,
+                'cliente_lead_id' => (int) $clienteLead->id,
+                'template_id' => (int) $template->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Modelo enviado com sucesso.',
+        ]);
+    }
+
+    private function isWhatsappCloudConexao(Conexao $conexao): bool
+    {
+        return Str::lower(trim((string) ($conexao->whatsappApi?->slug ?? ''))) === 'whatsapp_cloud';
+    }
+
+    private function ensureAssistantLeadAssociation(ClienteLead $lead, Assistant $assistant): void
+    {
+        AssistantLead::query()->firstOrCreate(
+            [
+                'lead_id' => $lead->id,
+                'assistant_id' => $assistant->id,
+            ],
+            [
+                'version' => max(1, (int) ($assistant->version ?? 1)),
+                'conv_id' => null,
+            ]
+        );
     }
 
     public function scheduledMessages(Request $request, ClienteLead $clienteLead): JsonResponse
@@ -688,6 +1127,114 @@ class ClienteLeadController extends Controller
         return Tag::where('user_id', $userId)->whereIn('id', $tagIds)->pluck('id')->all();
     }
 
+    private function resolveLeadCustomFieldsForPersist(array $customFields, int $userId, int $clienteId): array
+    {
+        $normalized = [];
+        foreach ($customFields as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $fieldId = (int) ($row['field_id'] ?? 0);
+            $value = trim((string) ($row['value'] ?? ''));
+
+            if ($fieldId <= 0 && $value === '') {
+                continue;
+            }
+
+            if ($fieldId <= 0 && $value !== '') {
+                throw ValidationException::withMessages([
+                    'custom_fields' => ['Selecione o campo personalizado antes de informar um valor.'],
+                ]);
+            }
+
+            if ($value === '') {
+                continue;
+            }
+
+            $normalized[] = [
+                'field_id' => $fieldId,
+                'value' => $value,
+            ];
+        }
+
+        if (empty($normalized)) {
+            return [];
+        }
+
+        $fieldIds = array_values(array_unique(array_map(
+            fn (array $item) => (int) $item['field_id'],
+            $normalized
+        )));
+
+        if (count($fieldIds) !== count($normalized)) {
+            throw ValidationException::withMessages([
+                'custom_fields' => ['Não é permitido repetir o mesmo campo personalizado para o lead.'],
+            ]);
+        }
+
+        $allowedFieldIds = WhatsappCloudCustomField::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $fieldIds)
+            ->where(function ($query) use ($clienteId) {
+                $query->whereNull('cliente_id')
+                    ->orWhere('cliente_id', $clienteId);
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        sort($allowedFieldIds);
+        $sortedFieldIds = $fieldIds;
+        sort($sortedFieldIds);
+
+        if ($allowedFieldIds !== $sortedFieldIds) {
+            throw ValidationException::withMessages([
+                'custom_fields' => ['Há campo(s) personalizado(s) inválido(s) para este cliente.'],
+            ]);
+        }
+
+        return $normalized;
+    }
+
+    private function syncLeadCustomFields(ClienteLead $lead, array $customFields): void
+    {
+        if (empty($customFields)) {
+            $lead->customFieldValues()->delete();
+            return;
+        }
+
+        $fieldIds = array_map(fn (array $item) => (int) $item['field_id'], $customFields);
+        $fieldIds = array_values(array_unique($fieldIds));
+
+        $lead->customFieldValues()
+            ->whereNotIn('whatsapp_cloud_custom_field_id', $fieldIds)
+            ->delete();
+
+        $existing = $lead->customFieldValues()
+            ->whereIn('whatsapp_cloud_custom_field_id', $fieldIds)
+            ->get()
+            ->keyBy('whatsapp_cloud_custom_field_id');
+
+        foreach ($customFields as $item) {
+            $fieldId = (int) $item['field_id'];
+            $value = $item['value'];
+            $valueRecord = $existing->get($fieldId);
+
+            if ($valueRecord) {
+                if ((string) ($valueRecord->value ?? '') !== $value) {
+                    $valueRecord->update(['value' => $value]);
+                }
+                continue;
+            }
+
+            $lead->customFieldValues()->create([
+                'whatsapp_cloud_custom_field_id' => $fieldId,
+                'value' => $value,
+            ]);
+        }
+    }
+
     private function buildFilteredQuery(Request $request, $user, bool $eager = false): array
     {
         $clientFilter = array_values(array_filter((array) $request->input('cliente_id', []), fn ($value) => $value !== '' && $value !== null));
@@ -701,7 +1248,13 @@ class ClienteLeadController extends Controller
         if ($eager) {
             $base->with(['cliente', 'tags']);
         } else {
-            $base->with(['cliente', 'assistantLeads.assistant', 'tags', 'sequenceChats.sequence']);
+            $base->with([
+                'cliente',
+                'assistantLeads.assistant',
+                'tags',
+                'sequenceChats.sequence',
+                'customFieldValues.customField',
+            ]);
         }
 
         $query = $base->whereHas('cliente', fn ($q) => $q->where('user_id', $user->id));
