@@ -35,7 +35,7 @@ class DispatchWhatsappCloudCampaignJob implements ShouldQueue
         }
 
         $nowUtc = Carbon::now('UTC');
-        $intervalSeconds = max(0, (int) data_get($campaign->settings, 'interval_seconds', 2));
+        $intervalSeconds = max(0, (int) data_get($campaign->settings, 'interval_seconds', 0));
 
         if (!$campaign->started_at) {
             $campaign->forceFill([
@@ -118,4 +118,3 @@ class DispatchWhatsappCloudCampaignJob implements ShouldQueue
         ]);
     }
 }
-

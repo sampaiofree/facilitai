@@ -4,6 +4,8 @@ namespace App\Jobs;
 
 use App\Models\WhatsappCloudCampaign;
 use App\Models\WhatsappCloudCampaignItem;
+use App\Models\WhatsappCloudCustomField;
+use App\Models\ClienteLead;
 use App\Services\WhatsappCloudConversationWindowService;
 use App\Services\WhatsappCloudTemplateSendService;
 use Illuminate\Bus\Queueable;
@@ -84,7 +86,7 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
             'conexao' => $conexao,
             'template' => $template,
             'lead' => $lead,
-            'template_variables' => [],
+            'template_variables' => $this->resolveCampaignTemplateVariables($campaign, $lead),
         ]);
 
         $attempts = max(1, (int) $this->attempts());
@@ -258,5 +260,91 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
     private function buildItemIdempotencyKey(int $campaignId, int $leadId): string
     {
         return 'wcc_item_' . hash('sha256', "{$campaignId}:{$leadId}");
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function resolveCampaignTemplateVariables(WhatsappCloudCampaign $campaign, ClienteLead $lead): array
+    {
+        $bindings = data_get($campaign->settings, 'template_variable_bindings', []);
+        if (!is_array($bindings) || empty($bindings)) {
+            return [];
+        }
+
+        $normalizedBindings = [];
+        foreach ($bindings as $variable => $fieldName) {
+            $variableName = Str::lower(trim((string) $variable));
+            $mappedField = Str::lower(trim((string) $fieldName));
+            if ($variableName === '' || $mappedField === '') {
+                continue;
+            }
+            $normalizedBindings[$variableName] = $mappedField;
+        }
+
+        if (empty($normalizedBindings)) {
+            return [];
+        }
+
+        $mappedFields = array_values(array_unique(array_values($normalizedBindings)));
+        $customFields = WhatsappCloudCustomField::query()
+            ->where('user_id', (int) $campaign->user_id)
+            ->whereIn('name', $mappedFields)
+            ->where(function ($query) use ($lead): void {
+                $query->whereNull('cliente_id')
+                    ->orWhere('cliente_id', (int) $lead->cliente_id);
+            })
+            ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('name')
+            ->get(['id', 'name', 'sample_value']);
+
+        $customFieldByName = [];
+        foreach ($customFields as $field) {
+            $fieldName = Str::lower(trim((string) $field->name));
+            if ($fieldName !== '' && !isset($customFieldByName[$fieldName])) {
+                $customFieldByName[$fieldName] = $field;
+            }
+        }
+
+        $leadValuesByFieldId = $lead->customFieldValues
+            ->mapWithKeys(fn ($row) => [
+                (int) $row->whatsapp_cloud_custom_field_id => trim((string) ($row->value ?? '')),
+            ])
+            ->all();
+
+        $leadFallbacks = [
+            'name' => trim((string) ($lead->name ?? '')),
+            'nome' => trim((string) ($lead->name ?? '')),
+            'nome_cliente' => trim((string) ($lead->name ?? '')),
+            'phone' => trim((string) ($lead->phone ?? '')),
+            'telefone' => trim((string) ($lead->phone ?? '')),
+            'whatsapp' => trim((string) ($lead->phone ?? '')),
+            'info' => trim((string) ($lead->info ?? '')),
+            'informacoes' => trim((string) ($lead->info ?? '')),
+        ];
+
+        $resolved = [];
+        foreach ($normalizedBindings as $variableName => $mappedField) {
+            $value = trim((string) ($leadFallbacks[$mappedField] ?? ''));
+            if ($value !== '') {
+                $resolved[$variableName] = $value;
+                continue;
+            }
+
+            $field = $customFieldByName[$mappedField] ?? null;
+            if (!$field) {
+                continue;
+            }
+
+            $leadValue = trim((string) ($leadValuesByFieldId[(int) $field->id] ?? ''));
+            $sampleValue = trim((string) ($field->sample_value ?? ''));
+            $value = $leadValue !== '' ? $leadValue : $sampleValue;
+
+            if ($value !== '') {
+                $resolved[$variableName] = $value;
+            }
+        }
+
+        return $resolved;
     }
 }

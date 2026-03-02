@@ -47,6 +47,7 @@
                 </div>
             </div>
             @php
+                $whatsappCloudActive = request()->routeIs('agencia.whatsapp-cloud.*');
                 $toolsActive = request()->routeIs('agencia.sequences.*') ||
                     request()->routeIs('agencia.mensagens-agendadas.*') ||
                     request()->routeIs('agencia.images.*') ||
@@ -80,13 +81,24 @@
                     </svg>
                     Conexões
                 </a>
-                <a href="{{ route('agencia.whatsapp-cloud.index') }}" class="group flex items-center gap-3 rounded-lg border-l-2 px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.whatsapp-cloud.*') ? 'border-blue-500 bg-slate-800 text-white' : 'border-transparent text-slate-300 hover:bg-slate-800 hover:text-white' }}">
-                    <svg class="h-4 w-4 shrink-0 {{ request()->routeIs('agencia.whatsapp-cloud.*') ? 'text-white' : 'text-slate-400 group-hover:text-slate-200' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 11.5a8.5 8.5 0 0 1-12.22 7.63L3.5 20.5l1.37-4.78A8.5 8.5 0 1 1 20.5 11.5Z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.5 10.5h7m-7 3h4.5"/>
-                    </svg>
-                    WhatsApp Cloud
-                </a>
+                <div class="relative">
+                    <button type="button" data-whatsapp-cloud-dropdown-button class="group flex w-full items-center justify-between rounded-lg border-l-2 px-4 py-2 text-sm font-semibold transition {{ $whatsappCloudActive ? 'border-blue-500 bg-slate-800 text-white' : 'border-transparent text-slate-300 hover:bg-slate-800 hover:text-white' }}">
+                        <span class="flex items-center gap-3">
+                            <svg class="h-4 w-4 shrink-0 {{ $whatsappCloudActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.5 11.5a8.5 8.5 0 0 1-12.22 7.63L3.5 20.5l1.37-4.78A8.5 8.5 0 1 1 20.5 11.5Z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.5 10.5h7m-7 3h4.5"/>
+                            </svg>
+                            WhatsApp Cloud
+                        </span>
+                        <svg class="h-3 w-3 shrink-0 text-slate-400 transition group-hover:text-slate-200" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 8l4 4 4-4"/>
+                        </svg>
+                    </button>
+                    <div data-whatsapp-cloud-dropdown-menu class="absolute left-0 right-0 z-10 mt-1 hidden space-y-1 rounded-lg border border-slate-800 bg-slate-900/90 p-2 shadow-lg backdrop-blur">
+                        <a href="{{ route('agencia.whatsapp-cloud.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.whatsapp-cloud.index') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Contas</a>
+                        <a href="{{ route('agencia.whatsapp-cloud.webhook') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.whatsapp-cloud.webhook') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Webhook</a>
+                    </div>
+                </div>
                 <a href="{{ route('agencia.assistant.index') }}" class="group flex items-center gap-3 rounded-lg border-l-2 px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.assistant.*') ? 'border-blue-500 bg-slate-800 text-white' : 'border-transparent text-slate-300 hover:bg-slate-800 hover:text-white' }}">
                     <svg class="h-4 w-4 shrink-0 {{ request()->routeIs('agencia.assistant.*') ? 'text-white' : 'text-slate-400 group-hover:text-slate-200' }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 7.5c1.657 0 3-1.343 3-3S13.657 1.5 12 1.5 9 2.843 9 4.5s1.343 3 3 3Zm-6 13.5a6 6 0 1 1 12 0H6Zm12-9 1.5 1.5L21 12m-3 0 1.5-1.5L21 12"/>
@@ -222,6 +234,7 @@
             };
 
             bindDropdown('[data-tools-dropdown-button]', '[data-tools-dropdown-menu]');
+            bindDropdown('[data-whatsapp-cloud-dropdown-button]', '[data-whatsapp-cloud-dropdown-menu]');
             bindDropdown('[data-user-dropdown-button]', '[data-user-dropdown-menu]');
         })();
     </script>

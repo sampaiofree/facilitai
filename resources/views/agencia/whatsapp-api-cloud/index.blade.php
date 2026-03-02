@@ -2,7 +2,7 @@
 
 @section('content')
     @php
-        $oldActiveTab = old('active_tab', request('tab', 'account'));
+        $oldActiveTab = old('active_tab', request('tab', 'templates'));
         $hasErrors = $errors->any();
         $reservedTemplateVariablesForJs = collect($reservedTemplateVariables ?? [])
             ->map(function ($definition, $name) {
@@ -10,6 +10,7 @@
                     'name' => (string) $name,
                     'label' => trim((string) ($definition['label'] ?? '')),
                     'sample_value' => trim((string) ($definition['sample_value'] ?? '')),
+                    'cliente_id' => null,
                 ];
             })
             ->values();
@@ -19,10 +20,12 @@
                 'name' => $field->name,
                 'label' => $field->label,
                 'sample_value' => $field->sample_value,
+                'cliente_id' => $field->cliente_id ? (int) $field->cliente_id : null,
             ];
         }))->unique('name')->values();
 
         $variablePickerOptions = $customFieldsForJs;
+        $oldCampaignTemplateBindings = old('template_variable_bindings', []);
     @endphp
 
     <div class="flex items-center justify-between mb-6">
@@ -39,434 +42,362 @@
         Enviado para analise na Meta. Aguarde a resposta.
     </div>
 
-    <div class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="flex flex-wrap items-start justify-between gap-4">
-            <div>
-                <h3 class="text-base font-semibold text-slate-900">Webhook do Usuário</h3>
-                <p class="text-xs text-slate-500">Use este webhook único para todas as contas Cloud do usuário.</p>
-            </div>
-        </div>
-
-        <div class="mt-4 grid gap-3 lg:grid-cols-2">
-            <div class="rounded-lg border border-slate-200 p-3">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Callback URL</p>
-                <div class="mt-2 flex items-center gap-2">
-                    <input
-                        id="webhookUrlValue"
-                        type="text"
-                        readonly
-                        value="{{ $webhookUrl }}"
-                        class="w-full rounded-lg border-slate-200 bg-slate-50 text-xs font-mono text-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    >
-                    <button type="button" data-copy-target="webhookUrlValue" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Copiar</button>
-                </div>
-            </div>
-            <div class="rounded-lg border border-slate-200 p-3">
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Verify Token</p>
-                <div class="mt-2 flex items-center gap-2">
-                    <input
-                        id="webhookVerifyTokenValue"
-                        type="text"
-                        readonly
-                        value="{{ $userWebhookVerifyToken }}"
-                        class="w-full rounded-lg border-slate-200 bg-slate-50 text-xs font-mono text-slate-700 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    >
-                    <button type="button" data-copy-target="webhookVerifyTokenValue" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Copiar</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <p class="text-xs text-slate-500">
-                {{ $accountsWithAppSecret }} de {{ $accounts->count() }} conta(s) com app_secret configurado para validação de assinatura.
-            </p>
-
-            <form method="POST" action="{{ route('agencia.whatsapp-cloud.webhook.rotate-key') }}" onsubmit="return confirm('Gerar nova chave de webhook do usuário?');">
-                @csrf
-                <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800">
-                    Gerar nova chave
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <div class="mb-6 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-        <div class="flex flex-wrap items-center gap-2">
-            <button
-                type="button"
-                data-tab-button="account"
-                class="rounded-lg px-4 py-2 text-sm font-semibold transition"
-            >
-                Conta
-            </button>
-            <button
-                type="button"
-                data-tab-button="templates"
-                class="rounded-lg px-4 py-2 text-sm font-semibold transition"
-            >
-                Modelos de mensagens
-            </button>
-            <button
-                type="button"
-                data-tab-button="campaigns"
-                class="rounded-lg px-4 py-2 text-sm font-semibold transition"
-            >
-                Envio em massa
-            </button>
-        </div>
-    </div>
-
-    <section data-tab-content="account" class="space-y-4">
-        <div class="flex items-center justify-between">
-            <div>
-                <h3 class="text-lg font-semibold text-slate-900">Contas Cloud</h3>
-                <p class="text-sm text-slate-500">Cada usuário pode ter uma ou mais contas cloud para uso nas conexões e templates.</p>
-            </div>
-            <button
-                type="button"
-                id="openAccountModal"
-                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-            >
-                Nova conta
-            </button>
-        </div>
-
-        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-slate-500">
-                    <tr>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conta</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Phone Number ID</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Business Account ID</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Padrão</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conexões</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Modelos</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @forelse($accounts as $account)
-                        @php
-                            $conexoesList = $account->conexoes->pluck('name')->filter()->values();
-                        @endphp
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-5 py-4 font-medium text-slate-800">{{ $account->name }}</td>
-                            <td class="px-5 py-4 text-slate-600 font-mono">{{ $account->phone_number_id }}</td>
-                            <td class="px-5 py-4 text-slate-600 font-mono">{{ $account->business_account_id ?? '-' }}</td>
-                            <td class="px-5 py-4 text-slate-600">
-                                @if($account->is_default)
-                                    <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Sim</span>
-                                @else
-                                    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">Não</span>
-                                @endif
-                            </td>
-                            <td class="px-5 py-4 text-slate-600">
-                                <span class="font-semibold">{{ $account->conexoes_count }}</span>
-                                <span class="text-xs text-slate-400">
-                                    {{ $conexoesList->isNotEmpty() ? ' • ' . \Illuminate\Support\Str::limit($conexoesList->implode(', '), 60) : '' }}
-                                </span>
-                            </td>
-                            <td class="px-5 py-4 text-slate-600">{{ $account->templates_count }}</td>
-                            <td class="px-5 py-4">
-                                <div class="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
-                                        data-open-account-edit
-                                        data-id="{{ $account->id }}"
-                                        data-name="{{ $account->name }}"
-                                        data-phone-number-id="{{ $account->phone_number_id }}"
-                                        data-business-account-id="{{ $account->business_account_id }}"
-                                        data-app-id="{{ $account->app_id }}"
-                                        data-is-default="{{ $account->is_default ? '1' : '0' }}"
-                                    >
-                                        Editar
-                                    </button>
-                                    <form method="POST" action="{{ route('agencia.whatsapp-cloud.accounts.destroy', $account) }}" onsubmit="return confirm('Deseja excluir esta conta cloud?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">
-                                            Excluir
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="px-5 py-6 text-center text-slate-500">Nenhuma conta cloud cadastrada.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section data-tab-content="templates" class="hidden space-y-4">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-            <div>
-                <h3 class="text-lg font-semibold text-slate-900">Modelos de Mensagens</h3>
-                <p class="text-sm text-slate-500">Crie e sincronize modelos imediatamente com a Meta.</p>
-            </div>
-            <button
-                type="button"
-                id="openTemplateModal"
-                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-            >
-                Criar modelo
-            </button>
-        </div>
-
-        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-            <form method="GET" action="{{ route('agencia.whatsapp-cloud.index') }}">
-                <div class="grid gap-3 md:grid-cols-3">
+    <div class="grid gap-6 lg:grid-cols-3">
+        <aside class="lg:col-span-1 space-y-4">
+            <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div class="flex items-center justify-between gap-3">
                     <div>
-                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="accountFilter">Conta</label>
-                        <select id="accountFilter" name="account_id" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Todas</option>
-                            @foreach($accounts as $account)
-                                <option value="{{ $account->id }}" @selected((string) $accountFilter === (string) $account->id)>{{ $account->name }}</option>
-                            @endforeach
-                        </select>
+                        <h3 class="text-base font-semibold text-slate-900">Contas Cloud</h3>
+                        <p class="text-xs text-slate-500">Selecione uma conta para abrir os detalhes.</p>
                     </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="conexaoFilter">Conexão</label>
-                        <select id="conexaoFilter" name="conexao_id" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Todas</option>
-                            @foreach($conexoes as $conexao)
-                                <option value="{{ $conexao->id }}" @selected((string) $conexaoFilter === (string) $conexao->id)>{{ $conexao->name }} ({{ $conexao->cliente?->nome ?? 'Cliente' }})</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="flex items-end gap-2">
-                        <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Filtrar</button>
-                        <a href="{{ route('agencia.whatsapp-cloud.index') }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Limpar</a>
-                    </div>
-                </div>
-            </form>
-
-            <div class="flex flex-wrap justify-end gap-2">
-                <form id="importMetaTemplatesForm" method="POST" action="{{ route('agencia.whatsapp-cloud.templates.import-meta') }}">
-                    @csrf
-                    <input type="hidden" name="active_tab" value="templates">
-                    <input type="hidden" name="account_id" id="importMetaAccountId" value="{{ $accountFilter }}">
-                    <input type="hidden" name="conexao_id" id="importMetaConexaoId" value="{{ $conexaoFilter }}">
                     <button
-                        type="submit"
-                        class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                        title="Importar modelos da conta selecionada na Meta"
+                        type="button"
+                        id="openAccountModal"
+                        class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700"
                     >
-                        Importar da Meta
+                        Nova conta
                     </button>
-                </form>
-                <form method="POST" action="{{ route('agencia.whatsapp-cloud.templates.refresh-status-bulk') }}">
-                    @csrf
-                    <input type="hidden" name="active_tab" value="templates">
-                    @if($accountFilter)
-                        <input type="hidden" name="account_id" value="{{ $accountFilter }}">
-                    @endif
-                    @if($conexaoFilter)
-                        <input type="hidden" name="conexao_id" value="{{ $conexaoFilter }}">
-                    @endif
-                    <button type="submit" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100">
-                        Atualizar status em lote
-                    </button>
-                </form>
-            </div>
-        </div>
+                </div>
 
-        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-slate-500">
-                    <tr>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conta</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conexão</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome do modelo</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome interno</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Idioma</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Categoria</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Status</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Sync</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @forelse($templates as $template)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-5 py-4 text-slate-700">{{ $template->account?->name ?? '-' }}</td>
-                            <td class="px-5 py-4 text-slate-600">{{ $template->conexao?->name ?? 'Todas' }}</td>
-                            <td class="px-5 py-4 text-slate-700">{{ $template->title ?: '-' }}</td>
-                            <td class="px-5 py-4 text-slate-700 font-mono">{{ $template->template_name }}</td>
-                            <td class="px-5 py-4 text-slate-600">{{ $template->language_code }}</td>
-                            <td class="px-5 py-4 text-slate-600">{{ $template->category }}</td>
-                            <td class="px-5 py-4 text-slate-600">
-                                <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">{{ $template->status }}</span>
-                            </td>
-                            <td class="px-5 py-4 text-slate-600">
-                                {{ $template->last_synced_at?->format('d/m/Y H:i') ?? '-' }}
-                            </td>
-                            <td class="px-5 py-4">
-                                <div class="flex items-center gap-2">
-                                    <form method="POST" action="{{ route('agencia.whatsapp-cloud.templates.refresh-status', $template) }}">
-                                        @csrf
-                                        <input type="hidden" name="active_tab" value="templates">
-                                        @if($accountFilter)
-                                            <input type="hidden" name="account_id" value="{{ $accountFilter }}">
-                                        @endif
-                                        @if($conexaoFilter)
-                                            <input type="hidden" name="conexao_id" value="{{ $conexaoFilter }}">
-                                        @endif
-                                        <button type="submit" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100">
-                                            Atualizar status
-                                        </button>
-                                    </form>
-                                    <button
-                                        type="button"
-                                        class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
-                                        data-open-template-edit
-                                        data-id="{{ $template->id }}"
-                                        data-account-id="{{ $template->whatsapp_cloud_account_id }}"
-                                        data-conexao-id="{{ $template->conexao_id }}"
-                                        data-title="{{ $template->title }}"
-                                        data-template-name="{{ $template->template_name }}"
-                                        data-language-code="{{ $template->language_code }}"
-                                        data-category="{{ $template->category }}"
-                                        data-status="{{ $template->status }}"
-                                        data-body-text="{{ $template->body_text }}"
-                                        data-footer-text="{{ $template->footer_text }}"
-                                        data-buttons='@json($template->buttons ?? [])'
-                                        data-variable-examples='@json($template->variable_examples ?? [])'
-                                    >
-                                        Editar
-                                    </button>
-                                    <form method="POST" action="{{ route('agencia.whatsapp-cloud.templates.destroy', $template) }}" onsubmit="return confirm('Deseja excluir este modelo?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">
-                                            Excluir
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="9" class="px-5 py-6 text-center text-slate-500">Nenhum modelo de mensagem cadastrado.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section data-tab-content="campaigns" class="hidden space-y-4">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-            <div>
-                <h3 class="text-lg font-semibold text-slate-900">Envio em massa</h3>
-                <p class="text-sm text-slate-500">Crie campanhas para envio em lote usando modelos aprovados da WhatsApp Cloud.</p>
-            </div>
-            <button
-                type="button"
-                id="openCampaignModal"
-                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-            >
-                Nova campanha
-            </button>
-        </div>
-
-        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-slate-500">
-                    <tr>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Campanha</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Cliente</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conexão</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Modelo</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Modo</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Status</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Progresso</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Criada em</th>
-                        <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @forelse($campaigns as $campaign)
-                        @php
-                            $campaignStatusClass = match($campaign->status) {
-                                'completed' => 'bg-emerald-100 text-emerald-700',
-                                'running' => 'bg-blue-100 text-blue-700',
-                                'scheduled' => 'bg-amber-100 text-amber-700',
-                                'failed' => 'bg-rose-100 text-rose-700',
-                                'canceled' => 'bg-slate-200 text-slate-700',
-                                default => 'bg-slate-100 text-slate-700',
-                            };
-                        @endphp
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-5 py-4">
-                                <p class="font-medium text-slate-800">{{ $campaign->name ?: 'Campanha #' . $campaign->id }}</p>
-                                <p class="text-xs text-slate-500">#{{ $campaign->id }}</p>
-                            </td>
-                            <td class="px-5 py-4 text-slate-700">{{ $campaign->cliente?->nome ?? '-' }}</td>
-                            <td class="px-5 py-4 text-slate-700">{{ $campaign->conexao?->name ?? '-' }}</td>
-                            <td class="px-5 py-4 text-slate-700">
-                                <p>{{ $campaign->template?->title ?: ($campaign->template?->template_name ?? '-') }}</p>
-                                <p class="text-xs text-slate-500 font-mono">{{ $campaign->template?->template_name ?? '-' }}</p>
-                            </td>
-                            <td class="px-5 py-4 text-slate-700">
-                                @if($campaign->mode === 'scheduled')
-                                    Programado
-                                    <span class="block text-xs text-slate-500">{{ $campaign->scheduled_for?->setTimezone(config('app.timezone', 'America/Sao_Paulo'))->format('d/m/Y H:i') ?? '-' }}</span>
-                                @else
-                                    Imediato
+                <div class="mt-4 space-y-2">
+                    @forelse($accounts as $account)
+                        <a
+                            href="{{ route('agencia.whatsapp-cloud.index', ['account_id' => $account->id, 'tab' => request('tab', 'templates')]) }}"
+                            class="block rounded-lg border px-3 py-3 transition {{ (int) $accountFilter === (int) $account->id ? 'border-blue-300 bg-blue-50' : 'border-slate-200 hover:bg-slate-50' }}"
+                        >
+                            <div class="flex items-start justify-between gap-2">
+                                <p class="text-sm font-semibold text-slate-800">{{ $account->name }}</p>
+                                @if($account->is_default)
+                                    <span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Padrão</span>
                                 @endif
-                            </td>
-                            <td class="px-5 py-4 text-slate-700">
-                                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $campaignStatusClass }}">
-                                    {{ $campaign->status }}
-                                </span>
-                            </td>
-                            <td class="px-5 py-4 text-slate-700">
-                                <p>Total: {{ $campaign->total_leads }}</p>
-                                <p class="text-xs text-slate-500">Env: {{ $campaign->sent_count }} | Falhas: {{ $campaign->failed_count }} | Pulos: {{ $campaign->skipped_count }}</p>
-                                @php
-                                    $campaignTagIds = collect(data_get($campaign->filter_payload, 'tag_ids', []))
-                                        ->filter(fn ($value) => is_numeric($value))
-                                        ->values();
-                                @endphp
-                                <p class="text-xs text-slate-500">
-                                    Público: {{ $campaignTagIds->isEmpty() ? 'Todos os leads do cliente' : 'Filtrado por tags (' . $campaignTagIds->count() . ')' }}
-                                </p>
-                            </td>
-                            <td class="px-5 py-4 text-slate-600">
-                                {{ $campaign->created_at?->setTimezone(config('app.timezone', 'America/Sao_Paulo'))->format('d/m/Y H:i') ?? '-' }}
-                            </td>
-                            <td class="px-5 py-4">
-                                @if(!in_array($campaign->status, ['completed', 'failed', 'canceled'], true))
-                                    <form method="POST" action="{{ route('agencia.whatsapp-cloud.campaigns.cancel', $campaign) }}" onsubmit="return confirm('Deseja cancelar esta campanha?');">
-                                        @csrf
-                                        @method('PATCH')
-                                        <input type="hidden" name="active_tab" value="campaigns">
-                                        <button type="submit" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100">
-                                            Cancelar
-                                        </button>
-                                    </form>
-                                @else
-                                    <span class="text-xs text-slate-400">Sem ações</span>
-                                @endif
-                            </td>
-                        </tr>
+                            </div>
+                            <p class="mt-1 text-[11px] font-mono text-slate-500">{{ $account->phone_number_id }}</p>
+                            <p class="mt-2 text-[11px] text-slate-500">Conexões: {{ $account->conexoes_count }} • Modelos: {{ $account->templates_count }}</p>
+                        </a>
                     @empty
-                        <tr>
-                            <td colspan="9" class="px-5 py-6 text-center text-slate-500">Nenhuma campanha criada.</td>
-                        </tr>
+                        <div class="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-xs text-slate-500">
+                            Nenhuma conta cloud cadastrada.
+                        </div>
                     @endforelse
-                </tbody>
-            </table>
-        </div>
-    </section>
+                </div>
+            </div>
+        </aside>
+
+        <section class="lg:col-span-2 space-y-4">
+            @if(!$selectedAccount)
+                <div class="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+                    <h3 class="text-lg font-semibold text-slate-900">Selecione uma conta para continuar</h3>
+                    <p class="mt-2 text-sm text-slate-500">
+                        Use a lista lateral para selecionar uma conta com <code>?account_id=</code>. Os modelos e campanhas serão exibidos somente da conta selecionada.
+                    </p>
+                    @if($accounts->isEmpty())
+                        <button
+                            type="button"
+                            id="openAccountModalEmptyState"
+                            class="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                        >
+                            Criar primeira conta
+                        </button>
+                    @endif
+                </div>
+            @else
+                <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">{{ $selectedAccount->name }}</h3>
+                            <p class="mt-1 text-xs font-mono text-slate-500">Phone Number ID: {{ $selectedAccount->phone_number_id }}</p>
+                            <p class="mt-1 text-xs font-mono text-slate-500">Business Account ID: {{ $selectedAccount->business_account_id ?? '-' }}</p>
+                            <p class="mt-1 text-xs text-slate-500">Conexões: {{ $selectedAccount->conexoes_count }} • Modelos: {{ $selectedAccount->templates_count }}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+                                data-open-account-edit
+                                data-id="{{ $selectedAccount->id }}"
+                                data-name="{{ $selectedAccount->name }}"
+                                data-phone-number-id="{{ $selectedAccount->phone_number_id }}"
+                                data-business-account-id="{{ $selectedAccount->business_account_id }}"
+                                data-app-id="{{ $selectedAccount->app_id }}"
+                                data-is-default="{{ $selectedAccount->is_default ? '1' : '0' }}"
+                            >
+                                Editar conta
+                            </button>
+                            <form method="POST" action="{{ route('agencia.whatsapp-cloud.accounts.destroy', $selectedAccount) }}" onsubmit="return confirm('Deseja excluir esta conta cloud e a conexão vinculada?');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">
+                                    Excluir conta + conexão
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            data-tab-button="templates"
+                            class="rounded-lg px-4 py-2 text-sm font-semibold transition"
+                        >
+                            Modelos de mensagens
+                        </button>
+                        <button
+                            type="button"
+                            data-tab-button="campaigns"
+                            class="rounded-lg px-4 py-2 text-sm font-semibold transition"
+                        >
+                            Envio em massa
+                        </button>
+                    </div>
+                </div>
+
+                <section data-tab-content="templates" class="space-y-4">
+                    <div class="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">Modelos de Mensagens</h3>
+                            <p class="text-sm text-slate-500">Crie e sincronize modelos imediatamente com a Meta.</p>
+                        </div>
+                        <input type="hidden" id="accountFilter" value="{{ $accountFilter }}">
+                        <input type="hidden" id="conexaoFilter" value="">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <form id="importMetaTemplatesForm" data-template-action-form method="POST" action="{{ route('agencia.whatsapp-cloud.templates.import-meta') }}">
+                                @csrf
+                                <input type="hidden" name="active_tab" value="templates">
+                                <input type="hidden" name="account_id" id="importMetaAccountId" value="{{ $accountFilter }}">
+                                <input type="hidden" name="conexao_id" id="importMetaConexaoId" value="">
+                                <button
+                                    type="submit"
+                                    class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                                    title="Atualizar modelos da conta selecionada na Meta"
+                                >
+                                    Atualizar
+                                </button>
+                            </form>
+                            <button
+                                type="button"
+                                id="openTemplateModal"
+                                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                            >
+                                Criar modelo
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-slate-50 text-slate-500">
+                                <tr>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conexão</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome do modelo</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome interno</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Idioma</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Categoria</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Status</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Sync</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="templatesTableBody" class="divide-y divide-slate-100">
+                                @forelse($templates as $template)
+                                    <tr class="hover:bg-slate-50" data-template-row data-account-id="{{ $template->whatsapp_cloud_account_id }}" data-conexao-id="{{ $template->conexao_id ?? '' }}">
+                                        <td class="px-5 py-4 text-slate-600">{{ $template->conexao?->name ?? 'Todas' }}</td>
+                                        <td class="px-5 py-4 text-slate-700">{{ $template->title ?: '-' }}</td>
+                                        <td class="px-5 py-4 text-slate-700 font-mono">{{ $template->template_name }}</td>
+                                        <td class="px-5 py-4 text-slate-600">{{ $template->language_code }}</td>
+                                        <td class="px-5 py-4 text-slate-600">{{ $template->category }}</td>
+                                        <td class="px-5 py-4 text-slate-600">
+                                            <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">{{ $template->status }}</span>
+                                        </td>
+                                        <td class="px-5 py-4 text-slate-600">
+                                            {{ $template->last_synced_at?->format('d/m/Y H:i') ?? '-' }}
+                                        </td>
+                                        <td class="px-5 py-4">
+                                            <div class="flex items-center gap-2">
+                                                <form data-template-action-form method="POST" action="{{ route('agencia.whatsapp-cloud.templates.refresh-status', $template) }}">
+                                                    @csrf
+                                                    <input type="hidden" name="active_tab" value="templates">
+                                                    <input type="hidden" name="account_id" value="{{ $accountFilter }}">
+                                                    <button type="submit" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100">
+                                                        Atualizar status
+                                                    </button>
+                                                </form>
+                                                <button
+                                                    type="button"
+                                                    class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+                                                    data-open-template-edit
+                                                    data-id="{{ $template->id }}"
+                                                    data-account-id="{{ $template->whatsapp_cloud_account_id }}"
+                                                    data-conexao-id="{{ $template->conexao_id }}"
+                                                    data-title="{{ $template->title }}"
+                                                    data-template-name="{{ $template->template_name }}"
+                                                    data-language-code="{{ $template->language_code }}"
+                                                    data-category="{{ $template->category }}"
+                                                    data-status="{{ $template->status }}"
+                                                    data-body-text="{{ $template->body_text }}"
+                                                    data-footer-text="{{ $template->footer_text }}"
+                                                    data-buttons='@json($template->buttons ?? [])'
+                                                    data-variable-examples='@json($template->variable_examples ?? [])'
+                                                >
+                                                    Editar
+                                                </button>
+                                                <form method="POST" action="{{ route('agencia.whatsapp-cloud.templates.destroy', $template) }}" onsubmit="return confirm('Deseja excluir este modelo?');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">
+                                                        Excluir
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr data-template-empty-server>
+                                        <td colspan="8" class="px-5 py-6 text-center text-slate-500">Nenhum modelo de mensagem cadastrado para esta conta.</td>
+                                    </tr>
+                                @endforelse
+                                <tr id="templatesNoResultsRow" class="hidden">
+                                    <td colspan="8" class="px-5 py-6 text-center text-slate-500">Nenhum modelo encontrado.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section data-tab-content="campaigns" class="hidden space-y-4">
+                    <div class="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">Envio em massa</h3>
+                            <p class="text-sm text-slate-500">Crie campanhas para envio em lote usando modelos aprovados da WhatsApp Cloud.</p>
+                        </div>
+                        <button
+                            type="button"
+                            id="openCampaignModal"
+                            class="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm {{ !empty($canCreateCampaign) ? 'bg-blue-600 hover:bg-blue-700' : 'cursor-not-allowed bg-slate-400' }}"
+                            @disabled(empty($canCreateCampaign))
+                        >
+                            Nova campanha
+                        </button>
+                    </div>
+                    @if(empty($canCreateCampaign))
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                            Para criar campanha, vincule uma conexão Cloud a esta conta em <a href="{{ route('agencia.conexoes.index') }}" class="font-semibold underline">Conexões</a>.
+                        </div>
+                    @endif
+
+                    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-slate-50 text-slate-500">
+                                <tr>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Campanha</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Cliente</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conexão</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Modelo</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Modo</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Status</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Progresso</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Criada em</th>
+                                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                @forelse($campaigns as $campaign)
+                                    @php
+                                        $campaignStatusClass = match($campaign->status) {
+                                            'completed' => 'bg-emerald-100 text-emerald-700',
+                                            'running' => 'bg-blue-100 text-blue-700',
+                                            'scheduled' => 'bg-amber-100 text-amber-700',
+                                            'failed' => 'bg-rose-100 text-rose-700',
+                                            'canceled' => 'bg-slate-200 text-slate-700',
+                                            default => 'bg-slate-100 text-slate-700',
+                                        };
+                                    @endphp
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="px-5 py-4">
+                                            <p class="font-medium text-slate-800">{{ $campaign->name ?: 'Campanha #' . $campaign->id }}</p>
+                                            <p class="text-xs text-slate-500">#{{ $campaign->id }}</p>
+                                        </td>
+                                        <td class="px-5 py-4 text-slate-700">{{ $campaign->cliente?->nome ?? '-' }}</td>
+                                        <td class="px-5 py-4 text-slate-700">{{ $campaign->conexao?->name ?? '-' }}</td>
+                                        <td class="px-5 py-4 text-slate-700">
+                                            <p>{{ $campaign->template?->title ?: ($campaign->template?->template_name ?? '-') }}</p>
+                                            <p class="text-xs text-slate-500 font-mono">{{ $campaign->template?->template_name ?? '-' }}</p>
+                                        </td>
+                                        <td class="px-5 py-4 text-slate-700">
+                                            @if($campaign->mode === 'scheduled')
+                                                Programado
+                                                <span class="block text-xs text-slate-500">{{ $campaign->scheduled_for?->setTimezone(config('app.timezone', 'America/Sao_Paulo'))->format('d/m/Y H:i') ?? '-' }}</span>
+                                            @else
+                                                Imediato
+                                            @endif
+                                        </td>
+                                        <td class="px-5 py-4 text-slate-700">
+                                            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $campaignStatusClass }}">
+                                                {{ $campaign->status }}
+                                            </span>
+                                        </td>
+                                        <td class="px-5 py-4 text-slate-700">
+                                            <p>Total: {{ $campaign->total_leads }}</p>
+                                            <p class="text-xs text-slate-500">Env: {{ $campaign->sent_count }} | Falhas: {{ $campaign->failed_count }} | Pulos: {{ $campaign->skipped_count }}</p>
+                                            @php
+                                                $campaignTagIncludeIds = collect(data_get($campaign->filter_payload, 'tags.include', data_get($campaign->filter_payload, 'tag_ids', [])))
+                                                    ->filter(fn ($value) => is_numeric($value))
+                                                    ->values();
+                                                $campaignTagExcludeIds = collect(data_get($campaign->filter_payload, 'tags.exclude', []))
+                                                    ->filter(fn ($value) => is_numeric($value))
+                                                    ->values();
+                                            @endphp
+                                            <p class="text-xs text-slate-500">
+                                                Público:
+                                                @if($campaignTagIncludeIds->isEmpty() && $campaignTagExcludeIds->isEmpty())
+                                                    Todos os leads do cliente
+                                                @else
+                                                    @if($campaignTagIncludeIds->isNotEmpty())
+                                                        é ({{ $campaignTagIncludeIds->count() }})
+                                                    @endif
+                                                    @if($campaignTagIncludeIds->isNotEmpty() && $campaignTagExcludeIds->isNotEmpty())
+                                                        •
+                                                    @endif
+                                                    @if($campaignTagExcludeIds->isNotEmpty())
+                                                        não é ({{ $campaignTagExcludeIds->count() }})
+                                                    @endif
+                                                @endif
+                                            </p>
+                                        </td>
+                                        <td class="px-5 py-4 text-slate-600">
+                                            {{ $campaign->created_at?->setTimezone(config('app.timezone', 'America/Sao_Paulo'))->format('d/m/Y H:i') ?? '-' }}
+                                        </td>
+                                        <td class="px-5 py-4">
+                                            @if(!in_array($campaign->status, ['completed', 'failed', 'canceled'], true))
+                                                <form method="POST" action="{{ route('agencia.whatsapp-cloud.campaigns.cancel', $campaign) }}" onsubmit="return confirm('Deseja cancelar esta campanha?');">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <input type="hidden" name="active_tab" value="campaigns">
+                                                    <button type="submit" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                                                        Cancelar
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <span class="text-xs text-slate-400">Sem ações</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="9" class="px-5 py-6 text-center text-slate-500">Nenhuma campanha criada para esta conta.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            @endif
+        </section>
+    </div>
 
     <div id="accountModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 backdrop-blur">
-        <div class="w-[640px] rounded-2xl bg-white p-6 shadow-2xl">
+        <div class="w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
                 <h3 id="accountModalTitle" class="text-lg font-semibold text-slate-900">Nova conta cloud</h3>
                 <button type="button" class="text-slate-500 hover:text-slate-700" data-account-close>x</button>
@@ -517,6 +448,66 @@
                     Definir como conta padrão
                 </label>
 
+                <section id="accountConnectionSection" class="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div>
+                        <h4 class="text-sm font-semibold text-slate-900">Conexão Cloud vinculada</h4>
+                        <p class="text-xs text-slate-500">Ao criar a conta, uma conexão será criada automaticamente.</p>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="accountConexaoName">Nome da conexão (opcional)</label>
+                        <input id="accountConexaoName" name="conexao_name" type="text" value="{{ old('conexao_name') }}" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Cloud - Minha Conta">
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="accountConnectionCliente">Cliente</label>
+                            <select id="accountConnectionCliente" name="cliente_id" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <option value="">Selecione...</option>
+                                @foreach($accountConnectionClientes as $cliente)
+                                    <option value="{{ $cliente->id }}" @selected((string) old('cliente_id') === (string) $cliente->id)>{{ $cliente->nome }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="accountConnectionCredential">Credencial</label>
+                            <select id="accountConnectionCredential" name="credential_id" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <option value="">Selecione...</option>
+                                @foreach($accountConnectionCredentials as $credential)
+                                    <option value="{{ $credential->id }}" @selected((string) old('credential_id') === (string) $credential->id)>{{ $credential->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="accountConnectionAssistant">Assistente</label>
+                            <select id="accountConnectionAssistant" name="assistant_id" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <option value="">Selecione...</option>
+                                @foreach($accountConnectionAssistants as $assistant)
+                                    <option value="{{ $assistant->id }}" @selected((string) old('assistant_id') === (string) $assistant->id)>{{ $assistant->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="accountConnectionModel">Modelo IA</label>
+                            <select id="accountConnectionModel" name="model" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <option value="">Selecione...</option>
+                                @foreach($accountConnectionModels as $model)
+                                    <option value="{{ $model->id }}" @selected((string) old('model') === (string) $model->id)>{{ $model->nome }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    @if($accountConnectionClientes->isEmpty() || $accountConnectionCredentials->isEmpty() || $accountConnectionAssistants->isEmpty() || $accountConnectionModels->isEmpty())
+                        <p class="text-xs text-rose-600">
+                            Para criar conta + conexão, cadastre pelo menos um cliente, uma credencial, um assistente e um modelo IA.
+                        </p>
+                    @endif
+                </section>
+
                 <div class="flex items-center justify-end gap-3 pt-2">
                     <button type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" data-account-close>Cancelar</button>
                     <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Salvar</button>
@@ -526,7 +517,7 @@
     </div>
 
     <div id="templateModal" class="fixed inset-0 z-50 hidden bg-white">
-        <form id="templateForm" method="POST" action="{{ route('agencia.whatsapp-cloud.templates.store') }}" class="flex h-full flex-col">
+        <form id="templateForm" method="POST" action="{{ route('agencia.whatsapp-cloud.templates.store') }}" class="flex h-full w-full flex-col">
             @csrf
             <input type="hidden" name="_method" id="templateFormMethod" value="POST">
             <input type="hidden" name="active_tab" value="templates">
@@ -547,30 +538,35 @@
             <div class="grid min-h-0 flex-1 gap-0 lg:grid-cols-4">
                 <section class="overflow-y-auto border-r border-slate-200 bg-slate-50 p-6 lg:col-span-1 space-y-4">
                     <div>
-                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="templateAccount">Conta</label>
-                        <select id="templateAccount" name="whatsapp_cloud_account_id" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Selecione</option>
-                            @foreach($accounts as $account)
-                                <option value="{{ $account->id }}" @selected((string) old('whatsapp_cloud_account_id') === (string) $account->id)>{{ $account->name }}</option>
-                            @endforeach
-                        </select>
+                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Conta</label>
+                        <p class="mt-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                            {{ $selectedAccount?->name ?? 'Conta não selecionada' }}
+                        </p>
                     </div>
 
                     <div>
-                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="templateConexao">Conexão (opcional)</label>
-                        <select id="templateConexao" name="conexao_id" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Todas as conexões</option>
-                            @foreach($conexoes as $conexao)
-                                <option
-                                    value="{{ $conexao->id }}"
-                                    data-account-id="{{ $conexao->whatsapp_cloud_account_id }}"
-                                    @selected((string) old('conexao_id') === (string) $conexao->id)
-                                >
-                                    {{ $conexao->name }} ({{ $conexao->cliente?->nome ?? 'Cliente' }})
-                                </option>
-                            @endforeach
-                        </select>
+                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Conexão vinculada</label>
+                        <p class="mt-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                            {{ $selectedCloudConexao?->name ?? 'Nenhuma conexão Cloud vinculada' }}
+                        </p>
                     </div>
+
+                    <select id="templateAccount" name="whatsapp_cloud_account_id" required class="hidden">
+                        <option value="{{ $selectedAccount?->id }}" selected>{{ $selectedAccount?->name }}</option>
+                    </select>
+
+                    <select id="templateConexao" name="conexao_id" class="hidden">
+                        <option value="">Todas as conexões</option>
+                        @foreach($conexoes as $conexao)
+                            <option
+                                value="{{ $conexao->id }}"
+                                data-account-id="{{ $conexao->whatsapp_cloud_account_id }}"
+                                @selected((string) old('conexao_id', $selectedCloudConexao?->id) === (string) $conexao->id)
+                            >
+                                {{ $conexao->name }} ({{ $conexao->cliente?->nome ?? 'Cliente' }})
+                            </option>
+                        @endforeach
+                    </select>
 
                     <div>
                         <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="templateTitle">Nome do modelo</label>
@@ -667,22 +663,25 @@
     </div>
 
     @php
-        $oldCampaignTagIds = collect(old('tag_ids', []))
+        $oldCampaignTagIncludeIds = collect(old('tag_include_ids', old('tag_ids', [])))
+            ->map(fn ($value) => (string) $value)
+            ->all();
+        $oldCampaignTagExcludeIds = collect(old('tag_exclude_ids', []))
             ->map(fn ($value) => (string) $value)
             ->all();
     @endphp
 
-    <div id="campaignModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6">
-        <div class="max-h-full w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div id="campaignModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 px-4 py-6">
+        <div class="my-2 w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
                 <div>
                     <h3 class="text-lg font-semibold text-slate-900">Nova campanha em massa</h3>
-                    <p class="text-xs text-slate-500">Escolha cliente, conexão Cloud e modelo aprovado para disparo.</p>
+                    <p class="text-xs text-slate-500">Cliente e conexão Cloud são definidos automaticamente pela conta selecionada.</p>
                 </div>
                 <button type="button" class="text-slate-500 hover:text-slate-700" data-campaign-close>x</button>
             </div>
 
-            <form id="campaignForm" method="POST" action="{{ route('agencia.whatsapp-cloud.campaigns.store') }}" class="grid max-h-[80vh] gap-0 lg:grid-cols-3">
+            <form id="campaignForm" method="POST" action="{{ route('agencia.whatsapp-cloud.campaigns.store') }}" class="grid max-h-[calc(100vh-6rem)] gap-0 lg:grid-cols-3">
                 @csrf
                 <input type="hidden" name="active_tab" value="campaigns">
 
@@ -701,120 +700,165 @@
                             >
                         </div>
                         <div>
-                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="campaignCliente">Cliente</label>
-                            <select id="campaignCliente" name="cliente_id" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                <option value="">Selecione</option>
-                                @foreach($campaignClientes as $cliente)
-                                    <option value="{{ $cliente->id }}" @selected((string) old('cliente_id') === (string) $cliente->id)>
-                                        {{ $cliente->nome }}
-                                    </option>
-                                @endforeach
-                            </select>
+                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</label>
+                            <p class="mt-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                {{ $selectedCampaignCliente?->nome ?? 'Cliente não identificado' }}
+                            </p>
                             <p id="campaignLeadCountHint" class="mt-1 text-xs text-slate-500">Leads elegíveis: -</p>
                         </div>
                     </div>
 
+                    <select id="campaignCliente" name="cliente_id" required class="hidden">
+                        @if($selectedCampaignCliente)
+                            <option value="{{ $selectedCampaignCliente->id }}" selected>{{ $selectedCampaignCliente->nome }}</option>
+                        @else
+                            <option value="" selected>Selecione</option>
+                        @endif
+                    </select>
+
+                    <select id="campaignConexao" name="conexao_id" required class="hidden">
+                        @if($selectedCloudConexao)
+                            <option
+                                value="{{ $selectedCloudConexao->id }}"
+                                data-cliente-id="{{ $selectedCloudConexao->cliente_id }}"
+                                data-account-id="{{ $selectedCloudConexao->whatsapp_cloud_account_id }}"
+                                selected
+                            >
+                                {{ $selectedCloudConexao->name }}
+                            </option>
+                        @else
+                            <option value="" selected>Selecione</option>
+                        @endif
+                    </select>
+
                     <div>
-                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="campaignTags">Filtrar por tags (opcional)</label>
+                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Filtros (opcional)</label>
                         <div id="campaignTagsPicker" class="mt-1">
-                            <div id="campaignTagsPills" class="min-h-[44px] rounded-lg border border-slate-200 bg-white px-2 py-2"></div>
-                            <div class="relative mt-2">
+                            <div class="relative">
                                 <button
                                     type="button"
-                                    id="campaignTagsToggle"
+                                    id="campaignFiltersToggle"
                                     class="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
                                 >
-                                    Selecionar tags
+                                    Filtros
                                 </button>
-                                <div id="campaignTagsDropdown" class="absolute left-0 z-20 mt-2 hidden w-full rounded-xl border border-slate-200 bg-white shadow-xl">
+                                <div id="campaignFiltersDropdown" class="absolute left-0 z-20 mt-2 hidden w-full rounded-xl border border-slate-200 bg-white shadow-xl">
                                     <div class="border-b border-slate-100 p-2">
+                                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Opções</p>
+                                        <button
+                                            type="button"
+                                            class="mt-2 inline-flex items-center rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
+                                        >
+                                            Tags
+                                        </button>
+                                    </div>
+                                    <div class="space-y-2 p-2">
+                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+                                            <button
+                                                type="button"
+                                                id="campaignTagModeInclude"
+                                                class="rounded-md bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
+                                            >é</button>
+                                            <button
+                                                type="button"
+                                                id="campaignTagModeExclude"
+                                                class="rounded-md px-3 py-1 text-xs font-semibold text-slate-600"
+                                            >não é</button>
+                                        </div>
                                         <input
                                             id="campaignTagsSearch"
                                             type="search"
                                             placeholder="Buscar tag"
                                             class="w-full rounded-lg border-slate-200 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
                                         >
-                                    </div>
-                                    <div id="campaignTagsOptions" class="max-h-56 space-y-1 overflow-auto p-2">
-                                        @forelse($campaignTags as $tag)
-                                            <button
-                                                type="button"
-                                                data-campaign-tag-option
-                                                data-value="{{ $tag->id }}"
-                                                data-cliente-id="{{ $tag->cliente_id ?? '' }}"
-                                                data-label="{{ $tag->name }}"
-                                                class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                                            >
-                                                <span>{{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}</span>
-                                                <span data-campaign-tag-action class="text-[11px] font-semibold text-blue-600">Selecionar</span>
-                                            </button>
-                                        @empty
-                                            <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
-                                        @endforelse
-                                        <div id="campaignTagsOptionsEmpty" class="hidden px-3 py-2 text-xs text-slate-400">Nenhuma tag disponível para o cliente selecionado.</div>
+                                        <div id="campaignTagsOptions" class="max-h-56 space-y-1 overflow-auto">
+                                            @forelse($campaignTags as $tag)
+                                                <button
+                                                    type="button"
+                                                    data-campaign-tag-option
+                                                    data-value="{{ $tag->id }}"
+                                                    data-cliente-id="{{ $tag->cliente_id ?? '' }}"
+                                                    data-label="{{ $tag->name }}"
+                                                    class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                                                >
+                                                    <span>{{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}</span>
+                                                    <span data-campaign-tag-action class="text-[11px] font-semibold text-blue-600">Selecionar</span>
+                                                </button>
+                                            @empty
+                                                <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
+                                            @endforelse
+                                            <div id="campaignTagsOptionsEmpty" class="hidden px-3 py-2 text-xs text-slate-400">Nenhuma tag disponível para o cliente selecionado.</div>
+                                        </div>
+                                        <p class="text-[11px] text-slate-500">Operador atual: <span id="campaignTagModeLabel" class="font-semibold text-slate-700">é</span></p>
                                     </div>
                                 </div>
                             </div>
+                            <div id="campaignTagsPills" class="mt-2 flex flex-wrap items-center gap-2"></div>
                         </div>
-                        <select id="campaignTags" name="tag_ids[]" multiple class="hidden">
+                        <select id="campaignTagIncludeIds" name="tag_include_ids[]" multiple class="hidden">
                             @foreach($campaignTags as $tag)
                                 <option
                                     value="{{ $tag->id }}"
                                     data-cliente-id="{{ $tag->cliente_id ?? '' }}"
                                     data-label="{{ $tag->name }}"
-                                    @selected(in_array((string) $tag->id, $oldCampaignTagIds, true))
+                                    @selected(in_array((string) $tag->id, $oldCampaignTagIncludeIds, true))
                                 >
                                     {{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}
                                 </option>
                             @endforeach
                         </select>
-                        <p class="mt-1 text-xs text-slate-500">Sem tags selecionadas: envia para todos os leads com telefone do cliente escolhido.</p>
+                        <select id="campaignTagExcludeIds" name="tag_exclude_ids[]" multiple class="hidden">
+                            @foreach($campaignTags as $tag)
+                                <option
+                                    value="{{ $tag->id }}"
+                                    data-cliente-id="{{ $tag->cliente_id ?? '' }}"
+                                    data-label="{{ $tag->name }}"
+                                    @selected(in_array((string) $tag->id, $oldCampaignTagExcludeIds, true))
+                                >
+                                    {{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <p class="mt-1 text-xs text-slate-500">Sem filtros por tag: envia para todos os leads com telefone do cliente escolhido.</p>
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="campaignConexao">Conexão Cloud</label>
-                            <select id="campaignConexao" name="conexao_id" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                <option value="">Selecione</option>
-                                @foreach($campaignConexoes as $conexao)
-                                    <option
-                                        value="{{ $conexao->id }}"
-                                        data-cliente-id="{{ $conexao->cliente_id }}"
-                                        data-account-id="{{ $conexao->whatsapp_cloud_account_id }}"
-                                        @selected((string) old('conexao_id') === (string) $conexao->id)
-                                    >
-                                        {{ $conexao->name }} ({{ $conexao->cliente?->nome ?? 'Cliente' }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="campaignTemplate">Modelo aprovado</label>
-                            <select id="campaignTemplate" name="whatsapp_cloud_template_id" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                <option value="">Selecione</option>
-                                @foreach($campaignTemplates as $template)
-                                    <option
-                                        value="{{ $template->id }}"
-                                        data-account-id="{{ $template->whatsapp_cloud_account_id }}"
-                                        data-conexao-id="{{ $template->conexao_id }}"
-                                        data-title="{{ $template->title ?: $template->template_name }}"
-                                        data-template-name="{{ $template->template_name }}"
-                                        data-language="{{ $template->language_code }}"
-                                        data-body="{{ $template->body_text }}"
-                                        data-footer="{{ $template->footer_text }}"
-                                        data-buttons='@json($template->buttons ?? [])'
-                                        @selected((string) old('whatsapp_cloud_template_id') === (string) $template->id)
-                                    >
-                                        {{ $template->title ?: $template->template_name }} ({{ $template->language_code }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
+                    <div>
+                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Conexão Cloud</label>
+                        <p class="mt-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                            {{ $selectedCloudConexao?->name ?? 'Conexão não identificada' }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="campaignTemplate">Modelo aprovado</label>
+                        <select id="campaignTemplate" name="whatsapp_cloud_template_id" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">Selecione</option>
+                            @foreach($campaignTemplates as $template)
+                                <option
+                                    value="{{ $template->id }}"
+                                    data-account-id="{{ $template->whatsapp_cloud_account_id }}"
+                                    data-conexao-id="{{ $template->conexao_id }}"
+                                    data-title="{{ $template->title ?: $template->template_name }}"
+                                    data-template-name="{{ $template->template_name }}"
+                                    data-language="{{ $template->language_code }}"
+                                    data-body="{{ $template->body_text }}"
+                                    data-footer="{{ $template->footer_text }}"
+                                    data-buttons='@json($template->buttons ?? [])'
+                                    data-variables='@json($template->variables ?? [])'
+                                    @selected((string) old('whatsapp_cloud_template_id') === (string) $template->id)
+                                >
+                                    {{ $template->title ?: $template->template_name }} ({{ $template->language_code }})
+                                </option>
+                            @endforeach
+                        </select>
                     </div>
 
                     <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Variáveis do modelo</p>
-                        <p class="mt-1 text-xs text-slate-600">As variáveis serão resolvidas pelos campos personalizados do lead e fallbacks existentes (nome, telefone, info).</p>
+                        <p class="mt-1 text-xs text-slate-600">Associe cada variável no padrão <code>var_n</code> com um campo do lead para esta campanha.</p>
+                        <div id="campaignVariableBindingsWrap" class="mt-3 hidden rounded-lg border border-slate-200 bg-white p-3">
+                            <div id="campaignVariableBindingsList" class="space-y-3"></div>
+                        </div>
                     </div>
 
                     <div>
@@ -830,7 +874,7 @@
                         <p class="mt-1 text-xs text-slate-500">Estas instruções serão adicionadas no contexto do conv_id junto com o registro do template enviado.</p>
                     </div>
 
-                    <div class="grid gap-4 md:grid-cols-3">
+                    <div class="grid gap-4 md:grid-cols-2">
                         <div class="md:col-span-1">
                             <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="campaignMode">Modo de envio</label>
                             <select id="campaignMode" name="mode" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
@@ -848,23 +892,11 @@
                                 class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                             >
                         </div>
-                        <div class="md:col-span-1">
-                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="campaignInterval">Intervalo entre envios (s)</label>
-                            <input
-                                id="campaignInterval"
-                                name="interval_seconds"
-                                type="number"
-                                min="0"
-                                max="120"
-                                value="{{ old('interval_seconds', 2) }}"
-                                class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            >
-                        </div>
                     </div>
 
                     <div class="flex items-center justify-end gap-3 pt-2">
                         <button type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" data-campaign-close>Cancelar</button>
-                        <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Criar campanha</button>
+                        <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400" @disabled(empty($canCreateCampaign))>Criar campanha</button>
                     </div>
                 </section>
 
@@ -919,9 +951,11 @@
             const oldTemplateEditingId = @json(old('template_editing_id'));
             const oldButtons = @json(old('buttons', []));
             const oldVariableExamples = @json(old('variable_examples', []));
+            const oldCampaignTemplateBindings = @json($oldCampaignTemplateBindings);
             const customFields = @json($customFieldsForJs);
             const campaignLeadCounts = @json($campaignLeadCounts);
             const campaignLeadCountUrl = @json(route('agencia.whatsapp-cloud.campaigns.lead-count'));
+            const selectedAccountId = @json($accountFilter);
 
             const tabButtons = document.querySelectorAll('[data-tab-button]');
             const tabContents = document.querySelectorAll('[data-tab-content]');
@@ -946,6 +980,7 @@
 
             const accountModal = document.getElementById('accountModal');
             const openAccountModal = document.getElementById('openAccountModal');
+            const openAccountModalEmptyState = document.getElementById('openAccountModalEmptyState');
             const accountCloseButtons = accountModal.querySelectorAll('[data-account-close]');
             const accountForm = document.getElementById('accountForm');
             const accountFormMethod = document.getElementById('accountFormMethod');
@@ -959,6 +994,12 @@
             const accountToken = document.getElementById('accountToken');
             const accountTokenHint = document.getElementById('accountTokenHint');
             const accountIsDefault = document.getElementById('accountIsDefault');
+            const accountConnectionSection = document.getElementById('accountConnectionSection');
+            const accountConexaoName = document.getElementById('accountConexaoName');
+            const accountConnectionCliente = document.getElementById('accountConnectionCliente');
+            const accountConnectionCredential = document.getElementById('accountConnectionCredential');
+            const accountConnectionAssistant = document.getElementById('accountConnectionAssistant');
+            const accountConnectionModel = document.getElementById('accountConnectionModel');
 
             const templateModal = document.getElementById('templateModal');
             const openTemplateModal = document.getElementById('openTemplateModal');
@@ -997,31 +1038,45 @@
             const campaignCloseButtons = campaignModal?.querySelectorAll('[data-campaign-close]') || [];
             const campaignForm = document.getElementById('campaignForm');
             const campaignCliente = document.getElementById('campaignCliente');
-            const campaignTags = document.getElementById('campaignTags');
             const campaignTagsPills = document.getElementById('campaignTagsPills');
-            const campaignTagsToggle = document.getElementById('campaignTagsToggle');
-            const campaignTagsDropdown = document.getElementById('campaignTagsDropdown');
+            const campaignFiltersToggle = document.getElementById('campaignFiltersToggle');
+            const campaignFiltersDropdown = document.getElementById('campaignFiltersDropdown');
+            const campaignTagModeInclude = document.getElementById('campaignTagModeInclude');
+            const campaignTagModeExclude = document.getElementById('campaignTagModeExclude');
+            const campaignTagModeLabel = document.getElementById('campaignTagModeLabel');
             const campaignTagsSearch = document.getElementById('campaignTagsSearch');
             const campaignTagsOptions = document.getElementById('campaignTagsOptions');
             const campaignTagsOptionsEmpty = document.getElementById('campaignTagsOptionsEmpty');
+            const campaignTagIncludeIds = document.getElementById('campaignTagIncludeIds');
+            const campaignTagExcludeIds = document.getElementById('campaignTagExcludeIds');
             const campaignConexao = document.getElementById('campaignConexao');
             const campaignTemplate = document.getElementById('campaignTemplate');
             const campaignMode = document.getElementById('campaignMode');
             const campaignScheduleWrap = document.getElementById('campaignScheduleWrap');
             const campaignScheduledFor = document.getElementById('campaignScheduledFor');
             const campaignLeadCountHint = document.getElementById('campaignLeadCountHint');
+            const campaignVariableBindingsWrap = document.getElementById('campaignVariableBindingsWrap');
+            const campaignVariableBindingsList = document.getElementById('campaignVariableBindingsList');
             const campaignPreviewTitle = document.getElementById('campaignPreviewTitle');
             const campaignPreviewMeta = document.getElementById('campaignPreviewMeta');
             const campaignPreviewBody = document.getElementById('campaignPreviewBody');
             const campaignPreviewFooter = document.getElementById('campaignPreviewFooter');
             const campaignPreviewButtons = document.getElementById('campaignPreviewButtons');
+            const templateFiltersForm = document.getElementById('templateFiltersForm');
             const templatesAccountFilter = document.getElementById('accountFilter');
             const templatesConexaoFilter = document.getElementById('conexaoFilter');
+            const clearTemplateFiltersButton = document.getElementById('clearTemplateFilters');
+            const templateRows = Array.from(document.querySelectorAll('[data-template-row]'));
+            const templatesNoResultsRow = document.getElementById('templatesNoResultsRow');
             const importMetaTemplatesForm = document.getElementById('importMetaTemplatesForm');
             const importMetaAccountId = document.getElementById('importMetaAccountId');
             const importMetaConexaoId = document.getElementById('importMetaConexaoId');
             let campaignLeadCountRequestId = 0;
             let templateSubmitting = false;
+            let campaignTemplateBindingsSeed = (hasErrors && oldActiveTab === 'campaigns' && oldCampaignTemplateBindings && typeof oldCampaignTemplateBindings === 'object')
+                ? oldCampaignTemplateBindings
+                : {};
+            let campaignCurrentTagMode = 'include';
 
             let lastFocusedInput = templateBody;
             let variableExampleSeed = {};
@@ -1120,21 +1175,129 @@
                 });
             });
 
+            const upsertHiddenInput = (form, name, value) => {
+                if (!form) {
+                    return;
+                }
+
+                let input = form.querySelector(`input[name="${name}"]`);
+                if (!input) {
+                    input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = name;
+                    form.appendChild(input);
+                }
+
+                input.value = value || '';
+            };
+
+            const syncTemplateActionFormsWithFilters = () => {
+                const accountId = templatesAccountFilter?.value || (selectedAccountId ? String(selectedAccountId) : '');
+                const conexaoId = templatesConexaoFilter?.value || '';
+
+                document.querySelectorAll('form[data-template-action-form]').forEach((form) => {
+                    upsertHiddenInput(form, 'account_id', accountId);
+                    upsertHiddenInput(form, 'conexao_id', conexaoId);
+                });
+
+                if (importMetaAccountId) {
+                    importMetaAccountId.value = accountId;
+                }
+                if (importMetaConexaoId) {
+                    importMetaConexaoId.value = conexaoId;
+                }
+            };
+
+            const applyTemplateTableFilters = () => {
+                const accountId = templatesAccountFilter?.value || '';
+                const conexaoId = templatesConexaoFilter?.value || '';
+                let visibleCount = 0;
+
+                templateRows.forEach((row) => {
+                    const rowAccountId = row.dataset.accountId || '';
+                    const rowConexaoId = row.dataset.conexaoId || '';
+                    const matchAccount = accountId === '' || rowAccountId === accountId;
+                    const matchConexao = conexaoId === '' || rowConexaoId === conexaoId;
+                    const visible = matchAccount && matchConexao;
+                    row.classList.toggle('hidden', !visible);
+
+                    if (visible) {
+                        visibleCount++;
+                    }
+                });
+
+                if (templatesNoResultsRow) {
+                    const shouldShowNoResults = templateRows.length > 0 && visibleCount === 0;
+                    templatesNoResultsRow.classList.toggle('hidden', !shouldShowNoResults);
+                }
+
+                syncTemplateActionFormsWithFilters();
+            };
+
+            templateFiltersForm?.addEventListener('submit', (event) => {
+                event.preventDefault();
+                applyTemplateTableFilters();
+            });
+
+            templatesAccountFilter?.addEventListener('change', applyTemplateTableFilters);
+            templatesConexaoFilter?.addEventListener('change', applyTemplateTableFilters);
+
+            clearTemplateFiltersButton?.addEventListener('click', () => {
+                if (templatesAccountFilter) {
+                    templatesAccountFilter.value = '';
+                }
+                if (templatesConexaoFilter) {
+                    templatesConexaoFilter.value = '';
+                }
+                applyTemplateTableFilters();
+            });
+
             if (importMetaTemplatesForm) {
                 importMetaTemplatesForm.addEventListener('submit', (event) => {
-                    if (importMetaAccountId) {
-                        importMetaAccountId.value = templatesAccountFilter?.value || '';
-                    }
-                    if (importMetaConexaoId) {
-                        importMetaConexaoId.value = templatesConexaoFilter?.value || '';
-                    }
+                    syncTemplateActionFormsWithFilters();
 
                     if (!importMetaAccountId || !importMetaAccountId.value) {
                         event.preventDefault();
-                        window.alert('Selecione uma conta no filtro para importar os modelos da Meta.');
+                        window.alert('Selecione uma conta para importar os modelos da Meta.');
                     }
                 });
             }
+
+            applyTemplateTableFilters();
+
+            const accountConnectionRequiredFields = [
+                accountConnectionCliente,
+                accountConnectionCredential,
+                accountConnectionAssistant,
+                accountConnectionModel,
+            ];
+
+            const setAccountConnectionMode = (isEditMode) => {
+                if (!accountConnectionSection) {
+                    return;
+                }
+
+                accountConnectionSection.classList.toggle('hidden', isEditMode);
+
+                if (accountConexaoName) {
+                    accountConexaoName.disabled = isEditMode;
+                    if (isEditMode) {
+                        accountConexaoName.value = '';
+                    }
+                }
+
+                accountConnectionRequiredFields.forEach((field) => {
+                    if (!field) {
+                        return;
+                    }
+
+                    field.disabled = isEditMode;
+                    field.required = !isEditMode;
+                    if (isEditMode) {
+                        field.value = '';
+                    }
+                });
+            };
 
             const resetAccountForm = () => {
                 accountForm.action = "{{ route('agencia.whatsapp-cloud.accounts.store') }}";
@@ -1150,9 +1313,22 @@
                 accountToken.required = true;
                 accountTokenHint.textContent = 'Obrigatório para criar. Em edição, preencha apenas se quiser trocar.';
                 accountIsDefault.checked = false;
+                if (accountConexaoName) {
+                    accountConexaoName.value = '';
+                }
+                accountConnectionRequiredFields.forEach((field) => {
+                    if (field) {
+                        field.value = '';
+                    }
+                });
+                setAccountConnectionMode(false);
             };
 
             openAccountModal?.addEventListener('click', () => {
+                resetAccountForm();
+                openModal(accountModal);
+            });
+            openAccountModalEmptyState?.addEventListener('click', () => {
                 resetAccountForm();
                 openModal(accountModal);
             });
@@ -1184,6 +1360,7 @@
                     accountToken.value = '';
                     accountToken.required = false;
                     accountTokenHint.textContent = 'Opcional em edição. Preencha apenas se desejar substituir o token atual.';
+                    setAccountConnectionMode(true);
                     openModal(accountModal);
                 });
             });
@@ -1448,7 +1625,7 @@
                 templateFormMethod.value = 'POST';
                 templateModalTitle.textContent = 'Criar modelo';
                 templateEditingId.value = '';
-                templateAccount.value = '';
+                templateAccount.value = selectedAccountId ? String(selectedAccountId) : '';
                 templateConexao.value = '';
                 templateTitle.value = '';
                 templateLanguage.value = 'pt_BR';
@@ -1578,58 +1755,94 @@
                 }
             };
 
-            const selectedCampaignTagIds = () => {
-                if (!campaignTags) {
+            const selectedCampaignTagIds = (mode = 'include') => {
+                const select = mode === 'exclude' ? campaignTagExcludeIds : campaignTagIncludeIds;
+                if (!select) {
                     return [];
                 }
 
-                return Array.from(campaignTags.selectedOptions)
+                return Array.from(select.selectedOptions)
                     .map((option) => option.value)
                     .filter((value) => value !== '');
             };
 
-            const findCampaignTagSelectOption = (value) => {
-                if (!campaignTags || !value) {
+            const findCampaignTagSelectOption = (value, mode = 'include') => {
+                const select = mode === 'exclude' ? campaignTagExcludeIds : campaignTagIncludeIds;
+                if (!select || !value) {
                     return null;
                 }
 
-                return Array.from(campaignTags.options).find((option) => option.value === value) || null;
+                return Array.from(select.options).find((option) => option.value === value) || null;
+            };
+
+            const setCampaignTagMode = (mode) => {
+                campaignCurrentTagMode = mode === 'exclude' ? 'exclude' : 'include';
+
+                const includeActive = campaignCurrentTagMode === 'include';
+                campaignTagModeInclude?.classList.toggle('bg-white', includeActive);
+                campaignTagModeInclude?.classList.toggle('text-slate-700', includeActive);
+                campaignTagModeInclude?.classList.toggle('shadow-sm', includeActive);
+                campaignTagModeInclude?.classList.toggle('text-slate-600', !includeActive);
+
+                campaignTagModeExclude?.classList.toggle('bg-white', !includeActive);
+                campaignTagModeExclude?.classList.toggle('text-slate-700', !includeActive);
+                campaignTagModeExclude?.classList.toggle('shadow-sm', !includeActive);
+                campaignTagModeExclude?.classList.toggle('text-slate-600', includeActive);
+
+                if (campaignTagModeLabel) {
+                    campaignTagModeLabel.textContent = includeActive ? 'é' : 'não é';
+                }
+
+                syncCampaignTagOptionStates();
             };
 
             const renderCampaignTagPills = () => {
-                if (!campaignTagsPills || !campaignTags) {
+                if (!campaignTagsPills) {
                     return;
                 }
 
                 campaignTagsPills.innerHTML = '';
-                const selectedOptions = Array.from(campaignTags.selectedOptions).filter((option) => option.value !== '');
+                const includeOptions = campaignTagIncludeIds
+                    ? Array.from(campaignTagIncludeIds.selectedOptions).filter((option) => option.value !== '')
+                    : [];
+                const excludeOptions = campaignTagExcludeIds
+                    ? Array.from(campaignTagExcludeIds.selectedOptions).filter((option) => option.value !== '')
+                    : [];
 
-                if (selectedOptions.length === 0) {
-                    const placeholder = document.createElement('span');
-                    placeholder.className = 'inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500';
-                    placeholder.textContent = 'Nenhuma tag selecionada';
-                    campaignTagsPills.appendChild(placeholder);
+                if (includeOptions.length === 0 && excludeOptions.length === 0) {
                     return;
                 }
 
-                selectedOptions.forEach((option) => {
+                const appendPill = (option, mode) => {
+                    const prefix = mode === 'exclude' ? 'não é' : 'é';
+                    const baseClass = mode === 'exclude'
+                        ? 'inline-flex items-center gap-2 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700'
+                        : 'inline-flex items-center gap-2 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700';
+                    const closeClass = mode === 'exclude'
+                        ? 'inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-200 text-[10px] font-bold text-rose-700 hover:bg-rose-300'
+                        : 'inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-200 text-[10px] font-bold text-emerald-700 hover:bg-emerald-300';
+
                     const pill = document.createElement('span');
-                    pill.className = 'inline-flex items-center gap-2 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700';
-                    pill.textContent = option.dataset.label || option.textContent || option.value;
+                    pill.className = baseClass;
+                    pill.textContent = `${prefix}: ${option.dataset.label || option.textContent || option.value}`;
 
                     const removeButton = document.createElement('button');
                     removeButton.type = 'button';
                     removeButton.dataset.removeCampaignTag = option.value;
-                    removeButton.className = 'inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-200 text-[10px] font-bold text-blue-700 hover:bg-blue-300';
+                    removeButton.dataset.mode = mode;
+                    removeButton.className = closeClass;
                     removeButton.textContent = 'x';
                     pill.appendChild(removeButton);
 
                     campaignTagsPills.appendChild(pill);
-                });
+                };
+
+                includeOptions.forEach((option) => appendPill(option, 'include'));
+                excludeOptions.forEach((option) => appendPill(option, 'exclude'));
             };
 
             const syncCampaignTagOptionStates = () => {
-                if (!campaignTagsOptions || !campaignTags) {
+                if (!campaignTagsOptions || !campaignTagIncludeIds || !campaignTagExcludeIds) {
                     return;
                 }
 
@@ -1646,19 +1859,23 @@
 
                 optionButtons.forEach((button) => {
                     const value = button.dataset.value || '';
-                    const selectOption = findCampaignTagSelectOption(value);
-                    const selected = Boolean(selectOption?.selected);
-                    const allowed = Boolean(selectOption && !selectOption.hidden && !selectOption.disabled);
+                    const includeOption = findCampaignTagSelectOption(value, 'include');
+                    const excludeOption = findCampaignTagSelectOption(value, 'exclude');
+                    const selectedInInclude = Boolean(includeOption?.selected);
+                    const selectedInExclude = Boolean(excludeOption?.selected);
+                    const selectedInActive = campaignCurrentTagMode === 'exclude' ? selectedInExclude : selectedInInclude;
+                    const allowed = Boolean(includeOption && !includeOption.hidden && !includeOption.disabled);
                     const label = (button.dataset.label || '').toLowerCase();
                     const matchesSearch = searchTerm === '' || label.includes(searchTerm);
                     const visible = allowed && matchesSearch;
 
                     button.classList.toggle('hidden', !visible);
-                    button.classList.toggle('bg-blue-50', selected);
+                    button.classList.toggle('bg-blue-50', campaignCurrentTagMode === 'include' && selectedInActive);
+                    button.classList.toggle('bg-rose-50', campaignCurrentTagMode === 'exclude' && selectedInActive);
 
                     const action = button.querySelector('[data-campaign-tag-action]');
                     if (action) {
-                        action.textContent = selected ? 'Remover' : 'Selecionar';
+                        action.textContent = selectedInActive ? 'Remover' : 'Selecionar';
                     }
 
                     if (visible) {
@@ -1672,40 +1889,54 @@
             };
 
             const toggleCampaignTagSelection = (value) => {
-                const selectOption = findCampaignTagSelectOption(value);
-                if (!selectOption || selectOption.disabled || selectOption.hidden) {
+                const currentOption = findCampaignTagSelectOption(value, campaignCurrentTagMode);
+                if (!currentOption || currentOption.disabled || currentOption.hidden) {
                     return;
                 }
 
-                selectOption.selected = !selectOption.selected;
+                const nextSelected = !currentOption.selected;
+                currentOption.selected = nextSelected;
+
+                if (nextSelected) {
+                    const oppositeMode = campaignCurrentTagMode === 'exclude' ? 'include' : 'exclude';
+                    const oppositeOption = findCampaignTagSelectOption(value, oppositeMode);
+                    if (oppositeOption) {
+                        oppositeOption.selected = false;
+                    }
+                }
+
                 renderCampaignTagPills();
                 syncCampaignTagOptionStates();
                 updateCampaignLeadCount();
             };
 
             const updateCampaignTagOptions = () => {
-                if (!campaignTags || !campaignCliente) {
+                if (!campaignTagIncludeIds || !campaignTagExcludeIds || !campaignCliente) {
                     return;
                 }
 
                 const clienteId = campaignCliente.value || '';
-                Array.from(campaignTags.options).forEach((option) => {
-                    if (!option.value) {
-                        option.hidden = false;
-                        option.disabled = false;
-                        return;
-                    }
+                const updateSelectOptions = (select) => {
+                    Array.from(select.options).forEach((option) => {
+                        if (!option.value) {
+                            option.hidden = false;
+                            option.disabled = false;
+                            return;
+                        }
 
-                    const optionClienteId = option.dataset.clienteId || '';
-                    const allowed = clienteId !== '' && (optionClienteId === '' || optionClienteId === clienteId);
-                    option.hidden = !allowed;
-                    option.disabled = !allowed;
+                        const optionClienteId = option.dataset.clienteId || '';
+                        const allowed = clienteId !== '' && (optionClienteId === '' || optionClienteId === clienteId);
+                        option.hidden = !allowed;
+                        option.disabled = !allowed;
 
-                    if (!allowed && option.selected) {
-                        option.selected = false;
-                    }
-                });
+                        if (!allowed && option.selected) {
+                            option.selected = false;
+                        }
+                    });
+                };
 
+                updateSelectOptions(campaignTagIncludeIds);
+                updateSelectOptions(campaignTagExcludeIds);
                 renderCampaignTagPills();
                 syncCampaignTagOptionStates();
             };
@@ -1721,8 +1952,9 @@
                     return;
                 }
 
-                const tagIds = selectedCampaignTagIds();
-                if (tagIds.length === 0) {
+                const includeTagIds = selectedCampaignTagIds('include');
+                const excludeTagIds = selectedCampaignTagIds('exclude');
+                if (includeTagIds.length === 0 && excludeTagIds.length === 0) {
                     const count = Number(campaignLeadCounts?.[clienteId] ?? 0);
                     const safeCount = Number.isFinite(count) ? count : 0;
                     campaignLeadCountHint.textContent = `Leads elegíveis: ${safeCount}${safeCount > 10000 ? ' (acima do limite de 10000)' : ''}`;
@@ -1735,7 +1967,8 @@
                 try {
                     const params = new URLSearchParams();
                     params.set('cliente_id', clienteId);
-                    tagIds.forEach((tagId) => params.append('tag_ids[]', tagId));
+                    includeTagIds.forEach((tagId) => params.append('tag_include_ids[]', tagId));
+                    excludeTagIds.forEach((tagId) => params.append('tag_exclude_ids[]', tagId));
 
                     const response = await fetch(`${campaignLeadCountUrl}?${params.toString()}`, {
                         headers: {
@@ -1883,6 +2116,117 @@
                 }
             };
 
+            const parseCampaignTemplateVariables = (option) => {
+                if (!option) {
+                    return [];
+                }
+
+                let rawVariables = [];
+                try {
+                    rawVariables = JSON.parse(option.dataset.variables || '[]');
+                } catch (error) {
+                    rawVariables = [];
+                }
+
+                if (!Array.isArray(rawVariables)) {
+                    return [];
+                }
+
+                const normalized = [];
+                rawVariables.forEach((value) => {
+                    const variable = (value || '').toString().trim().toLowerCase();
+                    if (variable !== '' && !normalized.includes(variable)) {
+                        normalized.push(variable);
+                    }
+                });
+
+                return normalized;
+            };
+
+            const getCampaignBindableFields = () => {
+                const clienteId = campaignCliente?.value || '';
+
+                return customFields
+                    .filter((field) => {
+                        const fieldName = (field?.name || '').toString().trim();
+                        if (!fieldName) {
+                            return false;
+                        }
+
+                        const fieldClienteId = field?.cliente_id !== null && field?.cliente_id !== undefined
+                            ? String(field.cliente_id)
+                            : '';
+
+                        return fieldClienteId === '' || fieldClienteId === clienteId;
+                    })
+                    .slice()
+                    .sort((a, b) => {
+                        const labelA = ((a?.label || a?.name || '').toString()).toLowerCase();
+                        const labelB = ((b?.label || b?.name || '').toString()).toLowerCase();
+                        return labelA.localeCompare(labelB, 'pt-BR');
+                    });
+            };
+
+            const renderCampaignVariableBindings = () => {
+                if (!campaignVariableBindingsWrap || !campaignVariableBindingsList || !campaignTemplate) {
+                    return;
+                }
+
+                campaignVariableBindingsList.innerHTML = '';
+
+                const selectedOption = campaignTemplate.selectedOptions?.[0];
+                const variables = parseCampaignTemplateVariables(selectedOption)
+                    .filter((variable) => /^var_\d+$/.test(variable));
+
+                if (!selectedOption || !selectedOption.value || variables.length === 0) {
+                    campaignVariableBindingsWrap.classList.add('hidden');
+                    return;
+                }
+
+                const bindableFields = getCampaignBindableFields();
+                variables.forEach((variable) => {
+                    const row = document.createElement('div');
+                    row.className = 'grid gap-2 md:grid-cols-3';
+
+                    const label = document.createElement('label');
+                    label.className = 'text-xs font-semibold uppercase tracking-wide text-slate-500';
+                    label.textContent = variable;
+                    label.setAttribute('for', `campaignBinding_${variable}`);
+
+                    const select = document.createElement('select');
+                    select.id = `campaignBinding_${variable}`;
+                    select.name = `template_variable_bindings[${variable}]`;
+                    select.required = true;
+                    select.className = 'md:col-span-2 rounded-lg border-slate-200 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500';
+
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = 'Selecione o campo do lead';
+                    select.appendChild(placeholder);
+
+                    bindableFields.forEach((field) => {
+                        const option = document.createElement('option');
+                        option.value = (field.name || '').toString();
+                        const fieldLabel = (field.label || '').toString().trim();
+                        option.textContent = fieldLabel !== ''
+                            ? `${field.name} - ${fieldLabel}`
+                            : `${field.name}`;
+                        select.appendChild(option);
+                    });
+
+                    const seededValue = (campaignTemplateBindingsSeed?.[variable] || '').toString().trim();
+                    if (seededValue !== '') {
+                        select.value = seededValue;
+                    }
+
+                    row.appendChild(label);
+                    row.appendChild(select);
+                    campaignVariableBindingsList.appendChild(row);
+                });
+
+                campaignVariableBindingsWrap.classList.remove('hidden');
+            };
+
             const syncCampaignScheduleState = () => {
                 if (!campaignMode || !campaignScheduleWrap || !campaignScheduledFor) {
                     return;
@@ -1903,18 +2247,21 @@
                 }
 
                 campaignForm.reset();
+                campaignTemplateBindingsSeed = {};
                 if (campaignMode) {
                     campaignMode.value = 'immediate';
                 }
                 if (campaignTagsSearch) {
                     campaignTagsSearch.value = '';
                 }
-                campaignTagsDropdown?.classList.add('hidden');
+                campaignFiltersDropdown?.classList.add('hidden');
+                setCampaignTagMode('include');
                 updateCampaignTagOptions();
                 updateCampaignLeadCount();
                 updateCampaignConexaoOptions();
                 updateCampaignTemplateOptions();
                 renderCampaignTemplatePreview();
+                renderCampaignVariableBindings();
                 syncCampaignScheduleState();
             };
 
@@ -1939,18 +2286,22 @@
                 updateCampaignConexaoOptions();
                 updateCampaignTemplateOptions();
                 renderCampaignTemplatePreview();
+                renderCampaignVariableBindings();
             });
 
-            campaignTagsToggle?.addEventListener('click', () => {
-                if (!campaignTagsDropdown) {
+            campaignFiltersToggle?.addEventListener('click', () => {
+                if (!campaignFiltersDropdown) {
                     return;
                 }
 
-                campaignTagsDropdown.classList.toggle('hidden');
-                if (!campaignTagsDropdown.classList.contains('hidden')) {
+                campaignFiltersDropdown.classList.toggle('hidden');
+                if (!campaignFiltersDropdown.classList.contains('hidden')) {
                     campaignTagsSearch?.focus();
                 }
             });
+
+            campaignTagModeInclude?.addEventListener('click', () => setCampaignTagMode('include'));
+            campaignTagModeExclude?.addEventListener('click', () => setCampaignTagMode('exclude'));
 
             campaignTagsSearch?.addEventListener('input', () => {
                 syncCampaignTagOptionStates();
@@ -1974,12 +2325,13 @@
                     ? event.target.closest('[data-remove-campaign-tag]')
                     : null;
 
-                if (!removeButton || !campaignTags) {
+                if (!removeButton) {
                     return;
                 }
 
                 const value = removeButton.dataset.removeCampaignTag || '';
-                const option = findCampaignTagSelectOption(value);
+                const mode = removeButton.dataset.mode === 'exclude' ? 'exclude' : 'include';
+                const option = findCampaignTagSelectOption(value, mode);
                 if (!option) {
                     return;
                 }
@@ -1991,7 +2343,7 @@
             });
 
             document.addEventListener('click', (event) => {
-                if (!campaignTagsDropdown || !campaignTagsToggle) {
+                if (!campaignFiltersDropdown || !campaignFiltersToggle) {
                     return;
                 }
 
@@ -2000,23 +2352,27 @@
                     return;
                 }
 
-                const clickedInsideDropdown = campaignTagsDropdown.contains(target);
-                const clickedToggle = campaignTagsToggle.contains(target);
+                const clickedInsideDropdown = campaignFiltersDropdown.contains(target);
+                const clickedToggle = campaignFiltersToggle.contains(target);
                 if (!clickedInsideDropdown && !clickedToggle) {
-                    campaignTagsDropdown.classList.add('hidden');
+                    campaignFiltersDropdown.classList.add('hidden');
                 }
             });
 
             campaignConexao?.addEventListener('change', () => {
                 updateCampaignTemplateOptions();
                 renderCampaignTemplatePreview();
+                renderCampaignVariableBindings();
             });
 
-            campaignTemplate?.addEventListener('change', renderCampaignTemplatePreview);
+            campaignTemplate?.addEventListener('change', () => {
+                renderCampaignTemplatePreview();
+                renderCampaignVariableBindings();
+            });
             campaignMode?.addEventListener('change', syncCampaignScheduleState);
 
-            const allowedTabs = ['account', 'templates', 'campaigns'];
-            const initialTab = allowedTabs.includes(oldActiveTab) ? oldActiveTab : 'account';
+            const allowedTabs = ['templates', 'campaigns'];
+            const initialTab = allowedTabs.includes(oldActiveTab) ? oldActiveTab : 'templates';
             setActiveTab(initialTab);
             updateGeneratedTemplateName();
             updateTemplateConexaoOptions();
@@ -2027,6 +2383,7 @@
             updateCampaignConexaoOptions();
             updateCampaignTemplateOptions();
             renderCampaignTemplatePreview();
+            renderCampaignVariableBindings();
             syncCampaignScheduleState();
 
             if (hasErrors) {
@@ -2046,11 +2403,15 @@
                     renderVariableExamples();
                     openModal(templateModal);
                 } else if (oldActiveTab === 'campaigns') {
+                    campaignTemplateBindingsSeed = (oldCampaignTemplateBindings && typeof oldCampaignTemplateBindings === 'object')
+                        ? oldCampaignTemplateBindings
+                        : {};
                     updateCampaignTagOptions();
                     updateCampaignLeadCount();
                     updateCampaignConexaoOptions();
                     updateCampaignTemplateOptions();
                     renderCampaignTemplatePreview();
+                    renderCampaignVariableBindings();
                     syncCampaignScheduleState();
                     openModal(campaignModal);
                 } else {
@@ -2060,6 +2421,11 @@
                         accountModalTitle.textContent = 'Editar conta cloud';
                         accountToken.required = false;
                         accountTokenHint.textContent = 'Opcional em edição. Preencha apenas se desejar substituir o token atual.';
+                        setAccountConnectionMode(true);
+                    } else {
+                        accountToken.required = true;
+                        accountTokenHint.textContent = 'Obrigatório para criar. Em edição, preencha apenas se quiser trocar.';
+                        setAccountConnectionMode(false);
                     }
                     openModal(accountModal);
                 }

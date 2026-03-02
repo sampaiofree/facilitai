@@ -362,6 +362,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::patch('conexoes/{conexao}', [AgenciaConexaoController::class, 'update'])->name('conexoes.update');
     Route::delete('conexoes/{conexao}', [AgenciaConexaoController::class, 'destroy'])->name('conexoes.destroy');
     Route::get('whatsapp-api-cloud', [WhatsappCloudController::class, 'index'])->name('whatsapp-cloud.index');
+    Route::get('whatsapp-api-cloud/webhook', [WhatsappCloudController::class, 'webhook'])->name('whatsapp-cloud.webhook');
     Route::post('whatsapp-api-cloud/contas', [WhatsappCloudController::class, 'storeAccount'])->name('whatsapp-cloud.accounts.store');
     Route::patch('whatsapp-api-cloud/contas/{account}', [WhatsappCloudController::class, 'updateAccount'])->name('whatsapp-cloud.accounts.update');
     Route::post('whatsapp-api-cloud/webhook/nova-chave', [WhatsappCloudController::class, 'rotateWebhookKey'])->name('whatsapp-cloud.webhook.rotate-key');

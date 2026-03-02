@@ -4,11 +4,15 @@ namespace App\Http\Controllers\Agencia;
 
 use App\Jobs\DispatchWhatsappCloudCampaignJob;
 use App\Http\Controllers\Controller;
+use App\Models\Assistant;
 use App\Models\Cliente;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
+use App\Models\Credential;
+use App\Models\Iamodelo;
 use App\Models\Tag;
 use App\Models\User;
+use App\Models\WhatsappApi;
 use App\Models\WhatsappCloudAccount;
 use App\Models\WhatsappCloudCampaign;
 use App\Models\WhatsappCloudCustomField;
@@ -26,11 +30,13 @@ use Illuminate\Validation\ValidationException;
 
 class WhatsappCloudController extends Controller
 {
+    private const DEFAULT_CAMPAIGN_INTERVAL_SECONDS = 0;
+
     public function index(Request $request)
     {
         $user = $request->user();
-        $accountFilter = $request->integer('account_id') ?: null;
-        $conexaoFilter = $request->integer('conexao_id') ?: null;
+        $requestedAccountId = $request->integer('account_id') ?: null;
+        $conexaoFilter = null;
 
         $accounts = WhatsappCloudAccount::query()
             ->where('user_id', $user->id)
@@ -40,10 +46,23 @@ class WhatsappCloudController extends Controller
             ->orderBy('name')
             ->get();
 
-        $conexoes = $this->ownedCloudConexoesQuery($user->id)
+        $selectedAccount = null;
+        if ($requestedAccountId) {
+            $selectedAccount = $accounts->firstWhere('id', $requestedAccountId);
+        }
+        $accountFilter = $selectedAccount?->id ? (int) $selectedAccount->id : null;
+
+        $conexoesQuery = $this->ownedCloudConexoesQuery($user->id)
             ->with('cliente')
-            ->orderBy('name')
-            ->get();
+            ->orderBy('name');
+
+        if ($accountFilter) {
+            $conexoesQuery->where('whatsapp_cloud_account_id', $accountFilter);
+        } else {
+            $conexoesQuery->whereRaw('1 = 0');
+        }
+
+        $conexoes = $conexoesQuery->get();
 
         $templatesQuery = WhatsappCloudTemplate::query()
             ->where('user_id', $user->id)
@@ -52,10 +71,8 @@ class WhatsappCloudController extends Controller
 
         if ($accountFilter) {
             $templatesQuery->where('whatsapp_cloud_account_id', $accountFilter);
-        }
-
-        if ($conexaoFilter) {
-            $templatesQuery->where('conexao_id', $conexaoFilter);
+        } else {
+            $templatesQuery->whereRaw('1 = 0');
         }
 
         $templates = $templatesQuery->get();
@@ -63,13 +80,7 @@ class WhatsappCloudController extends Controller
         $customFields = WhatsappCloudCustomField::query()
             ->where('user_id', $user->id)
             ->orderBy('name')
-            ->get(['id', 'name', 'label', 'sample_value']);
-
-        $campaignClientes = Cliente::query()
-            ->where('user_id', $user->id)
-            ->whereNull('deleted_at')
-            ->orderBy('nome')
-            ->get(['id', 'nome']);
+            ->get(['id', 'cliente_id', 'name', 'label', 'sample_value']);
 
         $campaignTags = Tag::query()
             ->where('user_id', $user->id)
@@ -77,16 +88,42 @@ class WhatsappCloudController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'cliente_id']);
 
-        $campaignConexoes = $this->ownedCloudConexoesQuery((int) $user->id)
+        $campaignConexoesQuery = $this->ownedCloudConexoesQuery((int) $user->id)
             ->whereNull('deleted_at')
             ->whereNotNull('whatsapp_cloud_account_id')
             ->with('cliente:id,nome')
-            ->orderBy('name')
-            ->get(['id', 'name', 'cliente_id', 'whatsapp_cloud_account_id']);
+            ->orderBy('name');
+
+        if ($accountFilter) {
+            $campaignConexoesQuery->where('whatsapp_cloud_account_id', $accountFilter);
+        } else {
+            $campaignConexoesQuery->whereRaw('1 = 0');
+        }
+
+        $campaignConexoes = $campaignConexoesQuery->get(['id', 'name', 'cliente_id', 'whatsapp_cloud_account_id']);
+
+        $campaignClienteIds = $campaignConexoes
+            ->pluck('cliente_id')
+            ->filter(fn ($value) => is_numeric($value))
+            ->map(fn ($value) => (int) $value)
+            ->unique()
+            ->values()
+            ->all();
+
+        $campaignClientes = empty($campaignClienteIds)
+            ? collect()
+            : Cliente::query()
+                ->where('user_id', $user->id)
+                ->whereNull('deleted_at')
+                ->whereIn('id', $campaignClienteIds)
+                ->orderBy('nome')
+                ->get(['id', 'nome']);
 
         $campaignTemplates = WhatsappCloudTemplate::query()
             ->where('user_id', $user->id)
             ->whereRaw('UPPER(status) IN (?, ?)', ['APPROVED', 'ACTIVE'])
+            ->when($accountFilter, fn ($query) => $query->where('whatsapp_cloud_account_id', $accountFilter))
+            ->when(!$accountFilter, fn ($query) => $query->whereRaw('1 = 0'))
             ->orderBy('title')
             ->orderBy('template_name')
             ->get([
@@ -103,57 +140,141 @@ class WhatsappCloudController extends Controller
                 'variables',
             ]);
 
-        $campaignLeadCounts = ClienteLead::query()
-            ->whereIn('cliente_id', $campaignClientes->pluck('id')->all())
-            ->selectRaw('cliente_id, COUNT(*) as total')
-            ->groupBy('cliente_id')
-            ->pluck('total', 'cliente_id')
-            ->map(fn ($value) => (int) $value)
-            ->all();
+        $campaignLeadCounts = $campaignClientes->isEmpty()
+            ? []
+            : ClienteLead::query()
+                ->whereIn('cliente_id', $campaignClientes->pluck('id')->all())
+                ->selectRaw('cliente_id, COUNT(*) as total')
+                ->groupBy('cliente_id')
+                ->pluck('total', 'cliente_id')
+                ->map(fn ($value) => (int) $value)
+                ->all();
 
-        $campaigns = WhatsappCloudCampaign::query()
+        $campaignsQuery = WhatsappCloudCampaign::query()
             ->where('user_id', $user->id)
             ->with([
                 'cliente:id,nome',
                 'conexao:id,name,cliente_id',
                 'template:id,title,template_name,language_code',
-            ])
+            ]);
+
+        if ($accountFilter) {
+            $campaignsQuery->where('whatsapp_cloud_account_id', $accountFilter);
+        } else {
+            $campaignsQuery->whereRaw('1 = 0');
+        }
+
+        $campaigns = $campaignsQuery
             ->latest()
             ->limit(80)
             ->get();
 
-        $this->ensureUserWebhookCredentials($user);
+        $selectedCloudConexao = $conexoes->first();
+        if (!$selectedCloudConexao && $campaignConexoes->isNotEmpty()) {
+            $selectedCloudConexao = $campaignConexoes->first();
+        }
 
-        $webhookUrl = route('api.whatsapp-cloud.webhook', [
-            'webhookKey' => (string) $user->whatsapp_cloud_webhook_key,
-        ]);
-        $accountsWithAppSecret = $accounts->filter(function (WhatsappCloudAccount $account): bool {
-            return trim((string) ($account->app_secret ?? '')) !== '';
-        })->count();
+        $selectedCampaignCliente = null;
+        if ($selectedCloudConexao?->cliente) {
+            $selectedCampaignCliente = $selectedCloudConexao->cliente;
+        } elseif ($selectedCloudConexao?->cliente_id) {
+            $selectedCampaignCliente = $campaignClientes->firstWhere('id', (int) $selectedCloudConexao->cliente_id);
+        }
+
+        $canCreateCampaign = $accountFilter && $selectedCloudConexao && $selectedCampaignCliente;
+
+        $accountConnectionClientes = Cliente::query()
+            ->where('user_id', $user->id)
+            ->whereNull('deleted_at')
+            ->orderBy('nome')
+            ->get(['id', 'nome']);
+
+        $accountConnectionCredentials = Credential::query()
+            ->where('user_id', $user->id)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $accountConnectionAssistants = Assistant::query()
+            ->where('user_id', $user->id)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $accountConnectionModels = Iamodelo::query()
+            ->orderBy('nome')
+            ->get(['id', 'nome']);
 
         return view('agencia.whatsapp-api-cloud.index', [
             'accounts' => $accounts,
+            'selectedAccount' => $selectedAccount,
+            'selectedCloudConexao' => $selectedCloudConexao,
+            'selectedCampaignCliente' => $selectedCampaignCliente,
+            'canCreateCampaign' => (bool) $canCreateCampaign,
             'conexoes' => $conexoes,
             'templates' => $templates,
             'customFields' => $customFields,
             'reservedTemplateVariables' => $this->builtinTemplateVariables(),
             'accountFilter' => $accountFilter,
             'conexaoFilter' => $conexaoFilter,
-            'userWebhookVerifyToken' => (string) $user->whatsapp_cloud_webhook_verify_token,
-            'webhookUrl' => $webhookUrl,
-            'accountsWithAppSecret' => $accountsWithAppSecret,
             'campaignClientes' => $campaignClientes,
             'campaignTags' => $campaignTags,
             'campaignConexoes' => $campaignConexoes,
             'campaignTemplates' => $campaignTemplates,
             'campaignLeadCounts' => $campaignLeadCounts,
             'campaigns' => $campaigns,
+            'accountConnectionClientes' => $accountConnectionClientes,
+            'accountConnectionCredentials' => $accountConnectionCredentials,
+            'accountConnectionAssistants' => $accountConnectionAssistants,
+            'accountConnectionModels' => $accountConnectionModels,
+        ]);
+    }
+
+    public function webhook(Request $request)
+    {
+        $user = $request->user();
+        $this->ensureUserWebhookCredentials($user);
+
+        $accounts = WhatsappCloudAccount::query()
+            ->where('user_id', $user->id)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'app_secret']);
+
+        $accountsWithAppSecret = $accounts->filter(function (WhatsappCloudAccount $account): bool {
+            return trim((string) ($account->app_secret ?? '')) !== '';
+        })->count();
+
+        $webhookUrl = route('api.whatsapp-cloud.webhook', [
+            'webhookKey' => (string) $user->whatsapp_cloud_webhook_key,
+        ]);
+
+        return view('agencia.whatsapp-api-cloud.webhook', [
+            'webhookUrl' => $webhookUrl,
+            'userWebhookVerifyToken' => (string) $user->whatsapp_cloud_webhook_verify_token,
+            'accountsWithAppSecret' => $accountsWithAppSecret,
+            'accountsCount' => $accounts->count(),
         ]);
     }
 
     public function storeAccount(Request $request): RedirectResponse
     {
         $user = $request->user();
+        $limit = $user->plan?->max_conexoes ?? 0;
+        $used = $user->conexoesCount();
+
+        if ($limit <= 0) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'Selecione um plano para liberar novas conexões.');
+        }
+
+        if ($used >= $limit) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'Limite de conexões do plano atingido.');
+        }
+
         $data = $request->validate([
             'active_tab' => ['nullable', 'string'],
             'name' => ['required', 'string', 'max:120'],
@@ -169,34 +290,79 @@ class WhatsappCloudController extends Controller
             'app_secret' => ['nullable', 'string', 'max:500'],
             'access_token' => ['required', 'string', 'max:4000'],
             'is_default' => ['nullable', 'boolean'],
+            'conexao_name' => ['nullable', 'string', 'max:255'],
+            'cliente_id' => [
+                'required',
+                Rule::exists('clientes', 'id')->where(fn ($query) => $query->where('user_id', $user->id)->whereNull('deleted_at')),
+            ],
+            'credential_id' => [
+                'required',
+                Rule::exists('credentials', 'id')->where('user_id', $user->id),
+            ],
+            'assistant_id' => [
+                'required',
+                Rule::exists('assistants', 'id')->where('user_id', $user->id),
+            ],
+            'model' => ['required', 'exists:iamodelos,id'],
         ]);
 
-        $account = new WhatsappCloudAccount();
-        $account->user_id = $user->id;
-        $account->name = trim((string) $data['name']);
-        $account->phone_number_id = trim((string) $data['phone_number_id']);
-        $account->business_account_id = isset($data['business_account_id']) && trim((string) $data['business_account_id']) !== ''
-            ? trim((string) $data['business_account_id'])
-            : null;
-        $account->app_id = isset($data['app_id']) && trim((string) $data['app_id']) !== ''
-            ? trim((string) $data['app_id'])
-            : null;
-        if (isset($data['app_secret']) && trim((string) $data['app_secret']) !== '') {
-            $account->app_secret = $data['app_secret'];
-        }
-        $account->access_token = $data['access_token'];
-        $account->is_default = $request->boolean('is_default');
-        $account->save();
+        $cloudApi = WhatsappApi::query()
+            ->where('slug', 'whatsapp_cloud')
+            ->where('ativo', true)
+            ->first();
 
-        if ($account->is_default) {
-            $this->clearOtherDefaultAccounts($user->id, $account->id);
+        if (!$cloudApi) {
+            throw ValidationException::withMessages([
+                'whatsapp_api_id' => ['Integração WhatsApp Cloud não está ativa no sistema.'],
+            ]);
         }
+
+        $account = null;
+        DB::transaction(function () use (&$account, $user, $request, $data, $cloudApi): void {
+            $account = new WhatsappCloudAccount();
+            $account->user_id = $user->id;
+            $account->name = trim((string) $data['name']);
+            $account->phone_number_id = trim((string) $data['phone_number_id']);
+            $account->business_account_id = isset($data['business_account_id']) && trim((string) $data['business_account_id']) !== ''
+                ? trim((string) $data['business_account_id'])
+                : null;
+            $account->app_id = isset($data['app_id']) && trim((string) $data['app_id']) !== ''
+                ? trim((string) $data['app_id'])
+                : null;
+            if (isset($data['app_secret']) && trim((string) $data['app_secret']) !== '') {
+                $account->app_secret = $data['app_secret'];
+            }
+            $account->access_token = $data['access_token'];
+            $account->is_default = $request->boolean('is_default');
+            $account->save();
+
+            if ($account->is_default) {
+                $this->clearOtherDefaultAccounts($user->id, $account->id);
+            }
+
+            $conexaoName = trim((string) ($data['conexao_name'] ?? ''));
+            if ($conexaoName === '') {
+                $conexaoName = 'Cloud - ' . trim((string) $account->name);
+            }
+
+            $conexao = new Conexao();
+            $conexao->name = $conexaoName;
+            $conexao->credential_id = (int) $data['credential_id'];
+            $conexao->assistant_id = (int) $data['assistant_id'];
+            $conexao->cliente_id = (int) $data['cliente_id'];
+            $conexao->model = (int) $data['model'];
+            $conexao->whatsapp_api_id = (int) $cloudApi->id;
+            $conexao->whatsapp_cloud_account_id = (int) $account->id;
+            $conexao->status = 'active';
+            $conexao->phone = (string) $account->phone_number_id;
+            $conexao->save();
+        });
 
         return redirect()
             ->route('agencia.whatsapp-cloud.index', [
                 'account_id' => $account->id,
             ])
-            ->with('success', 'Conta WhatsApp Cloud criada com sucesso.');
+            ->with('success', 'Conta WhatsApp Cloud e conexão vinculada criadas com sucesso.');
     }
 
     public function updateAccount(Request $request, WhatsappCloudAccount $account): RedirectResponse
@@ -244,6 +410,11 @@ class WhatsappCloudController extends Controller
         $account->is_default = $request->boolean('is_default');
         $account->save();
 
+        Conexao::query()
+            ->where('whatsapp_cloud_account_id', $account->id)
+            ->whereNull('deleted_at')
+            ->update(['phone' => (string) $account->phone_number_id]);
+
         if ($account->is_default) {
             $this->clearOtherDefaultAccounts($user->id, $account->id);
         }
@@ -261,7 +432,7 @@ class WhatsappCloudController extends Controller
         $this->ensureUserWebhookCredentials($user, true);
 
         return redirect()
-            ->route('agencia.whatsapp-cloud.index')
+            ->route('agencia.whatsapp-cloud.webhook')
             ->with('success', 'Nova chave de webhook gerada com sucesso.');
     }
 
@@ -286,13 +457,32 @@ class WhatsappCloudController extends Controller
 
     public function destroyAccount(Request $request, WhatsappCloudAccount $account): RedirectResponse
     {
-        $this->ensureAccountOwnership($account, $request->user()->id);
+        $userId = (int) $request->user()->id;
+        $this->ensureAccountOwnership($account, $userId);
 
-        $account->delete();
+        $removedConnections = 0;
+        DB::transaction(function () use ($account, $userId, &$removedConnections): void {
+            $linkedConexoes = Conexao::query()
+                ->where('whatsapp_cloud_account_id', (int) $account->id)
+                ->whereNull('deleted_at')
+                ->whereHas('cliente', fn ($query) => $query->where('user_id', $userId)->whereNull('deleted_at'))
+                ->get();
+
+            foreach ($linkedConexoes as $conexao) {
+                $conexao->delete();
+                $removedConnections++;
+            }
+
+            $account->delete();
+        });
+
+        $successMessage = $removedConnections > 0
+            ? 'Conta WhatsApp Cloud e conexão vinculada removidas com sucesso.'
+            : 'Conta WhatsApp Cloud removida com sucesso.';
 
         return redirect()
             ->route('agencia.whatsapp-cloud.index')
-            ->with('success', 'Conta WhatsApp Cloud removida com sucesso.');
+            ->with('success', $successMessage);
     }
 
     public function storeTemplate(Request $request): RedirectResponse
@@ -724,18 +914,30 @@ class WhatsappCloudController extends Controller
             ],
             'tag_ids' => ['nullable', 'array', 'max:200'],
             'tag_ids.*' => ['integer'],
+            'tag_include_ids' => ['nullable', 'array', 'max:200'],
+            'tag_include_ids.*' => ['integer'],
+            'tag_exclude_ids' => ['nullable', 'array', 'max:200'],
+            'tag_exclude_ids.*' => ['integer'],
             'conexao_id' => ['required', 'integer'],
             'whatsapp_cloud_template_id' => ['required', 'integer'],
+            'template_variable_bindings' => ['nullable', 'array', 'max:100'],
+            'template_variable_bindings.*' => ['nullable', 'string', 'max:120'],
             'assistant_context_instructions' => ['nullable', 'string', 'max:4000'],
             'mode' => ['required', 'in:immediate,scheduled'],
             'scheduled_for' => ['nullable', 'string', 'max:50'],
-            'interval_seconds' => ['nullable', 'integer', 'min:0', 'max:120'],
         ]);
 
         $clienteId = (int) $data['cliente_id'];
         $conexaoId = (int) $data['conexao_id'];
         $templateId = (int) $data['whatsapp_cloud_template_id'];
-        $selectedTagIds = $this->resolveCampaignTagIds((array) ($data['tag_ids'] ?? []), $userId, $clienteId);
+        $tagFilters = $this->resolveCampaignTagFilters(
+            (array) ($data['tag_include_ids'] ?? $data['tag_ids'] ?? []),
+            (array) ($data['tag_exclude_ids'] ?? []),
+            $userId,
+            $clienteId
+        );
+        $includedTagIds = $tagFilters['include'];
+        $excludedTagIds = $tagFilters['exclude'];
 
         $conexao = $this->ownedCloudConexoesQuery($userId)
             ->whereNull('deleted_at')
@@ -778,8 +980,15 @@ class WhatsappCloudController extends Controller
             ]);
         }
 
+        $templateVariableBindings = $this->resolveCampaignTemplateVariableBindings(
+            $template,
+            (array) ($data['template_variable_bindings'] ?? []),
+            $userId,
+            $clienteId
+        );
+
         $mode = (string) $data['mode'];
-        $intervalSeconds = max(0, (int) ($data['interval_seconds'] ?? 2));
+        $intervalSeconds = self::DEFAULT_CAMPAIGN_INTERVAL_SECONDS;
         $assistantContextInstructions = trim((string) ($data['assistant_context_instructions'] ?? ''));
         if ($assistantContextInstructions === '') {
             $assistantContextInstructions = null;
@@ -812,7 +1021,7 @@ class WhatsappCloudController extends Controller
             }
         }
 
-        $leadsQuery = $this->buildCampaignLeadsQuery($clienteId, $selectedTagIds);
+        $leadsQuery = $this->buildCampaignLeadsQuery($clienteId, $includedTagIds, $excludedTagIds);
 
         $totalLeads = (clone $leadsQuery)->count();
         if ($totalLeads <= 0) {
@@ -823,7 +1032,7 @@ class WhatsappCloudController extends Controller
 
         if ($totalLeads > 10000) {
             throw ValidationException::withMessages([
-                'tag_ids' => ['A seleção retornou ' . $totalLeads . ' leads. O limite por campanha é 10000. Refine por tags.'],
+                'tag_include_ids' => ['A seleção retornou ' . $totalLeads . ' leads. O limite por campanha é 10000. Refine por filtros.'],
             ]);
         }
 
@@ -848,8 +1057,10 @@ class WhatsappCloudController extends Controller
             $totalLeads,
             $intervalSeconds,
             $assistantContextInstructions,
+            $templateVariableBindings,
             $leadsQuery,
-            $selectedTagIds,
+            $includedTagIds,
+            $excludedTagIds,
             $nowUtc
         ): void {
             $campaign = WhatsappCloudCampaign::create([
@@ -867,10 +1078,18 @@ class WhatsappCloudController extends Controller
                 'settings' => [
                     'interval_seconds' => $intervalSeconds,
                     'assistant_context_instructions' => $assistantContextInstructions,
+                    'template_variable_bindings' => $templateVariableBindings,
                 ],
                 'filter_payload' => [
-                    'source' => empty($selectedTagIds) ? 'cliente_all_leads' : 'cliente_tags',
-                    'tag_ids' => $selectedTagIds,
+                    'source' => empty($includedTagIds) && empty($excludedTagIds) ? 'cliente_all_leads' : 'cliente_tags',
+                    'tags' => [
+                        'include' => $includedTagIds,
+                        'exclude' => $excludedTagIds,
+                    ],
+                    'rules' => [
+                        'include_logic' => 'or',
+                        'exclude_logic' => 'any',
+                    ],
                 ],
             ]);
 
@@ -904,7 +1123,10 @@ class WhatsappCloudController extends Controller
 
         if (!$campaign instanceof WhatsappCloudCampaign) {
             return redirect()
-                ->route('agencia.whatsapp-cloud.index', ['tab' => 'campaigns'])
+                ->route('agencia.whatsapp-cloud.index', [
+                    'tab' => 'campaigns',
+                    'account_id' => $accountId,
+                ])
                 ->with('error', 'Não foi possível criar a campanha.');
         }
 
@@ -920,7 +1142,10 @@ class WhatsappCloudController extends Controller
             : "Campanha criada com {$totalLeads} lead(s) e envio iniciado.";
 
         return redirect()
-            ->route('agencia.whatsapp-cloud.index', ['tab' => 'campaigns'])
+            ->route('agencia.whatsapp-cloud.index', [
+                'tab' => 'campaigns',
+                'account_id' => $accountId,
+            ])
             ->with('success', $successMessage);
     }
 
@@ -936,11 +1161,20 @@ class WhatsappCloudController extends Controller
             ],
             'tag_ids' => ['nullable', 'array', 'max:200'],
             'tag_ids.*' => ['integer'],
+            'tag_include_ids' => ['nullable', 'array', 'max:200'],
+            'tag_include_ids.*' => ['integer'],
+            'tag_exclude_ids' => ['nullable', 'array', 'max:200'],
+            'tag_exclude_ids.*' => ['integer'],
         ]);
 
         $clienteId = (int) $data['cliente_id'];
-        $tagIds = $this->resolveCampaignTagIds((array) ($data['tag_ids'] ?? []), $userId, $clienteId);
-        $count = $this->buildCampaignLeadsQuery($clienteId, $tagIds)->count();
+        $tagFilters = $this->resolveCampaignTagFilters(
+            (array) ($data['tag_include_ids'] ?? $data['tag_ids'] ?? []),
+            (array) ($data['tag_exclude_ids'] ?? []),
+            $userId,
+            $clienteId
+        );
+        $count = $this->buildCampaignLeadsQuery($clienteId, $tagFilters['include'], $tagFilters['exclude'])->count();
 
         return response()->json([
             'count' => (int) $count,
@@ -954,7 +1188,10 @@ class WhatsappCloudController extends Controller
 
         if (in_array($campaign->status, ['completed', 'failed', 'canceled'], true)) {
             return redirect()
-                ->route('agencia.whatsapp-cloud.index', ['tab' => 'campaigns'])
+                ->route('agencia.whatsapp-cloud.index', [
+                    'tab' => 'campaigns',
+                    'account_id' => (int) $campaign->whatsapp_cloud_account_id,
+                ])
                 ->with('error', 'Esta campanha já foi finalizada e não pode ser cancelada.');
         }
 
@@ -978,7 +1215,10 @@ class WhatsappCloudController extends Controller
         });
 
         return redirect()
-            ->route('agencia.whatsapp-cloud.index', ['tab' => 'campaigns'])
+            ->route('agencia.whatsapp-cloud.index', [
+                'tab' => 'campaigns',
+                'account_id' => (int) $campaign->whatsapp_cloud_account_id,
+            ])
             ->with('success', 'Campanha cancelada com sucesso.');
     }
 
@@ -2012,23 +2252,29 @@ class WhatsappCloudController extends Controller
             ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'whatsapp_cloud'));
     }
 
-    private function buildCampaignLeadsQuery(int $clienteId, array $tagIds)
+    private function buildCampaignLeadsQuery(int $clienteId, array $includeTagIds, array $excludeTagIds = [])
     {
         $query = ClienteLead::query()
             ->where('cliente_id', $clienteId)
             ->whereNotNull('phone')
             ->whereRaw("TRIM(phone) <> ''");
 
-        if (!empty($tagIds)) {
-            $query->whereHas('tags', function ($builder) use ($tagIds): void {
-                $builder->whereIn('tags.id', $tagIds);
+        if (!empty($includeTagIds)) {
+            $query->whereHas('tags', function ($builder) use ($includeTagIds): void {
+                $builder->whereIn('tags.id', $includeTagIds);
+            });
+        }
+
+        if (!empty($excludeTagIds)) {
+            $query->whereDoesntHave('tags', function ($builder) use ($excludeTagIds): void {
+                $builder->whereIn('tags.id', $excludeTagIds);
             });
         }
 
         return $query;
     }
 
-    private function resolveCampaignTagIds(array $tagIds, int $userId, int $clienteId): array
+    private function resolveCampaignTagIds(array $tagIds, int $userId, int $clienteId, string $errorField = 'tag_ids'): array
     {
         $normalized = collect($tagIds)
             ->map(fn ($value) => (int) $value)
@@ -2054,8 +2300,113 @@ class WhatsappCloudController extends Controller
 
         if (count($resolved) !== count($normalized)) {
             throw ValidationException::withMessages([
-                'tag_ids' => ['Uma ou mais tags selecionadas são inválidas para o cliente informado.'],
+                $errorField => ['Uma ou mais tags selecionadas são inválidas para o cliente informado.'],
             ]);
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @return array{include:array<int,int>,exclude:array<int,int>}
+     */
+    private function resolveCampaignTagFilters(array $includeTagIds, array $excludeTagIds, int $userId, int $clienteId): array
+    {
+        $include = $this->resolveCampaignTagIds($includeTagIds, $userId, $clienteId, 'tag_include_ids');
+        $exclude = $this->resolveCampaignTagIds($excludeTagIds, $userId, $clienteId, 'tag_exclude_ids');
+
+        $conflicts = array_values(array_intersect($include, $exclude));
+        if (!empty($conflicts)) {
+            throw ValidationException::withMessages([
+                'tag_include_ids' => ['A mesma tag não pode estar em "é" e "não é" ao mesmo tempo.'],
+            ]);
+        }
+
+        return [
+            'include' => $include,
+            'exclude' => $exclude,
+        ];
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function resolveCampaignTemplateVariableBindings(
+        WhatsappCloudTemplate $template,
+        array $rawBindings,
+        int $userId,
+        int $clienteId
+    ): array {
+        $templateVariables = collect((array) ($template->variables ?? []))
+            ->map(fn ($value) => Str::lower(trim((string) $value)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $requiredVariables = array_values(array_filter(
+            $templateVariables,
+            fn (string $variable): bool => (bool) preg_match('/^var_\d+$/', $variable)
+        ));
+
+        if (empty($requiredVariables)) {
+            return [];
+        }
+
+        $normalizedBindings = [];
+        foreach ($rawBindings as $variable => $fieldName) {
+            $variableName = Str::lower(trim((string) $variable));
+            $mappedField = Str::lower(trim((string) $fieldName));
+            if ($variableName === '' || $mappedField === '') {
+                continue;
+            }
+
+            $normalizedBindings[$variableName] = $mappedField;
+        }
+
+        $missingVariables = array_values(array_filter(
+            $requiredVariables,
+            fn (string $variable): bool => !isset($normalizedBindings[$variable])
+        ));
+        if (!empty($missingVariables)) {
+            throw ValidationException::withMessages([
+                'template_variable_bindings' => [
+                    'Associe todos os placeholders do modelo: ' . implode(', ', $missingVariables) . '.',
+                ],
+            ]);
+        }
+
+        $allowedFieldNames = array_keys($this->builtinTemplateVariables());
+        $customFieldNames = WhatsappCloudCustomField::query()
+            ->where('user_id', $userId)
+            ->where(function ($query) use ($clienteId): void {
+                $query->whereNull('cliente_id')
+                    ->orWhere('cliente_id', $clienteId);
+            })
+            ->pluck('name')
+            ->map(fn ($name) => Str::lower(trim((string) $name)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $allowedFieldMap = [];
+        foreach (array_merge($allowedFieldNames, $customFieldNames) as $name) {
+            $allowedFieldMap[Str::lower(trim((string) $name))] = true;
+        }
+
+        $resolved = [];
+        foreach ($requiredVariables as $variable) {
+            $mappedField = $normalizedBindings[$variable] ?? '';
+            if ($mappedField === '' || !isset($allowedFieldMap[$mappedField])) {
+                throw ValidationException::withMessages([
+                    'template_variable_bindings' => [
+                        "O campo associado para {$variable} é inválido para este cliente.",
+                    ],
+                ]);
+            }
+
+            $resolved[$variable] = $mappedField;
         }
 
         return $resolved;
