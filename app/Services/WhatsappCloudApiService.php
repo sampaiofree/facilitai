@@ -401,6 +401,105 @@ class WhatsappCloudApiService
     }
 
     /**
+     * Endpoint Meta: GET /{WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates
+     * Lista templates da conta (com paginação por cursor).
+     */
+    public function listMessageTemplates(string $businessAccountId, array $options = []): array
+    {
+        $businessAccountId = trim($businessAccountId);
+
+        $validator = Validator::make([
+            'business_account_id' => $businessAccountId,
+        ], [
+            'business_account_id' => ['required', 'string', 'regex:/^\d+$/', 'max:50'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationError($validator->errors()->toArray());
+        }
+
+        $credentials = $this->resolveAccessTokenOnly($options, 'list_message_templates', [
+            'business_account_id' => $businessAccountId,
+        ]);
+        if (!empty($credentials['error'])) {
+            return $credentials;
+        }
+
+        $fields = trim((string) ($options['fields'] ?? 'id,name,status,language,category,rejected_reason,components'));
+        $limit = max(1, min(200, (int) ($options['limit'] ?? 100)));
+        $maxPages = max(1, min(100, (int) ($options['max_pages'] ?? 40)));
+
+        $url = sprintf(
+            '%s/%s/%s/message_templates',
+            $this->baseUrl,
+            trim($this->version, '/'),
+            $businessAccountId
+        );
+
+        $allRows = [];
+        $after = null;
+        $pagesFetched = 0;
+        $lastStatus = 200;
+
+        while ($pagesFetched < $maxPages) {
+            $query = [
+                'fields' => $fields,
+                'limit' => $limit,
+            ];
+            if (is_string($after) && $after !== '') {
+                $query['after'] = $after;
+            }
+
+            $result = $this->dispatchGraphRequest(
+                'GET',
+                $url,
+                $query,
+                $credentials['access_token'],
+                'list_message_templates',
+                [
+                    'business_account_id' => $businessAccountId,
+                    'page' => $pagesFetched + 1,
+                ]
+            );
+
+            if (!empty($result['error'])) {
+                return $result;
+            }
+
+            $lastStatus = (int) ($result['status'] ?? 200);
+            $body = is_array($result['body'] ?? null) ? $result['body'] : [];
+            $rows = isset($body['data']) && is_array($body['data']) ? $body['data'] : [];
+
+            foreach ($rows as $row) {
+                if (is_array($row)) {
+                    $allRows[] = $row;
+                }
+            }
+
+            $pagesFetched++;
+
+            $nextAfter = trim((string) data_get($body, 'paging.cursors.after', ''));
+            $hasNext = trim((string) data_get($body, 'paging.next', '')) !== '';
+            if (!$hasNext || $nextAfter === '' || $nextAfter === $after) {
+                break;
+            }
+
+            $after = $nextAfter;
+        }
+
+        return [
+            'error' => false,
+            'status' => $lastStatus,
+            'body' => [
+                'data' => $allRows,
+                'meta' => [
+                    'pages_fetched' => $pagesFetched,
+                ],
+            ],
+        ];
+    }
+
+    /**
      * Endpoint Meta: POST /{PHONE_NUMBER_ID}/messages (status=read)
      */
     public function markAsRead(string $messageId, array $options = []): array

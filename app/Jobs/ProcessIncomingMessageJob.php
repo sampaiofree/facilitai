@@ -1536,21 +1536,24 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return 'Mensagem vazia para notificar administrador.';
         }
 
-        $numerosSanitizados = [];
-        foreach ($numeros as $numero) {
-            $numeroLimpo = preg_replace('/\D/', '', (string) $numero);
-            if ($numeroLimpo !== '') {
-                $numerosSanitizados[$numeroLimpo] = true;
-            }
-        }
+        $normalized = $this->normalizeAdminPhoneList($numeros);
+        $numerosSanitizados = $normalized['valid_numbers'];
 
         if (empty($numerosSanitizados)) {
             return 'Nenhum número válido para notificar.';
         }
 
+        if (!empty($normalized['invalid_raw'])) {
+            Log::channel('process_job')->warning('Numeros invalidos ignorados na tool notificar_adm.', $this->logContext([
+                'tool' => 'notificar_adm',
+                'invalid_count' => count($normalized['invalid_raw']),
+                'invalid_samples' => array_slice($normalized['invalid_raw'], 0, 5),
+            ]));
+        }
+
         $total = 0;
         $errors = 0;
-        foreach (array_keys($numerosSanitizados) as $numero) {
+        foreach ($numerosSanitizados as $numero) {
             $total++;
             try {
                 $this->sendText($token, $numero, $mensagem, [
@@ -1565,12 +1568,93 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             }
         }
 
-        if ($errors > 0) {
-            $sent = $total - $errors;
-            return "Notificação enviada parcialmente ({$sent}/{$total}).";
+        $sent = $total - $errors;
+        $invalidCount = count($normalized['invalid_raw']);
+
+        if ($total === 0) {
+            return 'Nenhum número válido para notificar.';
         }
 
-        return 'Notificação enviada para o administrador.';
+        if ($errors === 0 && $invalidCount === 0) {
+            return "Notificação enviada ({$sent}/{$total}).";
+        }
+
+        if ($errors === 0 && $invalidCount > 0) {
+            return "Notificação enviada ({$sent}/{$total}). Inválidos ignorados: {$invalidCount}.";
+        }
+
+        return "Notificação parcial (enviados: {$sent}, falhas: {$errors}, inválidos: {$invalidCount}).";
+    }
+
+    /**
+     * @return array{
+     *   valid_numbers:array<int,string>,
+     *   invalid_raw:array<int,string>,
+     *   invalid_normalized:array<int,string>,
+     *   total_input:int
+     * }
+     */
+    private function normalizeAdminPhoneList(array $rawNumbers): array
+    {
+        $validNumbers = [];
+        $invalidRaw = [];
+        $invalidNormalized = [];
+        $seen = [];
+
+        foreach ($rawNumbers as $rawNumber) {
+            $rawString = trim((string) $rawNumber);
+
+            if ($rawString === '') {
+                $invalidRaw[] = '';
+                continue;
+            }
+
+            $normalized = $this->normalizeAdminPhone($rawString);
+            if ($normalized === null) {
+                $invalidRaw[] = $rawString;
+                $digitsOnly = preg_replace('/\D/', '', $rawString);
+                if (is_string($digitsOnly) && $digitsOnly !== '') {
+                    $invalidNormalized[] = $digitsOnly;
+                }
+                continue;
+            }
+
+            if (!isset($seen[$normalized])) {
+                $seen[$normalized] = true;
+                $validNumbers[] = $normalized;
+            }
+        }
+
+        return [
+            'valid_numbers' => $validNumbers,
+            'invalid_raw' => $invalidRaw,
+            'invalid_normalized' => $invalidNormalized,
+            'total_input' => count($rawNumbers),
+        ];
+    }
+
+    private function normalizeAdminPhone(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        $digits = preg_replace('/\D/', '', $raw);
+        if (!is_string($digits) || $digits === '') {
+            return null;
+        }
+
+        if (!str_starts_with($digits, '55')) {
+            $digits = '55' . $digits;
+        }
+
+        $length = strlen($digits);
+        if (!in_array($length, [12, 13], true)) {
+            return null;
+        }
+
+        return $digits;
     }
 
     private function handleBuscarGet(array $arguments): string

@@ -368,6 +368,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::delete('whatsapp-api-cloud/contas/{account}', [WhatsappCloudController::class, 'destroyAccount'])->name('whatsapp-cloud.accounts.destroy');
     Route::post('whatsapp-api-cloud/modelos', [WhatsappCloudController::class, 'storeTemplate'])->name('whatsapp-cloud.templates.store');
     Route::patch('whatsapp-api-cloud/modelos/{template}', [WhatsappCloudController::class, 'updateTemplate'])->name('whatsapp-cloud.templates.update');
+    Route::post('whatsapp-api-cloud/modelos/importar-meta', [WhatsappCloudController::class, 'importTemplatesFromMeta'])->name('whatsapp-cloud.templates.import-meta');
     Route::post('whatsapp-api-cloud/modelos/{template}/atualizar-status', [WhatsappCloudController::class, 'refreshTemplateStatus'])->name('whatsapp-cloud.templates.refresh-status');
     Route::post('whatsapp-api-cloud/modelos/atualizar-status-lote', [WhatsappCloudController::class, 'refreshTemplateStatusBulk'])->name('whatsapp-cloud.templates.refresh-status-bulk');
     Route::delete('whatsapp-api-cloud/modelos/{template}', [WhatsappCloudController::class, 'destroyTemplate'])->name('whatsapp-cloud.templates.destroy');

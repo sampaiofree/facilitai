@@ -246,6 +246,19 @@
             </form>
 
             <div class="flex flex-wrap justify-end gap-2">
+                <form id="importMetaTemplatesForm" method="POST" action="{{ route('agencia.whatsapp-cloud.templates.import-meta') }}">
+                    @csrf
+                    <input type="hidden" name="active_tab" value="templates">
+                    <input type="hidden" name="account_id" id="importMetaAccountId" value="{{ $accountFilter }}">
+                    <input type="hidden" name="conexao_id" id="importMetaConexaoId" value="{{ $conexaoFilter }}">
+                    <button
+                        type="submit"
+                        class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                        title="Importar modelos da conta selecionada na Meta"
+                    >
+                        Importar da Meta
+                    </button>
+                </form>
                 <form method="POST" action="{{ route('agencia.whatsapp-cloud.templates.refresh-status-bulk') }}">
                     @csrf
                     <input type="hidden" name="active_tab" value="templates">
@@ -1002,6 +1015,11 @@
             const campaignPreviewBody = document.getElementById('campaignPreviewBody');
             const campaignPreviewFooter = document.getElementById('campaignPreviewFooter');
             const campaignPreviewButtons = document.getElementById('campaignPreviewButtons');
+            const templatesAccountFilter = document.getElementById('accountFilter');
+            const templatesConexaoFilter = document.getElementById('conexaoFilter');
+            const importMetaTemplatesForm = document.getElementById('importMetaTemplatesForm');
+            const importMetaAccountId = document.getElementById('importMetaAccountId');
+            const importMetaConexaoId = document.getElementById('importMetaConexaoId');
             let campaignLeadCountRequestId = 0;
             let templateSubmitting = false;
 
@@ -1101,6 +1119,22 @@
                     }
                 });
             });
+
+            if (importMetaTemplatesForm) {
+                importMetaTemplatesForm.addEventListener('submit', (event) => {
+                    if (importMetaAccountId) {
+                        importMetaAccountId.value = templatesAccountFilter?.value || '';
+                    }
+                    if (importMetaConexaoId) {
+                        importMetaConexaoId.value = templatesConexaoFilter?.value || '';
+                    }
+
+                    if (!importMetaAccountId || !importMetaAccountId.value) {
+                        event.preventDefault();
+                        window.alert('Selecione uma conta no filtro para importar os modelos da Meta.');
+                    }
+                });
+            }
 
             const resetAccountForm = () => {
                 accountForm.action = "{{ route('agencia.whatsapp-cloud.accounts.store') }}";

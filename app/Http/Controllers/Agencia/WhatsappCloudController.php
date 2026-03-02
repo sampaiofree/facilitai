@@ -537,6 +537,178 @@ class WhatsappCloudController extends Controller
             ->with($errorCount > 0 ? 'error' : 'success', $message);
     }
 
+    public function importTemplatesFromMeta(Request $request): RedirectResponse
+    {
+        $userId = (int) $request->user()->id;
+        $data = $request->validate([
+            'active_tab' => ['nullable', 'string'],
+            'account_id' => ['nullable', 'integer'],
+            'conexao_id' => ['nullable', 'integer'],
+        ]);
+
+        $accountId = isset($data['account_id']) ? (int) $data['account_id'] : 0;
+        $conexaoId = isset($data['conexao_id']) ? (int) $data['conexao_id'] : null;
+        if ($accountId <= 0) {
+            return redirect()
+                ->route('agencia.whatsapp-cloud.index', array_filter([
+                    'tab' => 'templates',
+                    'conexao_id' => $conexaoId,
+                ]))
+                ->with('error', 'Selecione uma conta no filtro para importar modelos da Meta.');
+        }
+
+        $account = $this->findOwnedAccount($accountId, $userId);
+        $businessAccountId = trim((string) ($account->business_account_id ?? ''));
+        $accessToken = trim((string) ($account->access_token ?? ''));
+
+        if ($businessAccountId === '') {
+            return redirect()
+                ->route('agencia.whatsapp-cloud.index', array_filter([
+                    'tab' => 'templates',
+                    'account_id' => (int) $account->id,
+                    'conexao_id' => $conexaoId,
+                ]))
+                ->with('error', 'A conta selecionada não possui Business Account ID configurado.');
+        }
+
+        if ($accessToken === '') {
+            return redirect()
+                ->route('agencia.whatsapp-cloud.index', array_filter([
+                    'tab' => 'templates',
+                    'account_id' => (int) $account->id,
+                    'conexao_id' => $conexaoId,
+                ]))
+                ->with('error', 'A conta selecionada não possui access token válido.');
+        }
+
+        /** @var WhatsappCloudApiService $service */
+        $service = app(WhatsappCloudApiService::class);
+        $result = $service->listMessageTemplates(
+            $businessAccountId,
+            [
+                'access_token' => $accessToken,
+                'limit' => 100,
+            ]
+        );
+
+        if (!empty($result['error'])) {
+            return redirect()
+                ->route('agencia.whatsapp-cloud.index', array_filter([
+                    'tab' => 'templates',
+                    'account_id' => (int) $account->id,
+                    'conexao_id' => $conexaoId,
+                ]))
+                ->with('error', $this->resolveMetaSyncError($result));
+        }
+
+        $rows = isset($result['body']['data']) && is_array($result['body']['data'])
+            ? array_values(array_filter($result['body']['data'], fn ($item) => is_array($item)))
+            : [];
+
+        if (empty($rows)) {
+            return redirect()
+                ->route('agencia.whatsapp-cloud.index', array_filter([
+                    'tab' => 'templates',
+                    'account_id' => (int) $account->id,
+                    'conexao_id' => $conexaoId,
+                ]))
+                ->with('success', 'Nenhum modelo encontrado na Meta para importar.');
+        }
+
+        $createdCount = 0;
+        $updatedCount = 0;
+        $skippedAuthenticationCount = 0;
+        $skippedIncompatibleCount = 0;
+        $skippedInvalidCount = 0;
+        $now = now();
+
+        foreach ($rows as $row) {
+            $templateName = trim((string) ($row['name'] ?? ''));
+            $languageCode = trim((string) ($row['language'] ?? ''));
+            $category = Str::upper(trim((string) ($row['category'] ?? '')));
+            $status = Str::upper(trim((string) ($row['status'] ?? 'PENDING')));
+            $metaTemplateId = trim((string) ($row['id'] ?? ''));
+
+            if ($category === 'AUTHENTICATION') {
+                $skippedAuthenticationCount++;
+                continue;
+            }
+
+            if ($templateName === '' || $languageCode === '') {
+                $skippedInvalidCount++;
+                continue;
+            }
+
+            if (!in_array($category, ['UTILITY', 'MARKETING'], true)) {
+                $skippedIncompatibleCount++;
+                continue;
+            }
+
+            $components = isset($row['components']) && is_array($row['components'])
+                ? $row['components']
+                : [];
+
+            $mapped = $this->mapMetaTemplateForLocalStorage($components);
+            if (!$mapped['ok']) {
+                $skippedIncompatibleCount++;
+                continue;
+            }
+
+            $existing = WhatsappCloudTemplate::query()
+                ->where('whatsapp_cloud_account_id', (int) $account->id)
+                ->where('template_name', $templateName)
+                ->where('language_code', $languageCode)
+                ->first();
+
+            $title = $this->buildImportedTemplateTitle($templateName);
+            $payload = [
+                'user_id' => $userId,
+                'whatsapp_cloud_account_id' => (int) $account->id,
+                'category' => $category,
+                'variables' => !empty($mapped['variables']) ? $mapped['variables'] : null,
+                'body_text' => $mapped['body_text'],
+                'footer_text' => $mapped['footer_text'],
+                'buttons' => !empty($mapped['buttons']) ? $mapped['buttons'] : null,
+                'variable_examples' => !empty($mapped['variable_examples']) ? $mapped['variable_examples'] : null,
+                'status' => $status,
+                'meta_template_id' => $metaTemplateId !== '' ? $metaTemplateId : null,
+                'last_synced_at' => $now,
+                'last_sync_error' => null,
+            ];
+
+            if ($existing) {
+                $existing->fill($payload);
+                if (trim((string) ($existing->title ?? '')) === '') {
+                    $existing->title = $title;
+                }
+                $existing->save();
+                $updatedCount++;
+                continue;
+            }
+
+            WhatsappCloudTemplate::create(array_merge($payload, [
+                'conexao_id' => null,
+                'title' => $title,
+                'template_name' => $templateName,
+                'language_code' => $languageCode,
+            ]));
+            $createdCount++;
+        }
+
+        $message = "Importação da Meta finalizada. Criados: {$createdCount}. Atualizados: {$updatedCount}.";
+        $message .= " Ignorados AUTHENTICATION: {$skippedAuthenticationCount}.";
+        $message .= " Ignorados incompatíveis: {$skippedIncompatibleCount}.";
+        $message .= " Ignorados inválidos: {$skippedInvalidCount}.";
+
+        return redirect()
+            ->route('agencia.whatsapp-cloud.index', array_filter([
+                'tab' => 'templates',
+                'account_id' => (int) $account->id,
+                'conexao_id' => $conexaoId,
+            ]))
+            ->with('success', $message);
+    }
+
     public function storeCampaign(Request $request): RedirectResponse
     {
         $user = $request->user();
@@ -1071,6 +1243,302 @@ class WhatsappCloudController extends Controller
         }
 
         return Str::limit($value, 255, '');
+    }
+
+    private function buildImportedTemplateTitle(string $templateName): string
+    {
+        $templateName = trim($templateName);
+        if ($templateName === '') {
+            return 'Template importado';
+        }
+
+        $humanized = preg_replace('/[_\-]+/', ' ', $templateName) ?? $templateName;
+        $humanized = trim($humanized);
+
+        if ($humanized === '') {
+            return 'Template importado';
+        }
+
+        return Str::title($humanized);
+    }
+
+    /**
+     * Converte componentes da Meta para o formato local do editor.
+     *
+     * Regras:
+     * - Variáveis indexadas da Meta ({{1}}, {{2}}...) viram nomes estáveis ({var_1}, {var_2}...).
+     * - Componentes não suportados com variáveis indexadas tornam o template incompatível para importação.
+     *
+     * @return array{
+     *   ok:bool,
+     *   body_text:string,
+     *   footer_text:?string,
+     *   buttons:array<int,array{type:string,text:string,url:?string}>,
+     *   variables:array<int,string>,
+     *   variable_examples:array<string,string>
+     * }
+     */
+    private function mapMetaTemplateForLocalStorage(array $components): array
+    {
+        $bodyText = '';
+        $footerText = null;
+        $buttons = [];
+
+        $variables = [];
+        $variableExamples = [];
+        $metaIndexToVariable = [];
+
+        foreach ($components as $component) {
+            if (!is_array($component)) {
+                continue;
+            }
+
+            $type = Str::upper(trim((string) ($component['type'] ?? '')));
+            if ($type === '') {
+                continue;
+            }
+
+            if ($type === 'BODY') {
+                $rawBodyText = trim((string) ($component['text'] ?? ''));
+                if ($rawBodyText !== '') {
+                    $bodyText = $this->transformMetaTextToStableVariables(
+                        $rawBodyText,
+                        $metaIndexToVariable,
+                        $variables
+                    );
+
+                    $exampleRows = data_get($component, 'example.body_text.0');
+                    $exampleValues = is_array($exampleRows) ? array_values($exampleRows) : [];
+                    $bodyIndexes = $this->extractMetaPlaceholderIndexesInOrder($rawBodyText);
+
+                    foreach ($bodyIndexes as $position => $metaIndex) {
+                        $exampleValue = trim((string) ($exampleValues[$position] ?? ''));
+                        if ($exampleValue === '') {
+                            continue;
+                        }
+
+                        $variableName = $metaIndexToVariable[$metaIndex] ?? null;
+                        if (!is_string($variableName) || $variableName === '') {
+                            continue;
+                        }
+
+                        $variableExamples[$variableName] = $exampleValue;
+                    }
+                }
+
+                continue;
+            }
+
+            if ($type === 'FOOTER') {
+                $rawFooterText = trim((string) ($component['text'] ?? ''));
+                $footerText = $rawFooterText !== ''
+                    ? $this->transformMetaTextToStableVariables(
+                        $rawFooterText,
+                        $metaIndexToVariable,
+                        $variables
+                    )
+                    : null;
+                continue;
+            }
+
+            if ($type === 'BUTTONS') {
+                $buttonRows = isset($component['buttons']) && is_array($component['buttons'])
+                    ? $component['buttons']
+                    : [];
+
+                foreach ($buttonRows as $button) {
+                    if (!is_array($button)) {
+                        continue;
+                    }
+
+                    $buttonType = Str::upper(trim((string) ($button['type'] ?? '')));
+                    $rawButtonText = trim((string) ($button['text'] ?? ''));
+
+                    if ($buttonType === 'QUICK_REPLY') {
+                        $buttonText = $this->transformMetaTextToStableVariables(
+                            $rawButtonText,
+                            $metaIndexToVariable,
+                            $variables
+                        );
+
+                        $buttons[] = [
+                            'type' => 'QUICK_REPLY',
+                            'text' => $buttonText,
+                            'url' => null,
+                        ];
+                        continue;
+                    }
+
+                    if ($buttonType === 'URL') {
+                        $rawUrl = trim((string) ($button['url'] ?? ''));
+                        $buttonText = $this->transformMetaTextToStableVariables(
+                            $rawButtonText,
+                            $metaIndexToVariable,
+                            $variables
+                        );
+                        $buttonUrl = $this->transformMetaTextToStableVariables(
+                            $rawUrl,
+                            $metaIndexToVariable,
+                            $variables
+                        );
+
+                        $buttons[] = [
+                            'type' => 'URL',
+                            'text' => $buttonText,
+                            'url' => $buttonUrl,
+                        ];
+
+                        $urlIndexes = $this->extractMetaPlaceholderIndexesInOrder($rawUrl);
+                        $urlExamplesRaw = $button['example'] ?? [];
+                        $urlExamples = is_array($urlExamplesRaw) ? array_values($urlExamplesRaw) : [];
+
+                        foreach ($urlIndexes as $position => $metaIndex) {
+                            $exampleValue = trim((string) ($urlExamples[$position] ?? ''));
+                            if ($exampleValue === '') {
+                                continue;
+                            }
+
+                            $variableName = $metaIndexToVariable[$metaIndex] ?? null;
+                            if (!is_string($variableName) || $variableName === '') {
+                                continue;
+                            }
+
+                            $variableExamples[$variableName] = $exampleValue;
+                        }
+
+                        continue;
+                    }
+
+                    // Tipos não suportados no fluxo atual (ex.: PHONE_NUMBER, COPY_CODE, OTP).
+                    // Se trouxerem variáveis, marcamos como incompatível para evitar envio quebrado.
+                    if ($this->metaComponentContainsIndexedVariable($button)) {
+                        return [
+                            'ok' => false,
+                            'body_text' => '',
+                            'footer_text' => null,
+                            'buttons' => [],
+                            'variables' => [],
+                            'variable_examples' => [],
+                        ];
+                    }
+                }
+
+                continue;
+            }
+
+            // Componentes não suportados (ex.: HEADER com variável indexada) são incompatíveis
+            // com o fluxo atual porque o envio não injeta parâmetros nesses componentes.
+            if ($this->metaComponentContainsIndexedVariable($component)) {
+                return [
+                    'ok' => false,
+                    'body_text' => '',
+                    'footer_text' => null,
+                    'buttons' => [],
+                    'variables' => [],
+                    'variable_examples' => [],
+                ];
+            }
+        }
+
+        if ($bodyText === '') {
+            return [
+                'ok' => false,
+                'body_text' => '',
+                'footer_text' => null,
+                'buttons' => [],
+                'variables' => [],
+                'variable_examples' => [],
+            ];
+        }
+
+        foreach ($variables as $variable) {
+            if (!isset($variableExamples[$variable]) || trim((string) $variableExamples[$variable]) === '') {
+                $variableExamples[$variable] = 'Exemplo ' . $variable;
+            }
+        }
+
+        return [
+            'ok' => true,
+            'body_text' => $bodyText,
+            'footer_text' => $footerText,
+            'buttons' => $buttons,
+            'variables' => $variables,
+            'variable_examples' => $variableExamples,
+        ];
+    }
+
+    private function transformMetaTextToStableVariables(
+        string $text,
+        array &$metaIndexToVariable,
+        array &$variables
+    ): string {
+        if ($text === '') {
+            return '';
+        }
+
+        $transformed = preg_replace_callback('/\{\{\s*(\d+)\s*\}\}/', function (array $matches) use (&$metaIndexToVariable, &$variables): string {
+            $index = (int) ($matches[1] ?? 0);
+            if ($index <= 0) {
+                return $matches[0];
+            }
+
+            $key = (string) $index;
+            if (!isset($metaIndexToVariable[$key])) {
+                $metaIndexToVariable[$key] = 'var_' . $index;
+            }
+
+            $variableName = (string) $metaIndexToVariable[$key];
+            if (!in_array($variableName, $variables, true)) {
+                $variables[] = $variableName;
+            }
+
+            return '{' . $variableName . '}';
+        }, $text);
+
+        return is_string($transformed) ? $transformed : $text;
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function extractMetaPlaceholderIndexesInOrder(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        preg_match_all('/\{\{\s*(\d+)\s*\}\}/', $text, $matches);
+
+        $indexes = [];
+        foreach (($matches[1] ?? []) as $index) {
+            $normalized = trim((string) $index);
+            if ($normalized === '') {
+                continue;
+            }
+
+            if (!in_array($normalized, $indexes, true)) {
+                $indexes[] = $normalized;
+            }
+        }
+
+        return $indexes;
+    }
+
+    private function metaComponentContainsIndexedVariable(mixed $payload): bool
+    {
+        if (is_string($payload)) {
+            return (bool) preg_match('/\{\{\s*\d+\s*\}\}/', $payload);
+        }
+
+        if (is_array($payload)) {
+            foreach ($payload as $value) {
+                if ($this->metaComponentContainsIndexedVariable($value)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function buildMetaTemplatePayload(array $data): array
