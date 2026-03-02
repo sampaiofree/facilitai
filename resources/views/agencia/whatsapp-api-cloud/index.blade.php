@@ -32,6 +32,13 @@
         </div>
     </div>
 
+    <div
+        id="templateSubmitNotice"
+        class="mb-6 hidden rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700"
+    >
+        Enviado para analise na Meta. Aguarde a resposta.
+    </div>
+
     <div class="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -520,7 +527,7 @@
                 </div>
                 <div class="flex items-center gap-3">
                     <button type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" data-template-close>Cancelar</button>
-                    <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Salvar e sincronizar</button>
+                    <button type="submit" data-template-submit class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Salvar e sincronizar</button>
                 </div>
             </div>
 
@@ -945,10 +952,12 @@
             const templateCloseButtons = templateModal.querySelectorAll('[data-template-close]');
             const templateForm = document.getElementById('templateForm');
             const templateFormMethod = document.getElementById('templateFormMethod');
+            const templateSubmitButton = templateForm.querySelector('[data-template-submit]');
             const templateModalTitle = document.getElementById('templateModalTitle');
             const templateEditingId = document.getElementById('templateEditingId');
             const templateGeneratedName = document.getElementById('templateGeneratedName');
             const templateGeneratedNamePreview = document.getElementById('templateGeneratedNamePreview');
+            const templateSubmitNotice = document.getElementById('templateSubmitNotice');
 
             const templateAccount = document.getElementById('templateAccount');
             const templateConexao = document.getElementById('templateConexao');
@@ -994,6 +1003,7 @@
             const campaignPreviewFooter = document.getElementById('campaignPreviewFooter');
             const campaignPreviewButtons = document.getElementById('campaignPreviewButtons');
             let campaignLeadCountRequestId = 0;
+            let templateSubmitting = false;
 
             let lastFocusedInput = templateBody;
             let variableExampleSeed = {};
@@ -1055,6 +1065,19 @@
                     button.textContent = button.dataset.originalCopyLabel || 'Copiar';
                     button.classList.remove('bg-green-100', 'text-green-700', 'border-green-200', 'bg-red-100', 'text-red-700', 'border-red-200');
                 }, 1500);
+            };
+
+            const showTemplateSubmitFeedback = () => {
+                if (templateSubmitNotice) {
+                    templateSubmitNotice.classList.remove('hidden');
+                    templateSubmitNotice.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+
+                if (templateSubmitButton) {
+                    templateSubmitButton.disabled = true;
+                    templateSubmitButton.textContent = 'Enviando...';
+                    templateSubmitButton.classList.add('cursor-not-allowed', 'opacity-70');
+                }
             };
 
             document.querySelectorAll('[data-copy-target]').forEach((button) => {
@@ -1457,6 +1480,17 @@
 
             templateCloseButtons.forEach((button) => {
                 button.addEventListener('click', () => closeModal(templateModal));
+            });
+
+            templateForm.addEventListener('submit', (event) => {
+                if (templateSubmitting) {
+                    event.preventDefault();
+                    return;
+                }
+
+                templateSubmitting = true;
+                closeModal(templateModal);
+                showTemplateSubmitFeedback();
             });
 
             templateAccount.addEventListener('change', updateTemplateConexaoOptions);

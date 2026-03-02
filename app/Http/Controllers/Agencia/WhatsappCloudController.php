@@ -357,7 +357,7 @@ class WhatsappCloudController extends Controller
 
         return redirect()
             ->route('agencia.whatsapp-cloud.index', ['account_id' => $account->id])
-            ->with('success', 'Modelo criado e sincronizado com a Meta com sucesso.');
+            ->with('success', 'Modelo enviado para analise na Meta. Aguarde aprovacao.');
     }
 
     public function updateTemplate(Request $request, WhatsappCloudTemplate $template): RedirectResponse
