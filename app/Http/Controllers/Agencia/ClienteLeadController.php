@@ -240,7 +240,7 @@ class ClienteLeadController extends Controller
         });
 
         return redirect()
-            ->route('agencia.conversas.index')
+            ->route('agencia.conversas.index', $request->query())
             ->with('success', 'Lead atualizado com sucesso.');
     }
 

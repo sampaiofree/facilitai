@@ -433,7 +433,74 @@
                     </div>
                 </div>
                 <div>
-                    <label class="text-xs uppercase tracking-wide text-slate-500">Prompt</label>
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <label class="text-xs uppercase tracking-wide text-slate-500">Prompt</label>
+                        @if(!$promptHelpTipos->isEmpty())
+                            <div class="relative" id="stepPromptHelpDropdown">
+                                <div class="flex flex-wrap items-center justify-end gap-2" id="stepPromptHelpTypeButtons">
+                                    @foreach($promptHelpTipos as $tipo)
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700"
+                                            data-step-ph-type-btn
+                                            data-step-ph-type-id="{{ $tipo->id }}"
+                                        >
+                                            {{ $tipo->name }}
+                                            <span class="text-slate-400">▾</span>
+                                        </button>
+                                    @endforeach
+                                </div>
+                                <div
+                                    id="stepPromptHelpDropdownMenu"
+                                    class="absolute right-0 z-20 mt-2 hidden w-[360px] max-h-96 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl"
+                                >
+                                    @foreach($promptHelpTipos as $tipo)
+                                        <div class="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500" data-step-ph-type-block="{{ $tipo->id }}">{{ $tipo->name }}</div>
+                                        @foreach($tipo->sections as $section)
+                                            <button
+                                                type="button"
+                                                class="flex w-full items-center justify-between px-5 py-2 text-left text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                                                data-step-ph-type-block="{{ $tipo->id }}"
+                                                data-step-ph-section-toggle
+                                                data-step-ph-type-id="{{ $tipo->id }}"
+                                                data-step-ph-section-id="{{ $section->id }}"
+                                            >
+                                                <span>{{ $section->name }}</span>
+                                                <span class="text-slate-400">▸</span>
+                                            </button>
+                                            <div
+                                                class="hidden border-l border-slate-200"
+                                                data-step-ph-section-content
+                                                data-step-ph-type-id="{{ $tipo->id }}"
+                                                data-step-ph-section-id="{{ $section->id }}"
+                                            >
+                                                @forelse($section->prompts as $prompt)
+                                                    <button
+                                                        type="button"
+                                                        class="w-full px-6 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+                                                        data-step-prompt-help-item
+                                                        data-step-ph-type-id="{{ $tipo->id }}"
+                                                        data-step-ph-section-id="{{ $section->id }}"
+                                                        data-prompt='@json($prompt->prompt)'
+                                                    >
+                                                        <div class="font-semibold text-slate-900">{{ $prompt->name }}</div>
+                                                        <div class="text-[11px] text-slate-500">
+                                                            {{ $prompt->descricao ? \Illuminate\Support\Str::limit($prompt->descricao, 80) : 'Clique para inserir no campo de prompt.' }}
+                                                        </div>
+                                                    </button>
+                                                @empty
+                                                    <div class="px-6 py-2 text-xs text-slate-400">Nenhum prompt nesta seção.</div>
+                                                @endforelse
+                                            </div>
+                                        @endforeach
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                    @if($promptHelpTipos->isEmpty())
+                        <p class="mt-1 text-xs text-slate-500">Nenhum prompt de ajuda cadastrado.</p>
+                    @endif
                     <textarea name="prompt" id="stepPrompt" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></textarea>
                 </div>
                 <div class="flex items-center justify-end gap-3 pt-2">
@@ -647,11 +714,145 @@
             const stepDayCheckboxes = stepModal.querySelectorAll('[data-step-day]');
             const stepModalTitle = document.getElementById('stepModalTitle');
             const stepCloseButtons = stepModal.querySelectorAll('[data-close-step-modal]');
+            const stepPromptHelpDropdown = document.getElementById('stepPromptHelpDropdown');
+            const stepPromptHelpDropdownMenu = document.getElementById('stepPromptHelpDropdownMenu');
+            const stepTypeButtons = Array.from(stepModal.querySelectorAll('[data-step-ph-type-btn]'));
+            const stepTypeBlocks = Array.from(stepModal.querySelectorAll('[data-step-ph-type-block]'));
+            const stepSectionToggles = Array.from(stepModal.querySelectorAll('[data-step-ph-section-toggle]'));
+            const stepSectionContents = Array.from(stepModal.querySelectorAll('[data-step-ph-section-content]'));
+            const stepPromptItems = Array.from(stepModal.querySelectorAll('[data-step-prompt-help-item]'));
+            const stepActiveTypeClasses = ['border-blue-600', 'bg-blue-600', 'text-white'];
+            const stepActiveSectionClasses = ['bg-slate-100', 'text-slate-900'];
+            let stepActiveTypeId = null;
 
             const stepStoreTemplate = "{{ route('agencia.sequences.steps.store', ['sequence' => '__SEQ__']) }}";
             const stepUpdateTemplate = "{{ route('agencia.sequences.steps.update', ['sequence' => '__SEQ__', 'step' => '__STEP__']) }}";
 
             const defaultDays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+            const insertAtCursor = (field, text) => {
+                if (!field) {
+                    return;
+                }
+                const start = field.selectionStart ?? field.value.length;
+                const end = field.selectionEnd ?? field.value.length;
+                const before = field.value.slice(0, start);
+                const after = field.value.slice(end);
+                const addSeparator = before.length > 0 && start === end && start === field.value.length ? '\n\n' : '';
+                field.value = `${before}${addSeparator}${text}${after}`;
+                const cursor = (before + addSeparator + text).length;
+                field.setSelectionRange(cursor, cursor);
+                field.focus();
+            };
+
+            const closeStepPromptHelpDropdown = () => {
+                stepPromptHelpDropdownMenu?.classList.add('hidden');
+            };
+
+            const openStepPromptHelpDropdown = () => {
+                stepPromptHelpDropdownMenu?.classList.remove('hidden');
+            };
+
+            const setStepActiveType = (typeId) => {
+                stepActiveTypeId = typeId;
+                stepTypeButtons.forEach(btn => {
+                    const isActive = btn.dataset.stepPhTypeId === typeId;
+                    stepActiveTypeClasses.forEach(cls => btn.classList.toggle(cls, isActive));
+                });
+
+                stepTypeBlocks.forEach(block => {
+                    block.classList.toggle('hidden', block.dataset.stepPhTypeBlock !== typeId);
+                });
+
+                stepSectionToggles.forEach(toggle => {
+                    toggle.classList.toggle('hidden', toggle.dataset.stepPhTypeId !== typeId);
+                    stepActiveSectionClasses.forEach(cls => toggle.classList.remove(cls));
+                });
+
+                stepSectionContents.forEach(content => {
+                    content.classList.add('hidden');
+                });
+
+                stepPromptItems.forEach(item => {
+                    item.classList.toggle('hidden', item.dataset.stepPhTypeId !== typeId);
+                });
+            };
+
+            if (stepTypeButtons.length && stepPromptHelpDropdownMenu) {
+                stepTypeButtons.forEach(button => {
+                    button.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        const typeId = button.dataset.stepPhTypeId;
+                        const isSameType = stepActiveTypeId === typeId;
+                        if (isSameType && !stepPromptHelpDropdownMenu.classList.contains('hidden')) {
+                            closeStepPromptHelpDropdown();
+                            return;
+                        }
+                        setStepActiveType(typeId);
+                        openStepPromptHelpDropdown();
+                    });
+                });
+
+                stepSectionToggles.forEach(button => {
+                    button.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        const typeId = button.dataset.stepPhTypeId;
+                        const sectionId = button.dataset.stepPhSectionId;
+                        if (stepActiveTypeId !== typeId) {
+                            setStepActiveType(typeId);
+                        }
+
+                        const target = stepSectionContents.find(content => {
+                            return content.dataset.stepPhTypeId === typeId && content.dataset.stepPhSectionId === sectionId;
+                        });
+                        const isOpen = target && !target.classList.contains('hidden');
+
+                        stepSectionContents.forEach(content => {
+                            if (content.dataset.stepPhTypeId === typeId) {
+                                content.classList.add('hidden');
+                            }
+                        });
+                        stepSectionToggles.forEach(toggle => {
+                            if (toggle.dataset.stepPhTypeId === typeId) {
+                                stepActiveSectionClasses.forEach(cls => toggle.classList.remove(cls));
+                            }
+                        });
+
+                        if (target && !isOpen) {
+                            target.classList.remove('hidden');
+                            stepActiveSectionClasses.forEach(cls => button.classList.add(cls));
+                        }
+                    });
+                });
+
+                document.addEventListener('click', (event) => {
+                    if (!stepPromptHelpDropdown?.contains(event.target)) {
+                        closeStepPromptHelpDropdown();
+                    }
+                });
+            }
+
+            if (stepPromptItems.length) {
+                stepPromptItems.forEach(button => {
+                    button.addEventListener('click', () => {
+                        const raw = button.dataset.prompt || '""';
+                        let text = '';
+                        try {
+                            text = JSON.parse(raw);
+                        } catch (error) {
+                            text = '';
+                        }
+
+                        if (typeof text !== 'string' || text.trim() === '') {
+                            closeStepPromptHelpDropdown();
+                            return;
+                        }
+
+                        insertAtCursor(stepPromptInput, text);
+                        closeStepPromptHelpDropdown();
+                    });
+                });
+            }
 
             const openStepModal = (sequenceId, stepData = null) => {
                 stepSequenceInput.value = sequenceId;
@@ -696,6 +897,7 @@
             const closeStepModal = () => {
                 stepModal.classList.add('hidden');
                 stepModal.classList.remove('flex');
+                closeStepPromptHelpDropdown();
             };
 
             document.querySelectorAll('[data-action="create-step"]').forEach(button => {

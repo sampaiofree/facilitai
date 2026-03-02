@@ -4,13 +4,25 @@
     @php
         $oldActiveTab = old('active_tab', request('tab', 'account'));
         $hasErrors = $errors->any();
-        $customFieldsForJs = $customFields->map(function ($field) {
+        $reservedTemplateVariablesForJs = collect($reservedTemplateVariables ?? [])
+            ->map(function ($definition, $name) {
+                return [
+                    'name' => (string) $name,
+                    'label' => trim((string) ($definition['label'] ?? '')),
+                    'sample_value' => trim((string) ($definition['sample_value'] ?? '')),
+                ];
+            })
+            ->values();
+
+        $customFieldsForJs = $reservedTemplateVariablesForJs->concat($customFields->map(function ($field) {
             return [
                 'name' => $field->name,
                 'label' => $field->label,
                 'sample_value' => $field->sample_value,
             ];
-        })->values();
+        }))->unique('name')->values();
+
+        $variablePickerOptions = $customFieldsForJs;
     @endphp
 
     <div class="flex items-center justify-between mb-6">
@@ -573,9 +585,9 @@
                         <div class="min-w-[220px] flex-1">
                             <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="variablePicker">Inserir variável</label>
                             <select id="variablePicker" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                                <option value="">Selecione um campo personalizado</option>
-                                @foreach($customFields as $field)
-                                    <option value="{{ $field->name }}">{{ $field->name }}{{ $field->label ? ' - ' . $field->label : '' }}</option>
+                                <option value="">Selecione uma variavel</option>
+                                @foreach($variablePickerOptions as $field)
+                                    <option value="{{ $field['name'] }}">{{ $field['name'] }}{{ !empty($field['label']) ? ' - ' . $field['label'] : '' }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -1016,6 +1028,35 @@
                 document.body.removeChild(textarea);
             };
 
+            const showCopyFeedback = (button, status) => {
+                if (!button) {
+                    return;
+                }
+
+                if (!button.dataset.originalCopyLabel) {
+                    button.dataset.originalCopyLabel = (button.textContent || '').trim() || 'Copiar';
+                }
+
+                if (button.__copyFeedbackTimeout) {
+                    clearTimeout(button.__copyFeedbackTimeout);
+                }
+
+                button.classList.remove('bg-green-100', 'text-green-700', 'border-green-200', 'bg-red-100', 'text-red-700', 'border-red-200');
+
+                if (status === 'success') {
+                    button.textContent = 'Copiado!';
+                    button.classList.add('bg-green-100', 'text-green-700', 'border-green-200');
+                } else {
+                    button.textContent = 'Erro';
+                    button.classList.add('bg-red-100', 'text-red-700', 'border-red-200');
+                }
+
+                button.__copyFeedbackTimeout = window.setTimeout(() => {
+                    button.textContent = button.dataset.originalCopyLabel || 'Copiar';
+                    button.classList.remove('bg-green-100', 'text-green-700', 'border-green-200', 'bg-red-100', 'text-red-700', 'border-red-200');
+                }, 1500);
+            };
+
             document.querySelectorAll('[data-copy-target]').forEach((button) => {
                 button.addEventListener('click', async () => {
                     const targetId = button.dataset.copyTarget;
@@ -1030,8 +1071,10 @@
 
                     try {
                         await copyTextToClipboard(target.value || target.textContent || '');
+                        showCopyFeedback(button, 'success');
                     } catch (error) {
                         // Sem toast global nesta tela: mantém falha silenciosa.
+                        showCopyFeedback(button, 'error');
                     }
                 });
             });

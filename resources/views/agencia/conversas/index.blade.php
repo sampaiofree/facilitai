@@ -2299,7 +2299,9 @@
                     if (clientLeadFormMethod) {
                         clientLeadFormMethod.value = 'PUT';
                     }
-                    clientLeadForm.action = clientLeadForm.dataset.updateRouteTemplate.replace('__LEAD_ID__', data.id);
+                    clientLeadForm.action = buildFilteredActionUrl(
+                        clientLeadForm.dataset.updateRouteTemplate.replace('__LEAD_ID__', data.id)
+                    );
                     fillForm(data);
                 }
 

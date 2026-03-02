@@ -24,14 +24,27 @@ class OpenAIController extends Controller
         $object = null;
         $status = null;
         $response = null;
+        $assistantLead = null;
+        $assistantLeadMatchesCount = 0;
 
         if ($request->filled('conv_id')) {
             $request->validate([
                 'conv_id' => ['required', 'string'],
             ]);
 
-            $assistantLead = AssistantLead::with(['assistant', 'lead.cliente'])
-                ->where('conv_id', $convId)
+            $assistantLeadQuery = AssistantLead::query()
+                ->where('conv_id', $convId);
+
+            $assistantLeadMatchesCount = (clone $assistantLeadQuery)->count();
+            $assistantLead = (clone $assistantLeadQuery)
+                ->with([
+                    'assistant',
+                    'lead.cliente',
+                    'lead.tags',
+                    'lead.customFieldValues.customField',
+                ])
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id')
                 ->first();
 
             if (!$assistantLead) {
@@ -125,6 +138,8 @@ class OpenAIController extends Controller
             'convId' => $convId,
             'result' => $result,
             'error' => $error,
+            'assistantLead' => $assistantLead,
+            'assistantLeadMatchesCount' => $assistantLeadMatchesCount,
             'items' => $items,
             'hasMore' => $hasMore,
             'lastId' => $lastId,

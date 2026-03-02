@@ -136,6 +136,7 @@ class WhatsappCloudController extends Controller
             'conexoes' => $conexoes,
             'templates' => $templates,
             'customFields' => $customFields,
+            'reservedTemplateVariables' => $this->builtinTemplateVariables(),
             'accountFilter' => $accountFilter,
             'conexaoFilter' => $conexaoFilter,
             'userWebhookVerifyToken' => (string) $user->whatsapp_cloud_webhook_verify_token,
@@ -956,13 +957,19 @@ class WhatsappCloudController extends Controller
             return;
         }
 
+        $reservedNames = array_keys($this->builtinTemplateVariables());
+        $variablesToCheck = array_values(array_diff($variables, $reservedNames));
+        if (empty($variablesToCheck)) {
+            return;
+        }
+
         $existingNames = WhatsappCloudCustomField::query()
             ->where('user_id', $userId)
-            ->whereIn('name', $variables)
+            ->whereIn('name', $variablesToCheck)
             ->pluck('name')
             ->all();
 
-        $missing = array_values(array_diff($variables, $existingNames));
+        $missing = array_values(array_diff($variablesToCheck, $existingNames));
         if (!empty($missing)) {
             throw ValidationException::withMessages([
                 'body_text' => ['Campos personalizados não encontrados: ' . implode(', ', $missing) . '.'],
@@ -976,11 +983,19 @@ class WhatsappCloudController extends Controller
             return [];
         }
 
-        $defaults = WhatsappCloudCustomField::query()
+        $customFieldDefaults = WhatsappCloudCustomField::query()
             ->where('user_id', $userId)
             ->whereIn('name', $variables)
             ->pluck('sample_value', 'name')
             ->all();
+
+        $reservedDefaults = collect($this->builtinTemplateVariables())
+            ->mapWithKeys(fn (array $definition, string $name) => [
+                $name => trim((string) ($definition['sample_value'] ?? '')),
+            ])
+            ->all();
+
+        $defaults = array_replace($customFieldDefaults, $reservedDefaults);
 
         $resolved = [];
 
@@ -999,6 +1014,16 @@ class WhatsappCloudController extends Controller
         }
 
         return $resolved;
+    }
+
+    private function builtinTemplateVariables(): array
+    {
+        return [
+            'name' => [
+                'label' => 'Nome do lead',
+                'sample_value' => 'Nome do cliente',
+            ],
+        ];
     }
 
     private function generateUniqueTemplateName(string $title, int $accountId, string $languageCode, ?int $ignoreTemplateId): string

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Agencia;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\Conexao;
+use App\Models\PromptHelpTipo;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\SequenceStep;
@@ -19,6 +20,17 @@ class AgenciaSequenceController extends Controller
         $user = $request->user();
         $clients = Cliente::where('user_id', $user->id)->orderBy('nome')->get();
         $tags = Tag::where('user_id', $user->id)->orderBy('name')->get();
+        $promptHelpTipos = PromptHelpTipo::with([
+            'sections' => function ($query) {
+                $query->orderBy('name')->with([
+                    'prompts' => function ($promptQuery) {
+                        $promptQuery->orderBy('name');
+                    },
+                ]);
+            },
+        ])
+            ->orderBy('name')
+            ->get();
         $sequences = Sequence::with(['cliente', 'conexao', 'steps', 'logs.sequenceStep'])
             ->where('user_id', $user->id)
             ->latest()
@@ -34,7 +46,7 @@ class AgenciaSequenceController extends Controller
                 ->withQueryString();
         }
 
-        return view('agencia.sequences.index', compact('sequences', 'clients', 'tags', 'sequenceChatsBySequence'));
+        return view('agencia.sequences.index', compact('sequences', 'clients', 'tags', 'promptHelpTipos', 'sequenceChatsBySequence'));
     }
 
     public function destroySequenceChat(Request $request, SequenceChat $sequenceChat): RedirectResponse
