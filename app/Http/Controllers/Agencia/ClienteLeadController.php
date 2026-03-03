@@ -74,8 +74,9 @@ class ClienteLeadController extends Controller
             $lastMessageEnd,
             $tagRemoveFilter,
         ] = $this->buildFilteredQuery($request, $user);
+        [$sortBy, $sortDir] = $this->resolveLeadSort($request);
 
-        $leads = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
+        $leads = $query->orderBy($sortBy, $sortDir)->paginate(25)->withQueryString();
 
         if ($request->ajax()) {
             return view('agencia.conversas._table', compact('leads'));
@@ -94,6 +95,8 @@ class ClienteLeadController extends Controller
             'dateEnd',
             'lastMessageStart',
             'lastMessageEnd',
+            'sortBy',
+            'sortDir',
             'leadCustomFieldsData',
         ));
     }
@@ -2110,6 +2113,21 @@ class ClienteLeadController extends Controller
         }
 
         return $index - 1;
+    }
+
+    private function resolveLeadSort(Request $request): array
+    {
+        $sortBy = (string) $request->query('sort_by', 'created_at');
+        if (!in_array($sortBy, ['created_at', 'updated_at'], true)) {
+            $sortBy = 'created_at';
+        }
+
+        $sortDir = strtolower((string) $request->query('sort_dir', 'desc'));
+        if (!in_array($sortDir, ['asc', 'desc'], true)) {
+            $sortDir = 'desc';
+        }
+
+        return [$sortBy, $sortDir];
     }
 
     private function exportCsv(array $headers, array $rows): StreamedResponse

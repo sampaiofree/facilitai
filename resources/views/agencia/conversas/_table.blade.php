@@ -1,3 +1,25 @@
+@php
+    $currentSortBy = (string) request()->query('sort_by', 'created_at');
+    if (!in_array($currentSortBy, ['created_at', 'updated_at'], true)) {
+        $currentSortBy = 'created_at';
+    }
+
+    $currentSortDir = strtolower((string) request()->query('sort_dir', 'desc'));
+    if (!in_array($currentSortDir, ['asc', 'desc'], true)) {
+        $currentSortDir = 'desc';
+    }
+
+    $buildSortUrl = function (string $column) use ($currentSortBy, $currentSortDir): string {
+        $nextDir = $currentSortBy === $column && $currentSortDir === 'desc' ? 'asc' : 'desc';
+        $query = request()->query();
+        unset($query['page']);
+        $query['sort_by'] = $column;
+        $query['sort_dir'] = $nextDir;
+
+        return route('agencia.conversas.index', $query);
+    };
+@endphp
+
 <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
     <table class="min-w-full text-sm text-slate-600">
         <thead class="bg-slate-50 text-slate-400 text-[11px] uppercase tracking-wide">
@@ -7,8 +29,52 @@
                 <th class="px-5 py-3 text-left font-semibold">Telefone</th>
                 <th class="px-5 py-3 text-left font-semibold">Lead</th>
                 <th class="px-5 py-3 text-left font-semibold">Sequencias</th>
-                <th class="px-5 py-3 text-left font-semibold">Ultimo contato</th>
-                <th class="px-5 py-3 text-left font-semibold">Criado em</th>
+                <th class="px-5 py-3 text-left font-semibold">
+                    <a
+                        href="{{ $buildSortUrl('updated_at') }}"
+                        class="inline-flex items-center gap-1 hover:text-slate-600"
+                    >
+                        <span>Ultimo contato</span>
+                        @if($currentSortBy === 'updated_at')
+                            @if($currentSortDir === 'asc')
+                                <svg class="h-3 w-3 text-slate-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path fill-rule="evenodd" d="M10 4a1 1 0 0 1 .707.293l4 4a1 1 0 1 1-1.414 1.414L10 6.414 6.707 9.707a1 1 0 0 1-1.414-1.414l4-4A1 1 0 0 1 10 4Z" clip-rule="evenodd" />
+                                </svg>
+                            @else
+                                <svg class="h-3 w-3 text-slate-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path fill-rule="evenodd" d="M10 16a1 1 0 0 1-.707-.293l-4-4a1 1 0 1 1 1.414-1.414L10 13.586l3.293-3.293a1 1 0 1 1 1.414 1.414l-4 4A1 1 0 0 1 10 16Z" clip-rule="evenodd" />
+                                </svg>
+                            @endif
+                        @else
+                            <svg class="h-3 w-3 text-slate-300" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M10 4a1 1 0 0 1 .707.293l2.5 2.5a1 1 0 1 1-1.414 1.414L10 6.414 8.207 8.207A1 1 0 0 1 6.793 6.793l2.5-2.5A1 1 0 0 1 10 4Zm0 12a1 1 0 0 1-.707-.293l-2.5-2.5a1 1 0 0 1 1.414-1.414L10 13.586l1.793-1.793a1 1 0 0 1 1.414 1.414l-2.5 2.5A1 1 0 0 1 10 16Z" clip-rule="evenodd" />
+                            </svg>
+                        @endif
+                    </a>
+                </th>
+                <th class="px-5 py-3 text-left font-semibold">
+                    <a
+                        href="{{ $buildSortUrl('created_at') }}"
+                        class="inline-flex items-center gap-1 hover:text-slate-600"
+                    >
+                        <span>Criado em</span>
+                        @if($currentSortBy === 'created_at')
+                            @if($currentSortDir === 'asc')
+                                <svg class="h-3 w-3 text-slate-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path fill-rule="evenodd" d="M10 4a1 1 0 0 1 .707.293l4 4a1 1 0 1 1-1.414 1.414L10 6.414 6.707 9.707a1 1 0 0 1-1.414-1.414l4-4A1 1 0 0 1 10 4Z" clip-rule="evenodd" />
+                                </svg>
+                            @else
+                                <svg class="h-3 w-3 text-slate-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path fill-rule="evenodd" d="M10 16a1 1 0 0 1-.707-.293l-4-4a1 1 0 1 1 1.414-1.414L10 13.586l3.293-3.293a1 1 0 1 1 1.414 1.414l-4 4A1 1 0 0 1 10 16Z" clip-rule="evenodd" />
+                                </svg>
+                            @endif
+                        @else
+                            <svg class="h-3 w-3 text-slate-300" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M10 4a1 1 0 0 1 .707.293l2.5 2.5a1 1 0 1 1-1.414 1.414L10 6.414 8.207 8.207A1 1 0 0 1 6.793 6.793l2.5-2.5A1 1 0 0 1 10 4Zm0 12a1 1 0 0 1-.707-.293l-2.5-2.5a1 1 0 0 1 1.414-1.414L10 13.586l1.793-1.793a1 1 0 0 1 1.414 1.414l-2.5 2.5A1 1 0 0 1 10 16Z" clip-rule="evenodd" />
+                            </svg>
+                        @endif
+                    </a>
+                </th>
                 <th class="px-5 py-3 text-right font-semibold">Acoes</th>
             </tr>
         </thead>

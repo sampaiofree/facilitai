@@ -24,6 +24,8 @@
                 <div id="filtersMenu" class="hidden absolute right-0 mt-2 w-[90vw] max-w-[56rem] rounded-3xl border border-slate-200 bg-white p-4 shadow-lg">
                     <form method="GET" class="flex flex-wrap items-end gap-4 text-xs text-slate-500">
                         <input type="hidden" name="q" value="{{ request('q') }}">
+                        <input type="hidden" name="sort_by" value="{{ $sortBy }}">
+                        <input type="hidden" name="sort_dir" value="{{ $sortDir }}">
                         <div class="flex flex-1 min-w-[220px] flex-col gap-1" data-chip-select="filter-clients" data-input-name="cliente_id[]">
                             <span class="text-[10px] uppercase tracking-wide text-slate-400">Cliente</span>
                             <div class="flex flex-wrap gap-2" data-chip-list></div>
@@ -800,6 +802,8 @@
             const leadSearchClear = document.getElementById('leadSearchClear');
             const leadTableContainer = document.getElementById('leadTableContainer');
             const filtersQueryInput = filtersMenu?.querySelector('input[name="q"]');
+            const filtersSortByInput = filtersMenu?.querySelector('input[name="sort_by"]');
+            const filtersSortDirInput = filtersMenu?.querySelector('input[name="sort_dir"]');
             const convIdBaseUrl = @json(route('agencia.openai.conv_id'));
             const previewEmpty = document.getElementById('previewEmpty');
             const importMappingWrap = document.getElementById('importMappingWrap');
@@ -1214,6 +1218,20 @@
                 }
             };
 
+            const syncFiltersSortFromUrl = () => {
+                const params = new URL(window.location.href).searchParams;
+                const sortBy = params.get('sort_by') === 'updated_at' ? 'updated_at' : 'created_at';
+                const sortDir = params.get('sort_dir') === 'asc' ? 'asc' : 'desc';
+
+                if (filtersSortByInput) {
+                    filtersSortByInput.value = sortBy;
+                }
+
+                if (filtersSortDirInput) {
+                    filtersSortDirInput.value = sortDir;
+                }
+            };
+
             const fetchLeads = async (url, { pushState = false } = {}) => {
                 if (!leadTableContainer) {
                     return;
@@ -1238,6 +1256,8 @@
                     if (pushState) {
                         window.history.pushState({}, '', url);
                     }
+
+                    syncFiltersSortFromUrl();
                 } catch (error) {
                     if (pushState) {
                         window.location.href = url;
@@ -1306,6 +1326,8 @@
                 syncSearchInputFromUrl();
                 fetchLeads(window.location.href);
             });
+
+            syncFiltersSortFromUrl();
 
             const closeModal = () => {
                 modal?.classList.add('hidden');
