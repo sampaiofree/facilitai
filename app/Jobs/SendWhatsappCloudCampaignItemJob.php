@@ -87,6 +87,8 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
             'template' => $template,
             'lead' => $lead,
             'template_variables' => $this->resolveCampaignTemplateVariables($campaign, $lead),
+            'allow_empty_variables' => true,
+            'empty_variable_fallback' => ' ',
         ]);
 
         $attempts = max(1, (int) $this->attempts());

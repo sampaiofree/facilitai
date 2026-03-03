@@ -23,7 +23,9 @@ class WhatsappCloudTemplateSendService
      *   conexao:Conexao,
      *   template:WhatsappCloudTemplate,
      *   lead:ClienteLead,
-     *   template_variables?:array<string,mixed>
+     *   template_variables?:array<string,mixed>,
+     *   allow_empty_variables?:bool,
+     *   empty_variable_fallback?:string
      * } $payload
      * @return array{
      *   ok:bool,
@@ -45,6 +47,10 @@ class WhatsappCloudTemplateSendService
         $rawValues = is_array($payload['template_variables'] ?? null)
             ? $payload['template_variables']
             : [];
+        $allowEmptyVariables = (bool) ($payload['allow_empty_variables'] ?? false);
+        $emptyVariableFallback = array_key_exists('empty_variable_fallback', $payload)
+            ? (string) $payload['empty_variable_fallback']
+            : '';
 
         if (!$conexao instanceof Conexao || !$template instanceof WhatsappCloudTemplate || !$lead instanceof ClienteLead) {
             return $this->error(
@@ -119,7 +125,9 @@ class WhatsappCloudTemplateSendService
             $template,
             $lead,
             $userId,
-            $rawValues
+            $rawValues,
+            $allowEmptyVariables,
+            $emptyVariableFallback
         );
 
         if (!empty($missingVariables)) {
@@ -259,7 +267,9 @@ class WhatsappCloudTemplateSendService
         WhatsappCloudTemplate $template,
         ClienteLead $clienteLead,
         int $userId,
-        array $rawValues
+        array $rawValues,
+        bool $allowEmptyVariables = false,
+        string $emptyVariableFallback = ''
     ): array {
         $bodyVariables = $this->extractPlaceholderVariables((string) ($template->body_text ?? ''));
         $buttonVariables = [];
@@ -346,6 +356,10 @@ class WhatsappCloudTemplateSendService
             $value = $manual !== '' ? $manual : ($leadCustom !== '' ? $leadCustom : ($fallback !== '' ? $fallback : $default));
 
             if ($value === '') {
+                if ($allowEmptyVariables) {
+                    $resolved[$name] = $emptyVariableFallback;
+                    continue;
+                }
                 $missing[] = $name;
                 continue;
             }
@@ -479,7 +493,7 @@ class WhatsappCloudTemplateSendService
 
         return (string) preg_replace_callback('/\{([a-z0-9_]+)\}/', function (array $matches) use ($variables) {
             $name = (string) ($matches[1] ?? '');
-            $value = trim((string) ($variables[$name] ?? ''));
+            $value = (string) ($variables[$name] ?? '');
 
             return $value !== '' ? $value : $matches[0];
         }, $text);

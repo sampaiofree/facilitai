@@ -10,6 +10,7 @@ use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Models\Credential;
 use App\Models\Iamodelo;
+use App\Models\Sequence;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\WhatsappApi;
@@ -85,6 +86,12 @@ class WhatsappCloudController extends Controller
         $campaignTags = Tag::query()
             ->where('user_id', $user->id)
             ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 0 ELSE 1 END')
+            ->orderBy('name')
+            ->get(['id', 'name', 'cliente_id']);
+
+        $campaignSequences = Sequence::query()
+            ->where('user_id', $user->id)
+            ->with('cliente:id,nome')
             ->orderBy('name')
             ->get(['id', 'name', 'cliente_id']);
 
@@ -217,6 +224,7 @@ class WhatsappCloudController extends Controller
             'conexaoFilter' => $conexaoFilter,
             'campaignClientes' => $campaignClientes,
             'campaignTags' => $campaignTags,
+            'campaignSequences' => $campaignSequences,
             'campaignConexoes' => $campaignConexoes,
             'campaignTemplates' => $campaignTemplates,
             'campaignLeadCounts' => $campaignLeadCounts,
@@ -918,6 +926,10 @@ class WhatsappCloudController extends Controller
             'tag_include_ids.*' => ['integer'],
             'tag_exclude_ids' => ['nullable', 'array', 'max:200'],
             'tag_exclude_ids.*' => ['integer'],
+            'sequence_include_ids' => ['nullable', 'array', 'max:200'],
+            'sequence_include_ids.*' => ['integer'],
+            'sequence_exclude_ids' => ['nullable', 'array', 'max:200'],
+            'sequence_exclude_ids.*' => ['integer'],
             'conexao_id' => ['required', 'integer'],
             'whatsapp_cloud_template_id' => ['required', 'integer'],
             'template_variable_bindings' => ['nullable', 'array', 'max:100'],
@@ -936,8 +948,15 @@ class WhatsappCloudController extends Controller
             $userId,
             $clienteId
         );
+        $sequenceFilters = $this->resolveCampaignSequenceFilters(
+            (array) ($data['sequence_include_ids'] ?? []),
+            (array) ($data['sequence_exclude_ids'] ?? []),
+            $userId
+        );
         $includedTagIds = $tagFilters['include'];
         $excludedTagIds = $tagFilters['exclude'];
+        $includedSequenceIds = $sequenceFilters['include'];
+        $excludedSequenceIds = $sequenceFilters['exclude'];
 
         $conexao = $this->ownedCloudConexoesQuery($userId)
             ->whereNull('deleted_at')
@@ -1021,7 +1040,13 @@ class WhatsappCloudController extends Controller
             }
         }
 
-        $leadsQuery = $this->buildCampaignLeadsQuery($clienteId, $includedTagIds, $excludedTagIds);
+        $leadsQuery = $this->buildCampaignLeadsQuery(
+            $clienteId,
+            $includedTagIds,
+            $excludedTagIds,
+            $includedSequenceIds,
+            $excludedSequenceIds
+        );
 
         $totalLeads = (clone $leadsQuery)->count();
         if ($totalLeads <= 0) {
@@ -1061,6 +1086,8 @@ class WhatsappCloudController extends Controller
             $leadsQuery,
             $includedTagIds,
             $excludedTagIds,
+            $includedSequenceIds,
+            $excludedSequenceIds,
             $nowUtc
         ): void {
             $campaign = WhatsappCloudCampaign::create([
@@ -1081,10 +1108,16 @@ class WhatsappCloudController extends Controller
                     'template_variable_bindings' => $templateVariableBindings,
                 ],
                 'filter_payload' => [
-                    'source' => empty($includedTagIds) && empty($excludedTagIds) ? 'cliente_all_leads' : 'cliente_tags',
+                    'source' => empty($includedTagIds) && empty($excludedTagIds) && empty($includedSequenceIds) && empty($excludedSequenceIds)
+                        ? 'cliente_all_leads'
+                        : 'cliente_filters',
                     'tags' => [
                         'include' => $includedTagIds,
                         'exclude' => $excludedTagIds,
+                    ],
+                    'sequences' => [
+                        'include' => $includedSequenceIds,
+                        'exclude' => $excludedSequenceIds,
                     ],
                     'rules' => [
                         'include_logic' => 'or',
@@ -1165,6 +1198,10 @@ class WhatsappCloudController extends Controller
             'tag_include_ids.*' => ['integer'],
             'tag_exclude_ids' => ['nullable', 'array', 'max:200'],
             'tag_exclude_ids.*' => ['integer'],
+            'sequence_include_ids' => ['nullable', 'array', 'max:200'],
+            'sequence_include_ids.*' => ['integer'],
+            'sequence_exclude_ids' => ['nullable', 'array', 'max:200'],
+            'sequence_exclude_ids.*' => ['integer'],
         ]);
 
         $clienteId = (int) $data['cliente_id'];
@@ -1174,7 +1211,19 @@ class WhatsappCloudController extends Controller
             $userId,
             $clienteId
         );
-        $count = $this->buildCampaignLeadsQuery($clienteId, $tagFilters['include'], $tagFilters['exclude'])->count();
+        $sequenceFilters = $this->resolveCampaignSequenceFilters(
+            (array) ($data['sequence_include_ids'] ?? []),
+            (array) ($data['sequence_exclude_ids'] ?? []),
+            $userId
+        );
+
+        $count = $this->buildCampaignLeadsQuery(
+            $clienteId,
+            $tagFilters['include'],
+            $tagFilters['exclude'],
+            $sequenceFilters['include'],
+            $sequenceFilters['exclude']
+        )->count();
 
         return response()->json([
             'count' => (int) $count,
@@ -2253,7 +2302,13 @@ class WhatsappCloudController extends Controller
             ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'whatsapp_cloud'));
     }
 
-    private function buildCampaignLeadsQuery(int $clienteId, array $includeTagIds, array $excludeTagIds = [])
+    private function buildCampaignLeadsQuery(
+        int $clienteId,
+        array $includeTagIds,
+        array $excludeTagIds = [],
+        array $includeSequenceIds = [],
+        array $excludeSequenceIds = []
+    )
     {
         $query = ClienteLead::query()
             ->where('cliente_id', $clienteId)
@@ -2269,6 +2324,18 @@ class WhatsappCloudController extends Controller
         if (!empty($excludeTagIds)) {
             $query->whereDoesntHave('tags', function ($builder) use ($excludeTagIds): void {
                 $builder->whereIn('tags.id', $excludeTagIds);
+            });
+        }
+
+        if (!empty($includeSequenceIds)) {
+            $query->whereHas('sequenceChats', function ($builder) use ($includeSequenceIds): void {
+                $builder->whereIn('sequence_id', $includeSequenceIds);
+            });
+        }
+
+        if (!empty($excludeSequenceIds)) {
+            $query->whereDoesntHave('sequenceChats', function ($builder) use ($excludeSequenceIds): void {
+                $builder->whereIn('sequence_id', $excludeSequenceIds);
             });
         }
 
@@ -2320,6 +2387,56 @@ class WhatsappCloudController extends Controller
         if (!empty($conflicts)) {
             throw ValidationException::withMessages([
                 'tag_include_ids' => ['A mesma tag não pode estar em "é" e "não é" ao mesmo tempo.'],
+            ]);
+        }
+
+        return [
+            'include' => $include,
+            'exclude' => $exclude,
+        ];
+    }
+
+    private function resolveCampaignSequenceIds(array $sequenceIds, int $userId, string $errorField = 'sequence_ids'): array
+    {
+        $normalized = collect($sequenceIds)
+            ->map(fn ($value) => (int) $value)
+            ->filter(fn (int $value) => $value > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($normalized)) {
+            return [];
+        }
+
+        $resolved = Sequence::query()
+            ->where('user_id', $userId)
+            ->whereIn('id', $normalized)
+            ->pluck('id')
+            ->map(fn ($value) => (int) $value)
+            ->all();
+
+        if (count($resolved) !== count($normalized)) {
+            throw ValidationException::withMessages([
+                $errorField => ['Uma ou mais sequencias selecionadas são inválidas.'],
+            ]);
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @return array{include:array<int,int>,exclude:array<int,int>}
+     */
+    private function resolveCampaignSequenceFilters(array $includeSequenceIds, array $excludeSequenceIds, int $userId): array
+    {
+        $include = $this->resolveCampaignSequenceIds($includeSequenceIds, $userId, 'sequence_include_ids');
+        $exclude = $this->resolveCampaignSequenceIds($excludeSequenceIds, $userId, 'sequence_exclude_ids');
+
+        $conflicts = array_values(array_intersect($include, $exclude));
+        if (!empty($conflicts)) {
+            throw ValidationException::withMessages([
+                'sequence_include_ids' => ['A mesma sequencia não pode estar em "adicionar" e "remover" ao mesmo tempo.'],
             ]);
         }
 

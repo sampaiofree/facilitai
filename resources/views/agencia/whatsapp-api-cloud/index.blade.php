@@ -347,20 +347,44 @@
                                                 $campaignTagExcludeIds = collect(data_get($campaign->filter_payload, 'tags.exclude', []))
                                                     ->filter(fn ($value) => is_numeric($value))
                                                     ->values();
+                                                $campaignSequenceIncludeIds = collect(data_get($campaign->filter_payload, 'sequences.include', []))
+                                                    ->filter(fn ($value) => is_numeric($value))
+                                                    ->values();
+                                                $campaignSequenceExcludeIds = collect(data_get($campaign->filter_payload, 'sequences.exclude', []))
+                                                    ->filter(fn ($value) => is_numeric($value))
+                                                    ->values();
                                             @endphp
                                             <p class="text-xs text-slate-500">
                                                 Público:
-                                                @if($campaignTagIncludeIds->isEmpty() && $campaignTagExcludeIds->isEmpty())
+                                                @if($campaignTagIncludeIds->isEmpty() && $campaignTagExcludeIds->isEmpty() && $campaignSequenceIncludeIds->isEmpty() && $campaignSequenceExcludeIds->isEmpty())
                                                     Todos os leads do cliente
                                                 @else
-                                                    @if($campaignTagIncludeIds->isNotEmpty())
-                                                        é ({{ $campaignTagIncludeIds->count() }})
+                                                    @if($campaignTagIncludeIds->isNotEmpty() || $campaignTagExcludeIds->isNotEmpty())
+                                                        Tags:
+                                                        @if($campaignTagIncludeIds->isNotEmpty())
+                                                            é ({{ $campaignTagIncludeIds->count() }})
+                                                        @endif
+                                                        @if($campaignTagIncludeIds->isNotEmpty() && $campaignTagExcludeIds->isNotEmpty())
+                                                            •
+                                                        @endif
+                                                        @if($campaignTagExcludeIds->isNotEmpty())
+                                                            não é ({{ $campaignTagExcludeIds->count() }})
+                                                        @endif
                                                     @endif
-                                                    @if($campaignTagIncludeIds->isNotEmpty() && $campaignTagExcludeIds->isNotEmpty())
-                                                        •
+                                                    @if(($campaignTagIncludeIds->isNotEmpty() || $campaignTagExcludeIds->isNotEmpty()) && ($campaignSequenceIncludeIds->isNotEmpty() || $campaignSequenceExcludeIds->isNotEmpty()))
+                                                        |
                                                     @endif
-                                                    @if($campaignTagExcludeIds->isNotEmpty())
-                                                        não é ({{ $campaignTagExcludeIds->count() }})
+                                                    @if($campaignSequenceIncludeIds->isNotEmpty() || $campaignSequenceExcludeIds->isNotEmpty())
+                                                        Sequências:
+                                                        @if($campaignSequenceIncludeIds->isNotEmpty())
+                                                            adicionar ({{ $campaignSequenceIncludeIds->count() }})
+                                                        @endif
+                                                        @if($campaignSequenceIncludeIds->isNotEmpty() && $campaignSequenceExcludeIds->isNotEmpty())
+                                                            •
+                                                        @endif
+                                                        @if($campaignSequenceExcludeIds->isNotEmpty())
+                                                            remover ({{ $campaignSequenceExcludeIds->count() }})
+                                                        @endif
                                                     @endif
                                                 @endif
                                             </p>
@@ -669,6 +693,12 @@
         $oldCampaignTagExcludeIds = collect(old('tag_exclude_ids', []))
             ->map(fn ($value) => (string) $value)
             ->all();
+        $oldCampaignSequenceIncludeIds = collect(old('sequence_include_ids', []))
+            ->map(fn ($value) => (string) $value)
+            ->all();
+        $oldCampaignSequenceExcludeIds = collect(old('sequence_exclude_ids', []))
+            ->map(fn ($value) => (string) $value)
+            ->all();
     @endphp
 
     <div id="campaignModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 px-4 py-6">
@@ -733,93 +763,138 @@
 
                     <div>
                         <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Filtros (opcional)</label>
-                        <div id="campaignTagsPicker" class="mt-1">
-                            <div class="relative">
-                                <button
-                                    type="button"
-                                    id="campaignFiltersToggle"
-                                    class="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                                >
-                                    Filtros
-                                </button>
-                                <div id="campaignFiltersDropdown" class="absolute left-0 z-20 mt-2 hidden w-full rounded-xl border border-slate-200 bg-white shadow-xl">
-                                    <div class="border-b border-slate-100 p-2">
-                                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Opções</p>
-                                        <button
-                                            type="button"
-                                            class="mt-2 inline-flex items-center rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700"
-                                        >
-                                            Tags
-                                        </button>
-                                    </div>
-                                    <div class="space-y-2 p-2">
-                                        <div class="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
-                                            <button
-                                                type="button"
-                                                id="campaignTagModeInclude"
-                                                class="rounded-md bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm"
-                                            >é</button>
-                                            <button
-                                                type="button"
-                                                id="campaignTagModeExclude"
-                                                class="rounded-md px-3 py-1 text-xs font-semibold text-slate-600"
-                                            >não é</button>
-                                        </div>
-                                        <input
-                                            id="campaignTagsSearch"
-                                            type="search"
-                                            placeholder="Buscar tag"
-                                            class="w-full rounded-lg border-slate-200 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                        >
-                                        <div id="campaignTagsOptions" class="max-h-56 space-y-1 overflow-auto">
-                                            @forelse($campaignTags as $tag)
-                                                <button
-                                                    type="button"
-                                                    data-campaign-tag-option
-                                                    data-value="{{ $tag->id }}"
-                                                    data-cliente-id="{{ $tag->cliente_id ?? '' }}"
-                                                    data-label="{{ $tag->name }}"
-                                                    class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                                                >
-                                                    <span>{{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}</span>
-                                                    <span data-campaign-tag-action class="text-[11px] font-semibold text-blue-600">Selecionar</span>
-                                                </button>
-                                            @empty
-                                                <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
-                                            @endforelse
-                                            <div id="campaignTagsOptionsEmpty" class="hidden px-3 py-2 text-xs text-slate-400">Nenhuma tag disponível para o cliente selecionado.</div>
-                                        </div>
-                                        <p class="text-[11px] text-slate-500">Operador atual: <span id="campaignTagModeLabel" class="font-semibold text-slate-700">é</span></p>
+                        <div class="mt-2 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div class="flex flex-col gap-2" data-campaign-mode-filter data-filter-scope="tags" data-input-add-name="tag_include_ids[]" data-input-remove-name="tag_exclude_ids[]">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-[10px] uppercase tracking-wide text-slate-400">Tags</span>
+                                    <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="add"></div>
+                                    <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="remove"></div>
+                                </div>
+                                <div class="relative">
+                                    <input
+                                        type="search"
+                                        data-campaign-search
+                                        placeholder="Buscar tag"
+                                        class="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                    >
+                                    <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-campaign-options>
+                                        @forelse($campaignTags as $tag)
+                                            <div
+                                                data-campaign-option
+                                                data-value="{{ $tag->id }}"
+                                                data-label="{{ $tag->name }}"
+                                                data-cliente-id="{{ $tag->cliente_id ?? '' }}"
+                                                class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+                                            >
+                                                <span class="truncate">{{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}</span>
+                                                <div class="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        data-campaign-option-action="add"
+                                                        class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                                                    >
+                                                        Adicionar
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        data-campaign-option-action="remove"
+                                                        class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700"
+                                                    >
+                                                        Remover
+                                                    </button>
+                                                    <span data-campaign-option-status class="text-[10px] text-slate-400">{{ $tag->cliente_id ? 'Tag do cliente' : 'Tag global' }}</span>
+                                                </div>
+                                            </div>
+                                        @empty
+                                            <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
+                                        @endforelse
+                                        <div class="hidden px-3 py-2 text-xs text-slate-400" data-campaign-options-empty>Nenhuma tag disponível para o cliente selecionado.</div>
                                     </div>
                                 </div>
+                                <div class="hidden" data-campaign-inputs-add>
+                                    @foreach($oldCampaignTagIncludeIds as $tagId)
+                                        <input type="hidden" name="tag_include_ids[]" value="{{ $tagId }}">
+                                    @endforeach
+                                </div>
+                                <div class="hidden" data-campaign-inputs-remove>
+                                    @foreach($oldCampaignTagExcludeIds as $tagId)
+                                        <input type="hidden" name="tag_exclude_ids[]" value="{{ $tagId }}">
+                                    @endforeach
+                                </div>
                             </div>
-                            <div id="campaignTagsPills" class="mt-2 flex flex-wrap items-center gap-2"></div>
+
+                            <div class="h-px w-full bg-slate-200"></div>
+
+                            <div class="flex flex-col gap-2" data-campaign-mode-filter data-filter-scope="sequences" data-input-add-name="sequence_include_ids[]" data-input-remove-name="sequence_exclude_ids[]">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-[10px] uppercase tracking-wide text-slate-400">Sequências</span>
+                                    <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="add"></div>
+                                    <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="remove"></div>
+                                </div>
+                                <div class="relative">
+                                    <input
+                                        type="search"
+                                        data-campaign-search
+                                        placeholder="Buscar sequência"
+                                        class="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                    >
+                                    <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-campaign-options>
+                                        @forelse($campaignSequences as $sequence)
+                                            @php
+                                                $campaignSequenceLabel = $sequence->name . ($sequence->cliente?->nome ? ' (' . $sequence->cliente->nome . ')' : '');
+                                            @endphp
+                                            <div
+                                                data-campaign-option
+                                                data-value="{{ $sequence->id }}"
+                                                data-label="{{ $campaignSequenceLabel }}"
+                                                class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+                                            >
+                                                <span class="truncate">{{ $sequence->name }}</span>
+                                                <div class="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        data-campaign-option-action="add"
+                                                        class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                                                    >
+                                                        Adicionar
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        data-campaign-option-action="remove"
+                                                        class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700"
+                                                    >
+                                                        Remover
+                                                    </button>
+                                                    <span data-campaign-option-status class="text-[10px] text-slate-400">
+                                                        {{ $sequence->cliente?->nome ? 'Cliente: ' . $sequence->cliente->nome : 'Sem cliente' }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        @empty
+                                            <div class="px-3 py-2 text-xs text-slate-400">Nenhuma sequência cadastrada.</div>
+                                        @endforelse
+                                        <div class="hidden px-3 py-2 text-xs text-slate-400" data-campaign-options-empty>Nenhuma sequência disponível.</div>
+                                    </div>
+                                </div>
+                                <div class="hidden" data-campaign-inputs-add>
+                                    @foreach($oldCampaignSequenceIncludeIds as $sequenceId)
+                                        <input type="hidden" name="sequence_include_ids[]" value="{{ $sequenceId }}">
+                                    @endforeach
+                                </div>
+                                <div class="hidden" data-campaign-inputs-remove>
+                                    @foreach($oldCampaignSequenceExcludeIds as $sequenceId)
+                                        <input type="hidden" name="sequence_exclude_ids[]" value="{{ $sequenceId }}">
+                                    @endforeach
+                                </div>
+                            </div>
                         </div>
-                        <select id="campaignTagIncludeIds" name="tag_include_ids[]" multiple class="hidden">
-                            @foreach($campaignTags as $tag)
-                                <option
-                                    value="{{ $tag->id }}"
-                                    data-cliente-id="{{ $tag->cliente_id ?? '' }}"
-                                    data-label="{{ $tag->name }}"
-                                    @selected(in_array((string) $tag->id, $oldCampaignTagIncludeIds, true))
-                                >
-                                    {{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <select id="campaignTagExcludeIds" name="tag_exclude_ids[]" multiple class="hidden">
-                            @foreach($campaignTags as $tag)
-                                <option
-                                    value="{{ $tag->id }}"
-                                    data-cliente-id="{{ $tag->cliente_id ?? '' }}"
-                                    data-label="{{ $tag->name }}"
-                                    @selected(in_array((string) $tag->id, $oldCampaignTagExcludeIds, true))
-                                >
-                                    {{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <p class="mt-1 text-xs text-slate-500">Sem filtros por tag: envia para todos os leads com telefone do cliente escolhido.</p>
+                        <p class="mt-1 text-xs text-slate-500">Sem filtros por tag ou sequência: envia para todos os leads com telefone do cliente escolhido.</p>
                     </div>
 
                     <div>
@@ -1038,17 +1113,8 @@
             const campaignCloseButtons = campaignModal?.querySelectorAll('[data-campaign-close]') || [];
             const campaignForm = document.getElementById('campaignForm');
             const campaignCliente = document.getElementById('campaignCliente');
-            const campaignTagsPills = document.getElementById('campaignTagsPills');
-            const campaignFiltersToggle = document.getElementById('campaignFiltersToggle');
-            const campaignFiltersDropdown = document.getElementById('campaignFiltersDropdown');
-            const campaignTagModeInclude = document.getElementById('campaignTagModeInclude');
-            const campaignTagModeExclude = document.getElementById('campaignTagModeExclude');
-            const campaignTagModeLabel = document.getElementById('campaignTagModeLabel');
-            const campaignTagsSearch = document.getElementById('campaignTagsSearch');
-            const campaignTagsOptions = document.getElementById('campaignTagsOptions');
-            const campaignTagsOptionsEmpty = document.getElementById('campaignTagsOptionsEmpty');
-            const campaignTagIncludeIds = document.getElementById('campaignTagIncludeIds');
-            const campaignTagExcludeIds = document.getElementById('campaignTagExcludeIds');
+            const campaignModeFilterRoots = Array.from(campaignModal?.querySelectorAll('[data-campaign-mode-filter]') || []);
+            const campaignModeFilterApis = {};
             const campaignConexao = document.getElementById('campaignConexao');
             const campaignTemplate = document.getElementById('campaignTemplate');
             const campaignMode = document.getElementById('campaignMode');
@@ -1076,7 +1142,6 @@
             let campaignTemplateBindingsSeed = (hasErrors && oldActiveTab === 'campaigns' && oldCampaignTemplateBindings && typeof oldCampaignTemplateBindings === 'object')
                 ? oldCampaignTemplateBindings
                 : {};
-            let campaignCurrentTagMode = 'include';
 
             let lastFocusedInput = templateBody;
             let variableExampleSeed = {};
@@ -1755,190 +1820,373 @@
                 }
             };
 
-            const selectedCampaignTagIds = (mode = 'include') => {
-                const select = mode === 'exclude' ? campaignTagExcludeIds : campaignTagIncludeIds;
-                if (!select) {
-                    return [];
+            const resolveCampaignFilterScope = (root) => String(root?.dataset?.filterScope || '').trim().toLowerCase();
+
+            const campaignFilterOptionAllowed = (root, option) => {
+                const scope = resolveCampaignFilterScope(root);
+                if (scope !== 'tags') {
+                    return true;
                 }
 
-                return Array.from(select.selectedOptions)
-                    .map((option) => option.value)
-                    .filter((value) => value !== '');
+                const clienteId = campaignCliente?.value || '';
+                if (!clienteId) {
+                    return false;
+                }
+
+                const optionClienteId = String(option.dataset.clienteId || '').trim();
+                return optionClienteId === '' || optionClienteId === clienteId;
             };
 
-            const findCampaignTagSelectOption = (value, mode = 'include') => {
-                const select = mode === 'exclude' ? campaignTagExcludeIds : campaignTagIncludeIds;
-                if (!select || !value) {
+            const initCampaignModeFilter = (root, onChange) => {
+                if (!root) {
                     return null;
                 }
 
-                return Array.from(select.options).find((option) => option.value === value) || null;
-            };
+                const search = root.querySelector('[data-campaign-search]');
+                const optionsWrap = root.querySelector('[data-campaign-options]');
+                const options = Array.from(root.querySelectorAll('[data-campaign-option]'));
+                const addChipList = root.querySelector('[data-campaign-chip-list="add"]');
+                const removeChipList = root.querySelector('[data-campaign-chip-list="remove"]');
+                const addInputsWrap = root.querySelector('[data-campaign-inputs-add]');
+                const removeInputsWrap = root.querySelector('[data-campaign-inputs-remove]');
+                const emptyState = root.querySelector('[data-campaign-options-empty]');
 
-            const setCampaignTagMode = (mode) => {
-                campaignCurrentTagMode = mode === 'exclude' ? 'exclude' : 'include';
-
-                const includeActive = campaignCurrentTagMode === 'include';
-                campaignTagModeInclude?.classList.toggle('bg-white', includeActive);
-                campaignTagModeInclude?.classList.toggle('text-slate-700', includeActive);
-                campaignTagModeInclude?.classList.toggle('shadow-sm', includeActive);
-                campaignTagModeInclude?.classList.toggle('text-slate-600', !includeActive);
-
-                campaignTagModeExclude?.classList.toggle('bg-white', !includeActive);
-                campaignTagModeExclude?.classList.toggle('text-slate-700', !includeActive);
-                campaignTagModeExclude?.classList.toggle('shadow-sm', !includeActive);
-                campaignTagModeExclude?.classList.toggle('text-slate-600', includeActive);
-
-                if (campaignTagModeLabel) {
-                    campaignTagModeLabel.textContent = includeActive ? 'é' : 'não é';
+                if (!addChipList || !removeChipList || !addInputsWrap || !removeInputsWrap) {
+                    return null;
                 }
 
-                syncCampaignTagOptionStates();
-            };
+                const addInputName = root.dataset.inputAddName || 'tag_include_ids[]';
+                const removeInputName = root.dataset.inputRemoveName || 'tag_exclude_ids[]';
 
-            const renderCampaignTagPills = () => {
-                if (!campaignTagsPills) {
-                    return;
-                }
-
-                campaignTagsPills.innerHTML = '';
-                const includeOptions = campaignTagIncludeIds
-                    ? Array.from(campaignTagIncludeIds.selectedOptions).filter((option) => option.value !== '')
-                    : [];
-                const excludeOptions = campaignTagExcludeIds
-                    ? Array.from(campaignTagExcludeIds.selectedOptions).filter((option) => option.value !== '')
-                    : [];
-
-                if (includeOptions.length === 0 && excludeOptions.length === 0) {
-                    return;
-                }
-
-                const appendPill = (option, mode) => {
-                    const prefix = mode === 'exclude' ? 'não é' : 'é';
-                    const baseClass = mode === 'exclude'
-                        ? 'inline-flex items-center gap-2 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700'
-                        : 'inline-flex items-center gap-2 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700';
-                    const closeClass = mode === 'exclude'
-                        ? 'inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-200 text-[10px] font-bold text-rose-700 hover:bg-rose-300'
-                        : 'inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-200 text-[10px] font-bold text-emerald-700 hover:bg-emerald-300';
-
-                    const pill = document.createElement('span');
-                    pill.className = baseClass;
-                    pill.textContent = `${prefix}: ${option.dataset.label || option.textContent || option.value}`;
-
-                    const removeButton = document.createElement('button');
-                    removeButton.type = 'button';
-                    removeButton.dataset.removeCampaignTag = option.value;
-                    removeButton.dataset.mode = mode;
-                    removeButton.className = closeClass;
-                    removeButton.textContent = 'x';
-                    pill.appendChild(removeButton);
-
-                    campaignTagsPills.appendChild(pill);
+                const inputWrapByMode = {
+                    add: addInputsWrap,
+                    remove: removeInputsWrap,
                 };
 
-                includeOptions.forEach((option) => appendPill(option, 'include'));
-                excludeOptions.forEach((option) => appendPill(option, 'exclude'));
-            };
+                const chipListByMode = {
+                    add: addChipList,
+                    remove: removeChipList,
+                };
 
-            const syncCampaignTagOptionStates = () => {
-                if (!campaignTagsOptions || !campaignTagIncludeIds || !campaignTagExcludeIds) {
-                    return;
-                }
-
-                const searchTerm = (campaignTagsSearch?.value || '').toLowerCase().trim();
-                const optionButtons = campaignTagsOptions.querySelectorAll('[data-campaign-tag-option]');
-                if (optionButtons.length === 0) {
-                    if (campaignTagsOptionsEmpty) {
-                        campaignTagsOptionsEmpty.classList.add('hidden');
+                let suppressNotify = false;
+                const notifyChange = () => {
+                    if (!suppressNotify && typeof onChange === 'function') {
+                        onChange();
                     }
-                    return;
-                }
+                };
 
-                let visibleCount = 0;
+                const normalizeMode = (mode) => mode === 'remove' ? 'remove' : 'add';
 
-                optionButtons.forEach((button) => {
-                    const value = button.dataset.value || '';
-                    const includeOption = findCampaignTagSelectOption(value, 'include');
-                    const excludeOption = findCampaignTagSelectOption(value, 'exclude');
-                    const selectedInInclude = Boolean(includeOption?.selected);
-                    const selectedInExclude = Boolean(excludeOption?.selected);
-                    const selectedInActive = campaignCurrentTagMode === 'exclude' ? selectedInExclude : selectedInInclude;
-                    const allowed = Boolean(includeOption && !includeOption.hidden && !includeOption.disabled);
-                    const label = (button.dataset.label || '').toLowerCase();
-                    const matchesSearch = searchTerm === '' || label.includes(searchTerm);
-                    const visible = allowed && matchesSearch;
+                const getSelectedValues = (mode) => {
+                    const normalizedMode = normalizeMode(mode);
+                    return Array.from(inputWrapByMode[normalizedMode].querySelectorAll('input'))
+                        .map((input) => String(input.value))
+                        .filter((value) => value !== '');
+                };
 
-                    button.classList.toggle('hidden', !visible);
-                    button.classList.toggle('bg-blue-50', campaignCurrentTagMode === 'include' && selectedInActive);
-                    button.classList.toggle('bg-rose-50', campaignCurrentTagMode === 'exclude' && selectedInActive);
+                const findOptionByValue = (value) => options.find((item) => String(item.dataset.value || '') === String(value)) || null;
 
-                    const action = button.querySelector('[data-campaign-tag-action]');
-                    if (action) {
-                        action.textContent = selectedInActive ? 'Remover' : 'Selecionar';
-                    }
-
-                    if (visible) {
-                        visibleCount++;
+                options.forEach((option) => {
+                    const status = option.querySelector('[data-campaign-option-status]');
+                    if (status && !status.dataset.defaultLabel) {
+                        status.dataset.defaultLabel = (status.textContent || '').trim() || 'Selecionar';
                     }
                 });
 
-                if (campaignTagsOptionsEmpty) {
-                    campaignTagsOptionsEmpty.classList.toggle('hidden', visibleCount > 0);
-                }
-            };
+                const syncOptionsVisibility = () => {
+                    const term = (search?.value || '').toLowerCase().trim();
+                    const selectedAdd = new Set(getSelectedValues('add'));
+                    const selectedRemove = new Set(getSelectedValues('remove'));
+                    let visibleCount = 0;
 
-            const toggleCampaignTagSelection = (value) => {
-                const currentOption = findCampaignTagSelectOption(value, campaignCurrentTagMode);
-                if (!currentOption || currentOption.disabled || currentOption.hidden) {
-                    return;
-                }
+                    options.forEach((option) => {
+                        const value = String(option.dataset.value || '');
+                        const label = (option.dataset.label || '').toLowerCase();
+                        const matchesSearch = term === '' || label.includes(term);
+                        const allowed = campaignFilterOptionAllowed(root, option);
+                        const visible = allowed && matchesSearch;
 
-                const nextSelected = !currentOption.selected;
-                currentOption.selected = nextSelected;
+                        option.classList.toggle('hidden', !visible);
 
-                if (nextSelected) {
-                    const oppositeMode = campaignCurrentTagMode === 'exclude' ? 'include' : 'exclude';
-                    const oppositeOption = findCampaignTagSelectOption(value, oppositeMode);
-                    if (oppositeOption) {
-                        oppositeOption.selected = false;
-                    }
-                }
+                        const status = option.querySelector('[data-campaign-option-status]');
+                        const addActionButton = option.querySelector('[data-campaign-option-action="add"]');
+                        const removeActionButton = option.querySelector('[data-campaign-option-action="remove"]');
 
-                renderCampaignTagPills();
-                syncCampaignTagOptionStates();
-                updateCampaignLeadCount();
-            };
-
-            const updateCampaignTagOptions = () => {
-                if (!campaignTagIncludeIds || !campaignTagExcludeIds || !campaignCliente) {
-                    return;
-                }
-
-                const clienteId = campaignCliente.value || '';
-                const updateSelectOptions = (select) => {
-                    Array.from(select.options).forEach((option) => {
-                        if (!option.value) {
-                            option.hidden = false;
-                            option.disabled = false;
-                            return;
+                        if (selectedAdd.has(value)) {
+                            status && (status.textContent = 'Adicionar');
+                            if (status) {
+                                status.className = 'text-[10px] font-semibold text-emerald-600';
+                            }
+                            if (addActionButton) {
+                                addActionButton.disabled = true;
+                                addActionButton.classList.add('opacity-60', 'pointer-events-none');
+                            }
+                            if (removeActionButton) {
+                                removeActionButton.disabled = false;
+                                removeActionButton.classList.remove('opacity-60', 'pointer-events-none');
+                            }
+                        } else if (selectedRemove.has(value)) {
+                            status && (status.textContent = 'Remover');
+                            if (status) {
+                                status.className = 'text-[10px] font-semibold text-rose-600';
+                            }
+                            if (addActionButton) {
+                                addActionButton.disabled = false;
+                                addActionButton.classList.remove('opacity-60', 'pointer-events-none');
+                            }
+                            if (removeActionButton) {
+                                removeActionButton.disabled = true;
+                                removeActionButton.classList.add('opacity-60', 'pointer-events-none');
+                            }
+                        } else {
+                            if (status) {
+                                status.textContent = status.dataset.defaultLabel || 'Selecionar';
+                                status.className = 'text-[10px] text-slate-400';
+                            }
+                            if (addActionButton) {
+                                addActionButton.disabled = false;
+                                addActionButton.classList.remove('opacity-60', 'pointer-events-none');
+                            }
+                            if (removeActionButton) {
+                                removeActionButton.disabled = false;
+                                removeActionButton.classList.remove('opacity-60', 'pointer-events-none');
+                            }
                         }
 
-                        const optionClienteId = option.dataset.clienteId || '';
-                        const allowed = clienteId !== '' && (optionClienteId === '' || optionClienteId === clienteId);
-                        option.hidden = !allowed;
-                        option.disabled = !allowed;
-
-                        if (!allowed && option.selected) {
-                            option.selected = false;
+                        if (visible) {
+                            visibleCount++;
                         }
                     });
+
+                    if (emptyState) {
+                        emptyState.classList.toggle('hidden', visibleCount > 0);
+                    }
                 };
 
-                updateSelectOptions(campaignTagIncludeIds);
-                updateSelectOptions(campaignTagExcludeIds);
-                renderCampaignTagPills();
-                syncCampaignTagOptionStates();
+                const appendHiddenInput = (mode, value) => {
+                    const normalizedMode = normalizeMode(mode);
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = normalizedMode === 'add' ? addInputName : removeInputName;
+                    input.value = value;
+                    inputWrapByMode[normalizedMode].appendChild(input);
+                };
+
+                const removeChip = (mode, value) => {
+                    const normalizedMode = normalizeMode(mode);
+                    const input = inputWrapByMode[normalizedMode].querySelector(`input[value="${value}"]`);
+                    if (input) {
+                        input.remove();
+                    }
+
+                    const chip = chipListByMode[normalizedMode].querySelector(`[data-campaign-chip-value="${value}"]`);
+                    if (chip) {
+                        chip.remove();
+                    }
+
+                    syncOptionsVisibility();
+                    notifyChange();
+                };
+
+                const addChip = (mode, value, label) => {
+                    const normalizedMode = normalizeMode(mode);
+                    const oppositeMode = normalizedMode === 'add' ? 'remove' : 'add';
+                    const normalizedValue = String(value || '').trim();
+                    if (!normalizedValue) {
+                        return;
+                    }
+
+                    const option = findOptionByValue(normalizedValue);
+                    if (!option || !campaignFilterOptionAllowed(root, option)) {
+                        return;
+                    }
+
+                    const oppositeInput = inputWrapByMode[oppositeMode].querySelector(`input[value="${normalizedValue}"]`);
+                    if (oppositeInput) {
+                        const previousSuppressNotify = suppressNotify;
+                        suppressNotify = true;
+                        removeChip(oppositeMode, normalizedValue);
+                        suppressNotify = previousSuppressNotify;
+                    }
+
+                    if (inputWrapByMode[normalizedMode].querySelector(`input[value="${normalizedValue}"]`)) {
+                        syncOptionsVisibility();
+                        notifyChange();
+                        return;
+                    }
+
+                    appendHiddenInput(normalizedMode, normalizedValue);
+
+                    const chip = document.createElement('span');
+                    chip.dataset.campaignChipValue = normalizedValue;
+                    chip.className = normalizedMode === 'add'
+                        ? 'inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-700'
+                        : 'inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-medium text-rose-700';
+
+                    const chipLabel = document.createElement('span');
+                    chipLabel.textContent = label;
+                    chip.appendChild(chipLabel);
+
+                    const removeButton = document.createElement('button');
+                    removeButton.type = 'button';
+                    removeButton.className = normalizedMode === 'add'
+                        ? 'text-emerald-500 hover:text-emerald-700'
+                        : 'text-rose-500 hover:text-rose-700';
+                    removeButton.textContent = '×';
+                    removeButton.addEventListener('click', () => removeChip(normalizedMode, normalizedValue));
+                    chip.appendChild(removeButton);
+
+                    chipListByMode[normalizedMode].appendChild(chip);
+
+                    syncOptionsVisibility();
+                    notifyChange();
+                };
+
+                const hydrateFromInputs = () => {
+                    const addValues = getSelectedValues('add');
+                    const removeValues = getSelectedValues('remove');
+
+                    suppressNotify = true;
+                    addInputsWrap.innerHTML = '';
+                    removeInputsWrap.innerHTML = '';
+                    addChipList.innerHTML = '';
+                    removeChipList.innerHTML = '';
+
+                    addValues.forEach((value) => {
+                        const option = findOptionByValue(value);
+                        if (option && campaignFilterOptionAllowed(root, option)) {
+                            addChip('add', value, option.dataset.label || value);
+                        }
+                    });
+
+                    removeValues.forEach((value) => {
+                        const option = findOptionByValue(value);
+                        if (option && campaignFilterOptionAllowed(root, option)) {
+                            addChip('remove', value, option.dataset.label || value);
+                        }
+                    });
+                    suppressNotify = false;
+                    syncOptionsVisibility();
+                };
+
+                const setSelected = (addValues = [], removeValues = []) => {
+                    suppressNotify = true;
+                    addInputsWrap.innerHTML = '';
+                    removeInputsWrap.innerHTML = '';
+                    addChipList.innerHTML = '';
+                    removeChipList.innerHTML = '';
+
+                    addValues.forEach((value) => {
+                        const normalizedValue = String(value || '').trim();
+                        if (normalizedValue === '') {
+                            return;
+                        }
+                        appendHiddenInput('add', normalizedValue);
+                    });
+
+                    removeValues.forEach((value) => {
+                        const normalizedValue = String(value || '').trim();
+                        if (normalizedValue === '') {
+                            return;
+                        }
+                        appendHiddenInput('remove', normalizedValue);
+                    });
+
+                    suppressNotify = false;
+                    hydrateFromInputs();
+                    notifyChange();
+                };
+
+                options.forEach((option) => {
+                    const addActionButton = option.querySelector('[data-campaign-option-action="add"]');
+                    const removeActionButton = option.querySelector('[data-campaign-option-action="remove"]');
+                    const value = option.dataset.value || '';
+                    const label = option.dataset.label || value;
+
+                    addActionButton?.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        addChip('add', value, label);
+                        if (search) {
+                            search.value = '';
+                            search.focus();
+                        }
+                    });
+
+                    removeActionButton?.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        addChip('remove', value, label);
+                        if (search) {
+                            search.value = '';
+                            search.focus();
+                        }
+                    });
+
+                    option.addEventListener('click', (event) => {
+                        if (event.target.closest('[data-campaign-option-action]')) {
+                            return;
+                        }
+                        addChip('add', value, label);
+                        if (search) {
+                            search.value = '';
+                            search.focus();
+                        }
+                    });
+                });
+
+                search?.addEventListener('focus', () => {
+                    optionsWrap?.classList.remove('hidden');
+                    syncOptionsVisibility();
+                });
+
+                search?.addEventListener('input', syncOptionsVisibility);
+
+                document.addEventListener('click', (event) => {
+                    if (!root.contains(event.target)) {
+                        optionsWrap?.classList.add('hidden');
+                    }
+                });
+
+                optionsWrap?.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
+
+                hydrateFromInputs();
+
+                return {
+                    refresh: hydrateFromInputs,
+                    setSelected,
+                    clearSearch: () => {
+                        if (search) {
+                            search.value = '';
+                        }
+                        syncOptionsVisibility();
+                    },
+                    getSelected: (mode) => getSelectedValues(mode),
+                };
+            };
+
+            const selectedCampaignTagIds = (mode = 'include') => {
+                const api = campaignModeFilterApis.tags;
+                if (!api) {
+                    return [];
+                }
+
+                return mode === 'exclude' ? api.getSelected('remove') : api.getSelected('add');
+            };
+
+            const selectedCampaignSequenceIds = (mode = 'include') => {
+                const api = campaignModeFilterApis.sequences;
+                if (!api) {
+                    return [];
+                }
+
+                return mode === 'exclude' ? api.getSelected('remove') : api.getSelected('add');
+            };
+
+            const updateCampaignFilterOptions = () => {
+                Object.values(campaignModeFilterApis).forEach((api) => {
+                    api?.refresh?.();
+                });
             };
 
             const updateCampaignLeadCount = async () => {
@@ -1954,7 +2202,9 @@
 
                 const includeTagIds = selectedCampaignTagIds('include');
                 const excludeTagIds = selectedCampaignTagIds('exclude');
-                if (includeTagIds.length === 0 && excludeTagIds.length === 0) {
+                const includeSequenceIds = selectedCampaignSequenceIds('include');
+                const excludeSequenceIds = selectedCampaignSequenceIds('exclude');
+                if (includeTagIds.length === 0 && excludeTagIds.length === 0 && includeSequenceIds.length === 0 && excludeSequenceIds.length === 0) {
                     const count = Number(campaignLeadCounts?.[clienteId] ?? 0);
                     const safeCount = Number.isFinite(count) ? count : 0;
                     campaignLeadCountHint.textContent = `Leads elegíveis: ${safeCount}${safeCount > 10000 ? ' (acima do limite de 10000)' : ''}`;
@@ -1969,6 +2219,8 @@
                     params.set('cliente_id', clienteId);
                     includeTagIds.forEach((tagId) => params.append('tag_include_ids[]', tagId));
                     excludeTagIds.forEach((tagId) => params.append('tag_exclude_ids[]', tagId));
+                    includeSequenceIds.forEach((sequenceId) => params.append('sequence_include_ids[]', sequenceId));
+                    excludeSequenceIds.forEach((sequenceId) => params.append('sequence_exclude_ids[]', sequenceId));
 
                     const response = await fetch(`${campaignLeadCountUrl}?${params.toString()}`, {
                         headers: {
@@ -2227,6 +2479,14 @@
                 campaignVariableBindingsWrap.classList.remove('hidden');
             };
 
+            campaignModeFilterRoots.forEach((root) => {
+                const scope = resolveCampaignFilterScope(root);
+                const api = initCampaignModeFilter(root, updateCampaignLeadCount);
+                if (scope && api) {
+                    campaignModeFilterApis[scope] = api;
+                }
+            });
+
             const syncCampaignScheduleState = () => {
                 if (!campaignMode || !campaignScheduleWrap || !campaignScheduledFor) {
                     return;
@@ -2251,12 +2511,11 @@
                 if (campaignMode) {
                     campaignMode.value = 'immediate';
                 }
-                if (campaignTagsSearch) {
-                    campaignTagsSearch.value = '';
-                }
-                campaignFiltersDropdown?.classList.add('hidden');
-                setCampaignTagMode('include');
-                updateCampaignTagOptions();
+                Object.values(campaignModeFilterApis).forEach((api) => {
+                    api?.setSelected?.([], []);
+                    api?.clearSearch?.();
+                });
+                updateCampaignFilterOptions();
                 updateCampaignLeadCount();
                 updateCampaignConexaoOptions();
                 updateCampaignTemplateOptions();
@@ -2281,82 +2540,12 @@
             });
 
             campaignCliente?.addEventListener('change', () => {
-                updateCampaignTagOptions();
+                updateCampaignFilterOptions();
                 updateCampaignLeadCount();
                 updateCampaignConexaoOptions();
                 updateCampaignTemplateOptions();
                 renderCampaignTemplatePreview();
                 renderCampaignVariableBindings();
-            });
-
-            campaignFiltersToggle?.addEventListener('click', () => {
-                if (!campaignFiltersDropdown) {
-                    return;
-                }
-
-                campaignFiltersDropdown.classList.toggle('hidden');
-                if (!campaignFiltersDropdown.classList.contains('hidden')) {
-                    campaignTagsSearch?.focus();
-                }
-            });
-
-            campaignTagModeInclude?.addEventListener('click', () => setCampaignTagMode('include'));
-            campaignTagModeExclude?.addEventListener('click', () => setCampaignTagMode('exclude'));
-
-            campaignTagsSearch?.addEventListener('input', () => {
-                syncCampaignTagOptionStates();
-            });
-
-            campaignTagsOptions?.addEventListener('click', (event) => {
-                const optionButton = event.target instanceof Element
-                    ? event.target.closest('[data-campaign-tag-option]')
-                    : null;
-
-                if (!optionButton) {
-                    return;
-                }
-
-                const value = optionButton.dataset.value || '';
-                toggleCampaignTagSelection(value);
-            });
-
-            campaignTagsPills?.addEventListener('click', (event) => {
-                const removeButton = event.target instanceof Element
-                    ? event.target.closest('[data-remove-campaign-tag]')
-                    : null;
-
-                if (!removeButton) {
-                    return;
-                }
-
-                const value = removeButton.dataset.removeCampaignTag || '';
-                const mode = removeButton.dataset.mode === 'exclude' ? 'exclude' : 'include';
-                const option = findCampaignTagSelectOption(value, mode);
-                if (!option) {
-                    return;
-                }
-
-                option.selected = false;
-                renderCampaignTagPills();
-                syncCampaignTagOptionStates();
-                updateCampaignLeadCount();
-            });
-
-            document.addEventListener('click', (event) => {
-                if (!campaignFiltersDropdown || !campaignFiltersToggle) {
-                    return;
-                }
-
-                const target = event.target;
-                if (!(target instanceof Node)) {
-                    return;
-                }
-
-                const clickedInsideDropdown = campaignFiltersDropdown.contains(target);
-                const clickedToggle = campaignFiltersToggle.contains(target);
-                if (!clickedInsideDropdown && !clickedToggle) {
-                    campaignFiltersDropdown.classList.add('hidden');
-                }
             });
 
             campaignConexao?.addEventListener('change', () => {
@@ -2378,7 +2567,7 @@
             updateTemplateConexaoOptions();
             renderPreview();
             renderVariableExamples();
-            updateCampaignTagOptions();
+            updateCampaignFilterOptions();
             updateCampaignLeadCount();
             updateCampaignConexaoOptions();
             updateCampaignTemplateOptions();
@@ -2406,7 +2595,7 @@
                     campaignTemplateBindingsSeed = (oldCampaignTemplateBindings && typeof oldCampaignTemplateBindings === 'object')
                         ? oldCampaignTemplateBindings
                         : {};
-                    updateCampaignTagOptions();
+                    updateCampaignFilterOptions();
                     updateCampaignLeadCount();
                     updateCampaignConexaoOptions();
                     updateCampaignTemplateOptions();
