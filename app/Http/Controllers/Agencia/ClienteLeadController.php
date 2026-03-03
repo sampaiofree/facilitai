@@ -133,29 +133,47 @@ class ClienteLeadController extends Controller
     public function activateBotForAll(Request $request): JsonResponse|RedirectResponse
     {
         $user = $request->user();
+        $validated = $request->validate([
+            'bot_enabled' => ['nullable', 'boolean'],
+        ]);
+        $targetStatus = array_key_exists('bot_enabled', $validated)
+            ? (bool) $validated['bot_enabled']
+            : true;
         [, , , , , $query] = $this->buildFilteredQuery($request, $user);
 
         $matchedCount = (clone $query)->count();
         $updatedCount = 0;
 
         if ($matchedCount > 0) {
-            $updatedCount = (clone $query)
-                ->where(function ($builder) {
-                    $builder->where('bot_enabled', false)
-                        ->orWhereNull('bot_enabled');
-                })
-                ->update([
-                    'bot_enabled' => true,
-                ]);
+            if ($targetStatus) {
+                $updatedCount = (clone $query)
+                    ->where(function ($builder) {
+                        $builder->where('bot_enabled', false)
+                            ->orWhereNull('bot_enabled');
+                    })
+                    ->update([
+                        'bot_enabled' => true,
+                    ]);
+            } else {
+                $updatedCount = (clone $query)
+                    ->where('bot_enabled', true)
+                    ->update([
+                        'bot_enabled' => false,
+                    ]);
+            }
         }
 
         if ($matchedCount === 0) {
             $message = 'Nenhum lead encontrado com os filtros atuais.';
         } elseif ($updatedCount === 0) {
-            $message = 'Todos os leads filtrados já estavam com o bot ativado.';
+            $message = $targetStatus
+                ? 'Todos os leads filtrados já estavam com o bot ativado.'
+                : 'Todos os leads filtrados já estavam com o bot desativado.';
         } else {
             $message = sprintf(
-                'Bot ativado em %d lead(s). Total considerado pelos filtros: %d.',
+                $targetStatus
+                    ? 'Bot ativado em %d lead(s). Total considerado pelos filtros: %d.'
+                    : 'Bot desativado em %d lead(s). Total considerado pelos filtros: %d.',
                 $updatedCount,
                 $matchedCount
             );
@@ -166,6 +184,7 @@ class ClienteLeadController extends Controller
                 'message' => $message,
                 'matched_count' => $matchedCount,
                 'updated_count' => $updatedCount,
+                'target_status' => $targetStatus,
             ]);
         }
 

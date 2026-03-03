@@ -325,10 +325,10 @@
                     <p class="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Ações</p>
                     <button
                         type="button"
-                        id="activateBotForAllAction"
+                        id="bulkBotAction"
                         class="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
                     >
-                        <span>Ativar bot para todos</span>
+                        <span>Bot</span>
                         <span class="text-[11px] font-medium text-emerald-600">Filtros atuais</span>
                     </button>
                     <button
@@ -885,6 +885,34 @@
         </div>
     </div>
 
+    <div id="bulkBotModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-auto bg-black/50 px-4 py-6">
+        <div class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900">Bot em lote</h3>
+                <button type="button" data-bulk-bot-close class="text-slate-500 hover:text-slate-700">x</button>
+            </div>
+            <p class="mt-2 text-xs text-slate-500">Defina o status do bot para todos os leads dos filtros atuais.</p>
+
+            <div class="mt-4">
+                <label for="bulkBotStatus" class="text-[11px] uppercase tracking-wide text-slate-400">Status do bot</label>
+                <select
+                    id="bulkBotStatus"
+                    class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                >
+                    <option value="1">Ativar</option>
+                    <option value="0">Desativar</option>
+                </select>
+            </div>
+
+            <p id="bulkBotModalHint" class="mt-3 text-[11px] text-slate-500">A ação será aplicada a todos os leads filtrados.</p>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" data-bulk-bot-close class="rounded-2xl border border-slate-200 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
+                <button type="button" id="bulkBotSubmit" class="rounded-2xl bg-emerald-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-emerald-700">Aplicar</button>
+            </div>
+        </div>
+    </div>
+
     <div id="bulkTagsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-auto bg-black/50 px-4 py-6">
         <div class="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between">
@@ -973,7 +1001,7 @@
             const importClientSelect = document.getElementById('clienteLeadImportClient');
             const exportToggle = document.getElementById('exportToggle');
             const exportMenu = document.getElementById('exportMenu');
-            const activateBotForAllAction = document.getElementById('activateBotForAllAction');
+            const bulkBotAction = document.getElementById('bulkBotAction');
             const deleteAllAction = document.getElementById('deleteAllAction');
             const removeSequenceAction = document.getElementById('removeSequenceAction');
             const bulkTagsAction = document.getElementById('bulkTagsAction');
@@ -1014,6 +1042,10 @@
             const removeSequenceSubmit = document.getElementById('removeSequenceSubmit');
             const removeSequenceModalHint = document.getElementById('removeSequenceModalHint');
             const removeSequenceChipRoot = document.querySelector('[data-chip-select="remove-sequences"]');
+            const bulkBotModal = document.getElementById('bulkBotModal');
+            const bulkBotSubmit = document.getElementById('bulkBotSubmit');
+            const bulkBotModalHint = document.getElementById('bulkBotModalHint');
+            const bulkBotStatus = document.getElementById('bulkBotStatus');
             const bulkTagsModal = document.getElementById('bulkTagsModal');
             const bulkTagsSubmit = document.getElementById('bulkTagsSubmit');
             const bulkTagsModalHint = document.getElementById('bulkTagsModalHint');
@@ -1031,7 +1063,7 @@
             const cloudSendContextUrlTemplate = @json(route('agencia.conversas.cloud-send-context', ['clienteLead' => '__LEAD_ID__']));
             const scheduledMessagesUrlTemplate = @json(route('agencia.conversas.scheduled-messages.index', ['clienteLead' => '__LEAD_ID__']));
             const cancelScheduledMessageUrlTemplate = @json(route('agencia.conversas.scheduled-messages.cancel', ['scheduledMessage' => '__SCHEDULE_ID__']));
-            const activateBotForAllUrl = @json(route('agencia.conversas.activate-bot-all'));
+            const bulkBotUrl = @json(route('agencia.conversas.activate-bot-all'));
             const destroyAllUrl = @json(route('agencia.conversas.destroy-all'));
             const removeSequencesOptionsUrl = @json(route('agencia.conversas.remove-sequences.options'));
             const removeSequencesUrl = @json(route('agencia.conversas.remove-sequences'));
@@ -1095,27 +1127,66 @@
                 });
             }
 
-            activateBotForAllAction?.addEventListener('click', async () => {
-                const confirmed = window.confirm('Ativar o bot para todos os leads encontrados pelos filtros atuais? Esta ação considera todas as páginas.');
+            const closeBulkBotModal = () => {
+                bulkBotModal?.classList.add('hidden');
+            };
+
+            const setBulkBotModalHint = (message, isError = false) => {
+                if (!bulkBotModalHint) {
+                    return;
+                }
+
+                bulkBotModalHint.textContent = message;
+                bulkBotModalHint.className = isError
+                    ? 'mt-3 text-[11px] text-rose-600'
+                    : 'mt-3 text-[11px] text-slate-500';
+            };
+
+            bulkBotAction?.addEventListener('click', () => {
+                exportMenu?.classList.add('hidden');
+                if (bulkBotStatus) {
+                    bulkBotStatus.value = '1';
+                }
+                setBulkBotModalHint('A ação será aplicada a todos os leads filtrados.');
+                bulkBotModal?.classList.remove('hidden');
+            });
+
+            document.querySelectorAll('[data-bulk-bot-close]').forEach((button) => {
+                button.addEventListener('click', closeBulkBotModal);
+            });
+
+            bulkBotModal?.addEventListener('click', (event) => {
+                if (event.target === bulkBotModal) {
+                    closeBulkBotModal();
+                }
+            });
+
+            bulkBotSubmit?.addEventListener('click', async () => {
+                const shouldEnable = (bulkBotStatus?.value ?? '1') === '1';
+                const confirmed = shouldEnable
+                    ? window.confirm('Ativar o bot para todos os leads encontrados pelos filtros atuais? Esta ação considera todas as páginas.')
+                    : window.confirm('Desativar o bot para todos os leads encontrados pelos filtros atuais? Esta ação considera todas as páginas.');
                 if (!confirmed) {
                     return;
                 }
 
-                exportMenu?.classList.add('hidden');
-
-                const originalHtml = activateBotForAllAction.innerHTML;
-                activateBotForAllAction.disabled = true;
-                activateBotForAllAction.classList.add('opacity-60', 'pointer-events-none');
-                activateBotForAllAction.textContent = 'Ativando...';
+                const originalHtml = bulkBotSubmit.innerHTML;
+                bulkBotSubmit.disabled = true;
+                bulkBotSubmit.classList.add('opacity-60', 'pointer-events-none');
+                bulkBotSubmit.textContent = shouldEnable ? 'Ativando...' : 'Desativando...';
 
                 try {
-                    const response = await fetch(buildFilteredActionUrl(activateBotForAllUrl), {
+                    const response = await fetch(buildFilteredActionUrl(bulkBotUrl), {
                         method: 'POST',
                         headers: {
+                            'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': csrfToken,
                             'X-Requested-With': 'XMLHttpRequest',
                             'Accept': 'application/json',
                         },
+                        body: JSON.stringify({
+                            bot_enabled: shouldEnable,
+                        }),
                     });
 
                     let payload = {};
@@ -1126,17 +1197,18 @@
                     }
 
                     if (!response.ok) {
-                        throw new Error(payload.message || 'Nao foi possivel ativar o bot em lote.');
+                        throw new Error(payload.message || 'Nao foi possivel atualizar o bot em lote.');
                     }
 
-                    window.alert(payload.message || 'Bot ativado para os leads filtrados.');
+                    window.alert(payload.message || 'Bot atualizado com sucesso.');
+                    closeBulkBotModal();
                     await fetchLeads(window.location.href);
                 } catch (error) {
-                    window.alert(error.message || 'Nao foi possivel ativar o bot em lote.');
+                    setBulkBotModalHint(error.message || 'Nao foi possivel atualizar o bot em lote.', true);
                 } finally {
-                    activateBotForAllAction.disabled = false;
-                    activateBotForAllAction.classList.remove('opacity-60', 'pointer-events-none');
-                    activateBotForAllAction.innerHTML = originalHtml || '<span>Ativar bot para todos</span>';
+                    bulkBotSubmit.disabled = false;
+                    bulkBotSubmit.classList.remove('opacity-60', 'pointer-events-none');
+                    bulkBotSubmit.innerHTML = originalHtml || 'Aplicar';
                 }
             });
 

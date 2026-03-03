@@ -763,134 +763,146 @@
 
                     <div>
                         <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Filtros (opcional)</label>
-                        <div class="mt-2 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <div class="flex flex-col gap-2" data-campaign-mode-filter data-filter-scope="tags" data-input-add-name="tag_include_ids[]" data-input-remove-name="tag_exclude_ids[]">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="text-[10px] uppercase tracking-wide text-slate-400">Tags</span>
-                                    <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
-                                </div>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="add"></div>
-                                    <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="remove"></div>
-                                </div>
-                                <div class="relative">
-                                    <input
-                                        type="search"
-                                        data-campaign-search
-                                        placeholder="Buscar tag"
-                                        class="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
-                                    >
-                                    <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-campaign-options>
-                                        @forelse($campaignTags as $tag)
-                                            <div
-                                                data-campaign-option
-                                                data-value="{{ $tag->id }}"
-                                                data-label="{{ $tag->name }}"
-                                                data-cliente-id="{{ $tag->cliente_id ?? '' }}"
-                                                class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
-                                            >
-                                                <span class="truncate">{{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}</span>
-                                                <div class="flex items-center gap-1">
-                                                    <button
-                                                        type="button"
-                                                        data-campaign-option-action="add"
-                                                        class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
-                                                    >
-                                                        Adicionar
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        data-campaign-option-action="remove"
-                                                        class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700"
-                                                    >
-                                                        Remover
-                                                    </button>
-                                                    <span data-campaign-option-status class="text-[10px] text-slate-400">{{ $tag->cliente_id ? 'Tag do cliente' : 'Tag global' }}</span>
+                        <div id="campaignFiltersWrap" class="relative mt-2">
+                            <button
+                                id="campaignFiltersToggle"
+                                type="button"
+                                class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                aria-expanded="false"
+                                aria-controls="campaignFiltersCard"
+                            >
+                                Filtros
+                            </button>
+
+                            <div id="campaignFiltersCard" class="absolute left-0 top-full z-40 mt-2 hidden w-full rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-xl">
+                                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                <div class="flex flex-col gap-2" data-campaign-mode-filter data-filter-scope="tags" data-input-add-name="tag_include_ids[]" data-input-remove-name="tag_exclude_ids[]">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="text-[10px] uppercase tracking-wide text-slate-400">Tags</span>
+                                        <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="add"></div>
+                                        <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="remove"></div>
+                                    </div>
+                                    <div class="relative">
+                                        <input
+                                            type="search"
+                                            data-campaign-search
+                                            placeholder="Buscar tag"
+                                            class="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                        >
+                                        <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-campaign-options>
+                                            @forelse($campaignTags as $tag)
+                                                <div
+                                                    data-campaign-option
+                                                    data-value="{{ $tag->id }}"
+                                                    data-label="{{ $tag->name }}"
+                                                    data-cliente-id="{{ $tag->cliente_id ?? '' }}"
+                                                    class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+                                                >
+                                                    <span class="truncate">{{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}</span>
+                                                    <div class="flex items-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            data-campaign-option-action="add"
+                                                            class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                                                        >
+                                                            Adicionar
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            data-campaign-option-action="remove"
+                                                            class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700"
+                                                        >
+                                                            Remover
+                                                        </button>
+                                                        <span data-campaign-option-status class="text-[10px] text-slate-400">{{ $tag->cliente_id ? 'Tag do cliente' : 'Tag global' }}</span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        @empty
-                                            <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
-                                        @endforelse
-                                        <div class="hidden px-3 py-2 text-xs text-slate-400" data-campaign-options-empty>Nenhuma tag disponível para o cliente selecionado.</div>
+                                            @empty
+                                                <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
+                                            @endforelse
+                                            <div class="hidden px-3 py-2 text-xs text-slate-400" data-campaign-options-empty>Nenhuma tag disponível para o cliente selecionado.</div>
+                                        </div>
+                                    </div>
+                                    <div class="hidden" data-campaign-inputs-add>
+                                        @foreach($oldCampaignTagIncludeIds as $tagId)
+                                            <input type="hidden" name="tag_include_ids[]" value="{{ $tagId }}">
+                                        @endforeach
+                                    </div>
+                                    <div class="hidden" data-campaign-inputs-remove>
+                                        @foreach($oldCampaignTagExcludeIds as $tagId)
+                                            <input type="hidden" name="tag_exclude_ids[]" value="{{ $tagId }}">
+                                        @endforeach
                                     </div>
                                 </div>
-                                <div class="hidden" data-campaign-inputs-add>
-                                    @foreach($oldCampaignTagIncludeIds as $tagId)
-                                        <input type="hidden" name="tag_include_ids[]" value="{{ $tagId }}">
-                                    @endforeach
-                                </div>
-                                <div class="hidden" data-campaign-inputs-remove>
-                                    @foreach($oldCampaignTagExcludeIds as $tagId)
-                                        <input type="hidden" name="tag_exclude_ids[]" value="{{ $tagId }}">
-                                    @endforeach
-                                </div>
-                            </div>
 
-                            <div class="h-px w-full bg-slate-200"></div>
-
-                            <div class="flex flex-col gap-2" data-campaign-mode-filter data-filter-scope="sequences" data-input-add-name="sequence_include_ids[]" data-input-remove-name="sequence_exclude_ids[]">
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="text-[10px] uppercase tracking-wide text-slate-400">Sequências</span>
-                                    <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
-                                </div>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="add"></div>
-                                    <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="remove"></div>
-                                </div>
-                                <div class="relative">
-                                    <input
-                                        type="search"
-                                        data-campaign-search
-                                        placeholder="Buscar sequência"
-                                        class="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
-                                    >
-                                    <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-campaign-options>
-                                        @forelse($campaignSequences as $sequence)
-                                            @php
-                                                $campaignSequenceLabel = $sequence->name . ($sequence->cliente?->nome ? ' (' . $sequence->cliente->nome . ')' : '');
-                                            @endphp
-                                            <div
-                                                data-campaign-option
-                                                data-value="{{ $sequence->id }}"
-                                                data-label="{{ $campaignSequenceLabel }}"
-                                                class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
-                                            >
-                                                <span class="truncate">{{ $sequence->name }}</span>
-                                                <div class="flex items-center gap-1">
-                                                    <button
-                                                        type="button"
-                                                        data-campaign-option-action="add"
-                                                        class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
-                                                    >
-                                                        Adicionar
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        data-campaign-option-action="remove"
-                                                        class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700"
-                                                    >
-                                                        Remover
-                                                    </button>
-                                                    <span data-campaign-option-status class="text-[10px] text-slate-400">
-                                                        {{ $sequence->cliente?->nome ? 'Cliente: ' . $sequence->cliente->nome : 'Sem cliente' }}
-                                                    </span>
+                                <div class="flex flex-col gap-2" data-campaign-mode-filter data-filter-scope="sequences" data-input-add-name="sequence_include_ids[]" data-input-remove-name="sequence_exclude_ids[]">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="text-[10px] uppercase tracking-wide text-slate-400">Sequências</span>
+                                        <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="add"></div>
+                                        <div class="inline-flex flex-wrap items-center gap-2" data-campaign-chip-list="remove"></div>
+                                    </div>
+                                    <div class="relative">
+                                        <input
+                                            type="search"
+                                            data-campaign-search
+                                            placeholder="Buscar sequência"
+                                            class="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                        >
+                                        <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-campaign-options>
+                                            @forelse($campaignSequences as $sequence)
+                                                @php
+                                                    $campaignSequenceLabel = $sequence->name . ($sequence->cliente?->nome ? ' (' . $sequence->cliente->nome . ')' : '');
+                                                @endphp
+                                                <div
+                                                    data-campaign-option
+                                                    data-value="{{ $sequence->id }}"
+                                                    data-label="{{ $campaignSequenceLabel }}"
+                                                    class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+                                                >
+                                                    <span class="truncate">{{ $sequence->name }}</span>
+                                                    <div class="flex items-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            data-campaign-option-action="add"
+                                                            class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                                                        >
+                                                            Adicionar
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            data-campaign-option-action="remove"
+                                                            class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700"
+                                                        >
+                                                            Remover
+                                                        </button>
+                                                        <span data-campaign-option-status class="text-[10px] text-slate-400">
+                                                            {{ $sequence->cliente?->nome ? 'Cliente: ' . $sequence->cliente->nome : 'Sem cliente' }}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        @empty
-                                            <div class="px-3 py-2 text-xs text-slate-400">Nenhuma sequência cadastrada.</div>
-                                        @endforelse
-                                        <div class="hidden px-3 py-2 text-xs text-slate-400" data-campaign-options-empty>Nenhuma sequência disponível.</div>
+                                            @empty
+                                                <div class="px-3 py-2 text-xs text-slate-400">Nenhuma sequência cadastrada.</div>
+                                            @endforelse
+                                            <div class="hidden px-3 py-2 text-xs text-slate-400" data-campaign-options-empty>Nenhuma sequência disponível.</div>
+                                        </div>
+                                    </div>
+                                    <div class="hidden" data-campaign-inputs-add>
+                                        @foreach($oldCampaignSequenceIncludeIds as $sequenceId)
+                                            <input type="hidden" name="sequence_include_ids[]" value="{{ $sequenceId }}">
+                                        @endforeach
+                                    </div>
+                                    <div class="hidden" data-campaign-inputs-remove>
+                                        @foreach($oldCampaignSequenceExcludeIds as $sequenceId)
+                                            <input type="hidden" name="sequence_exclude_ids[]" value="{{ $sequenceId }}">
+                                        @endforeach
                                     </div>
                                 </div>
-                                <div class="hidden" data-campaign-inputs-add>
-                                    @foreach($oldCampaignSequenceIncludeIds as $sequenceId)
-                                        <input type="hidden" name="sequence_include_ids[]" value="{{ $sequenceId }}">
-                                    @endforeach
-                                </div>
-                                <div class="hidden" data-campaign-inputs-remove>
-                                    @foreach($oldCampaignSequenceExcludeIds as $sequenceId)
-                                        <input type="hidden" name="sequence_exclude_ids[]" value="{{ $sequenceId }}">
-                                    @endforeach
                                 </div>
                             </div>
                         </div>
@@ -1113,6 +1125,9 @@
             const campaignCloseButtons = campaignModal?.querySelectorAll('[data-campaign-close]') || [];
             const campaignForm = document.getElementById('campaignForm');
             const campaignCliente = document.getElementById('campaignCliente');
+            const campaignFiltersWrap = document.getElementById('campaignFiltersWrap');
+            const campaignFiltersToggle = document.getElementById('campaignFiltersToggle');
+            const campaignFiltersCard = document.getElementById('campaignFiltersCard');
             const campaignModeFilterRoots = Array.from(campaignModal?.querySelectorAll('[data-campaign-mode-filter]') || []);
             const campaignModeFilterApis = {};
             const campaignConexao = document.getElementById('campaignConexao');
@@ -2487,6 +2502,49 @@
                 }
             });
 
+            const setCampaignFiltersCardVisible = (visible) => {
+                if (!campaignFiltersCard) {
+                    return;
+                }
+
+                campaignFiltersCard.classList.toggle('hidden', !visible);
+                campaignFiltersToggle?.setAttribute('aria-expanded', visible ? 'true' : 'false');
+            };
+
+            const hasCampaignFiltersSelected = () => {
+                return Object.values(campaignModeFilterApis).some((api) => {
+                    const addSelected = api?.getSelected?.('add') || [];
+                    const removeSelected = api?.getSelected?.('remove') || [];
+                    return addSelected.length > 0 || removeSelected.length > 0;
+                });
+            };
+
+            campaignFiltersToggle?.addEventListener('click', (event) => {
+                event.preventDefault();
+                const shouldOpen = campaignFiltersCard?.classList.contains('hidden');
+                setCampaignFiltersCardVisible(Boolean(shouldOpen));
+
+                if (shouldOpen) {
+                    const firstSearch = campaignFiltersCard?.querySelector('[data-campaign-search]');
+                    firstSearch?.focus();
+                }
+            });
+
+            document.addEventListener('click', (event) => {
+                if (!campaignFiltersWrap || !campaignFiltersCard || campaignFiltersCard.classList.contains('hidden')) {
+                    return;
+                }
+
+                const target = event.target;
+                if (!(target instanceof Node)) {
+                    return;
+                }
+
+                if (!campaignFiltersWrap.contains(target)) {
+                    setCampaignFiltersCardVisible(false);
+                }
+            });
+
             const syncCampaignScheduleState = () => {
                 if (!campaignMode || !campaignScheduleWrap || !campaignScheduledFor) {
                     return;
@@ -2515,6 +2573,7 @@
                     api?.setSelected?.([], []);
                     api?.clearSearch?.();
                 });
+                setCampaignFiltersCardVisible(false);
                 updateCampaignFilterOptions();
                 updateCampaignLeadCount();
                 updateCampaignConexaoOptions();
@@ -2567,6 +2626,7 @@
             updateTemplateConexaoOptions();
             renderPreview();
             renderVariableExamples();
+            setCampaignFiltersCardVisible(false);
             updateCampaignFilterOptions();
             updateCampaignLeadCount();
             updateCampaignConexaoOptions();
@@ -2596,6 +2656,7 @@
                         ? oldCampaignTemplateBindings
                         : {};
                     updateCampaignFilterOptions();
+                    setCampaignFiltersCardVisible(hasCampaignFiltersSelected());
                     updateCampaignLeadCount();
                     updateCampaignConexaoOptions();
                     updateCampaignTemplateOptions();
