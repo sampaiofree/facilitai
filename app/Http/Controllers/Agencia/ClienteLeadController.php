@@ -144,6 +144,150 @@ class ClienteLeadController extends Controller
             ->with('success', $message);
     }
 
+    public function destroyAll(Request $request): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        [, , , , , $query] = $this->buildFilteredQuery($request, $user);
+
+        $matchedCount = (clone $query)->count();
+        $deletedCount = 0;
+
+        if ($matchedCount > 0) {
+            $deletedCount = (clone $query)->delete();
+        }
+
+        if ($matchedCount === 0) {
+            $message = 'Nenhum lead encontrado com os filtros atuais.';
+        } elseif ($deletedCount === 0) {
+            $message = 'Nenhum lead foi excluido.';
+        } else {
+            $message = sprintf(
+                'Exclusao concluida: %d lead(s) removido(s). Total considerado pelos filtros: %d.',
+                $deletedCount,
+                $matchedCount
+            );
+        }
+
+        if ($request->ajax() || $request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'matched_count' => $matchedCount,
+                'deleted_count' => $deletedCount,
+            ]);
+        }
+
+        return redirect()
+            ->route('agencia.conversas.index', $request->query())
+            ->with('success', $message);
+    }
+
+    public function removeSequencesOptions(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        [, , , , , $query] = $this->buildFilteredQuery($request, $user);
+
+        $filteredLeadCount = (clone $query)->count();
+
+        $leadIdsSubQuery = (clone $query)->select('cliente_lead.id');
+        $sequences = SequenceChat::query()
+            ->join('sequences', 'sequences.id', '=', 'sequence_chats.sequence_id')
+            ->where('sequences.user_id', $user->id)
+            ->whereIn('sequence_chats.cliente_lead_id', $leadIdsSubQuery)
+            ->groupBy('sequence_chats.sequence_id', 'sequences.name')
+            ->orderBy('sequences.name')
+            ->get([
+                'sequence_chats.sequence_id as id',
+                'sequences.name',
+                DB::raw('COUNT(*) as leads_count'),
+            ]);
+
+        return response()->json([
+            'filtered_leads_count' => $filteredLeadCount,
+            'total_sequences' => $sequences->count(),
+            'sequences' => $sequences->map(fn ($item) => [
+                'id' => (int) $item->id,
+                'name' => (string) $item->name,
+                'leads_count' => (int) $item->leads_count,
+            ])->values(),
+        ]);
+    }
+
+    public function removeSequences(Request $request): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        $validated = $request->validate([
+            'sequence_ids' => ['required', 'array', 'min:1'],
+            'sequence_ids.*' => ['integer'],
+        ]);
+
+        $requestedSequenceIds = collect((array) ($validated['sequence_ids'] ?? []))
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($requestedSequenceIds)) {
+            throw ValidationException::withMessages([
+                'sequence_ids' => ['Selecione ao menos uma sequencia para remover.'],
+            ]);
+        }
+
+        $ownedSequenceIds = Sequence::query()
+            ->where('user_id', $user->id)
+            ->whereIn('id', $requestedSequenceIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        sort($requestedSequenceIds);
+        $sortedOwnedSequenceIds = $ownedSequenceIds;
+        sort($sortedOwnedSequenceIds);
+
+        if ($requestedSequenceIds !== $sortedOwnedSequenceIds) {
+            throw ValidationException::withMessages([
+                'sequence_ids' => ['Sequencia(s) invalida(s) para remocao.'],
+            ]);
+        }
+
+        [, , , , , $query] = $this->buildFilteredQuery($request, $user);
+        $leadIdsSubQuery = fn () => (clone $query)->select('cliente_lead.id');
+
+        $removeQuery = SequenceChat::query()
+            ->whereIn('sequence_id', $ownedSequenceIds)
+            ->whereIn('cliente_lead_id', $leadIdsSubQuery());
+
+        $matchedCount = (clone $removeQuery)->count();
+        $deletedCount = 0;
+        if ($matchedCount > 0) {
+            $deletedCount = (clone $removeQuery)->delete();
+        }
+
+        if ($matchedCount === 0) {
+            $message = 'Nenhum lead filtrado estava vinculado as sequencias selecionadas.';
+        } elseif ($deletedCount === 0) {
+            $message = 'Nenhum vinculo de sequencia foi removido.';
+        } else {
+            $message = sprintf(
+                'Remocao concluida: %d vinculo(s) de sequencia removido(s).',
+                $deletedCount
+            );
+        }
+
+        if ($request->ajax() || $request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'matched_count' => $matchedCount,
+                'deleted_count' => $deletedCount,
+            ]);
+        }
+
+        return redirect()
+            ->route('agencia.conversas.index', $request->query())
+            ->with('success', $message);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $user = $request->user();

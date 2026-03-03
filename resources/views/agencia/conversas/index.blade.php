@@ -168,6 +168,22 @@
                         <span>Ativar bot para todos</span>
                         <span class="text-[11px] font-medium text-emerald-600">Filtros atuais</span>
                     </button>
+                    <button
+                        type="button"
+                        id="deleteAllAction"
+                        class="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                    >
+                        <span>Excluir todos</span>
+                        <span class="text-[11px] font-medium text-rose-600">Filtros atuais</span>
+                    </button>
+                    <button
+                        type="button"
+                        id="removeSequenceAction"
+                        class="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold text-amber-700 hover:bg-amber-50"
+                    >
+                        <span>Sequencia</span>
+                        <span class="text-[11px] font-medium text-amber-600">Remover dos filtros</span>
+                    </button>
                     <div class="my-2 border-t border-slate-100"></div>
                     <p class="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Exportar</p>
                     <a href="{{ $exportXlsx }}" data-export-format="xlsx" class="mt-1 block rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">XLSX</a>
@@ -666,6 +682,37 @@
             </form>
         </div>
     </div>
+
+    <div id="removeSequenceModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-auto bg-black/50 px-4 py-6">
+        <div class="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900">Remover sequencias</h3>
+                <button type="button" data-remove-sequence-close class="text-slate-500 hover:text-slate-700">x</button>
+            </div>
+            <p class="mt-2 text-xs text-slate-500">Selecione as sequencias que serao removidas.</p>
+
+            <div class="mt-4 space-y-2" data-chip-select="remove-sequences" data-input-name="sequence_ids[]">
+                <div class="flex flex-wrap gap-2" data-chip-list></div>
+                <div class="relative">
+                    <input
+                        type="search"
+                        data-chip-search
+                        placeholder="Buscar sequencia"
+                        class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                    >
+                    <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options></div>
+                </div>
+                <div class="hidden" data-chip-inputs></div>
+            </div>
+
+            <p id="removeSequenceModalHint" class="mt-3 text-[11px] text-slate-500">Carregando sequencias...</p>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" data-remove-sequence-close class="rounded-2xl border border-slate-200 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
+                <button type="button" id="removeSequenceSubmit" class="rounded-2xl bg-rose-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-rose-700">Remover sequencias</button>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -699,6 +746,8 @@
             const exportToggle = document.getElementById('exportToggle');
             const exportMenu = document.getElementById('exportMenu');
             const activateBotForAllAction = document.getElementById('activateBotForAllAction');
+            const deleteAllAction = document.getElementById('deleteAllAction');
+            const removeSequenceAction = document.getElementById('removeSequenceAction');
             const exportMenuLinks = Array.from(document.querySelectorAll('[data-export-format]'));
             const filtersToggle = document.getElementById('filtersToggle');
             const filtersMenu = document.getElementById('filtersMenu');
@@ -729,6 +778,10 @@
             const messageError = document.getElementById('leadMessageError');
             const messageSuccess = document.getElementById('leadMessageSuccess');
             const messageSubmit = document.getElementById('leadMessageSubmit');
+            const removeSequenceModal = document.getElementById('removeSequenceModal');
+            const removeSequenceSubmit = document.getElementById('removeSequenceSubmit');
+            const removeSequenceModalHint = document.getElementById('removeSequenceModalHint');
+            const removeSequenceChipRoot = document.querySelector('[data-chip-select="remove-sequences"]');
             const messageTabButtons = document.querySelectorAll('[data-message-tab-button]');
             const messageTabText = document.getElementById('leadMessageTabText');
             const messageTabTemplate = document.getElementById('leadMessageTabTemplate');
@@ -742,6 +795,9 @@
             const scheduledMessagesUrlTemplate = @json(route('agencia.conversas.scheduled-messages.index', ['clienteLead' => '__LEAD_ID__']));
             const cancelScheduledMessageUrlTemplate = @json(route('agencia.conversas.scheduled-messages.cancel', ['scheduledMessage' => '__SCHEDULE_ID__']));
             const activateBotForAllUrl = @json(route('agencia.conversas.activate-bot-all'));
+            const destroyAllUrl = @json(route('agencia.conversas.destroy-all'));
+            const removeSequencesOptionsUrl = @json(route('agencia.conversas.remove-sequences.options'));
+            const removeSequencesUrl = @json(route('agencia.conversas.remove-sequences'));
             const exportBaseUrl = @json(route('agencia.conversas.export'));
             const availableLeadCustomFields = @json($leadCustomFieldsData, JSON_UNESCAPED_UNICODE);
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -843,6 +899,239 @@
                     activateBotForAllAction.disabled = false;
                     activateBotForAllAction.classList.remove('opacity-60', 'pointer-events-none');
                     activateBotForAllAction.innerHTML = originalHtml || '<span>Ativar bot para todos</span>';
+                }
+            });
+
+            deleteAllAction?.addEventListener('click', async () => {
+                const confirmed = window.confirm('Excluir todos os leads encontrados pelos filtros atuais? Esta ação é irreversível e considera todas as páginas.');
+                if (!confirmed) {
+                    return;
+                }
+
+                exportMenu?.classList.add('hidden');
+
+                const originalHtml = deleteAllAction.innerHTML;
+                deleteAllAction.disabled = true;
+                deleteAllAction.classList.add('opacity-60', 'pointer-events-none');
+                deleteAllAction.textContent = 'Excluindo...';
+
+                try {
+                    const response = await fetch(buildFilteredActionUrl(destroyAllUrl), {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                    });
+
+                    let payload = {};
+                    try {
+                        payload = await response.json();
+                    } catch (error) {
+                        payload = {};
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'Nao foi possivel excluir os leads em lote.');
+                    }
+
+                    window.alert(payload.message || 'Leads excluidos com sucesso.');
+
+                    const refreshUrl = new URL(window.location.href);
+                    refreshUrl.searchParams.delete('page');
+                    await fetchLeads(refreshUrl.toString(), { pushState: true });
+                } catch (error) {
+                    window.alert(error.message || 'Nao foi possivel excluir os leads em lote.');
+                } finally {
+                    deleteAllAction.disabled = false;
+                    deleteAllAction.classList.remove('opacity-60', 'pointer-events-none');
+                    deleteAllAction.innerHTML = originalHtml || '<span>Excluir todos</span>';
+                }
+            });
+
+            const closeRemoveSequenceModal = () => {
+                removeSequenceModal?.classList.add('hidden');
+            };
+
+            const setRemoveSequenceModalHint = (message, isError = false) => {
+                if (!removeSequenceModalHint) {
+                    return;
+                }
+
+                removeSequenceModalHint.textContent = message;
+                removeSequenceModalHint.className = isError
+                    ? 'mt-3 text-[11px] text-rose-600'
+                    : 'mt-3 text-[11px] text-slate-500';
+            };
+
+            const renderRemoveSequenceOptions = (items = []) => {
+                if (!removeSequenceChipRoot) {
+                    return;
+                }
+
+                const optionsWrap = removeSequenceChipRoot.querySelector('[data-chip-options]');
+                if (!optionsWrap) {
+                    return;
+                }
+
+                optionsWrap.innerHTML = items.length
+                    ? items.map((item) => {
+                        const id = Number(item?.id || 0);
+                        const name = (item?.name || '').toString().trim();
+                        const safeName = name
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#039;');
+                        const leadsCount = Number(item?.leads_count || 0);
+                        if (!Number.isInteger(id) || id <= 0 || name === '') {
+                            return '';
+                        }
+
+                        return `<button type="button" data-chip-option data-value="${id}" data-label="${safeName}" class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"><span>${safeName}</span><span class="text-[10px] text-slate-400">${leadsCount} lead(s)</span></button>`;
+                    }).join('')
+                    : '<div class="px-3 py-2 text-xs text-slate-400">Nenhuma sequencia encontrada para os filtros atuais.</div>';
+
+                chipSelects['remove-sequences'] = initChipSelect(removeSequenceChipRoot);
+                chipSelects['remove-sequences']?.setSelected([]);
+            };
+
+            const getRemoveSequenceSelectedIds = () => {
+                if (!removeSequenceChipRoot) {
+                    return [];
+                }
+
+                const inputs = Array.from(
+                    removeSequenceChipRoot.querySelectorAll('[data-chip-inputs] input[name="sequence_ids[]"]')
+                );
+
+                return inputs
+                    .map((input) => Number(input.value || 0))
+                    .filter((id) => Number.isInteger(id) && id > 0);
+            };
+
+            const loadRemoveSequenceOptions = async () => {
+                setRemoveSequenceModalHint('Carregando sequencias...');
+                renderRemoveSequenceOptions([]);
+
+                const response = await fetch(buildFilteredActionUrl(removeSequencesOptionsUrl), {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                });
+
+                let payload = {};
+                try {
+                    payload = await response.json();
+                } catch (error) {
+                    payload = {};
+                }
+
+                if (!response.ok) {
+                    throw new Error(payload.message || 'Nao foi possivel carregar as sequencias para remocao.');
+                }
+
+                const sequences = Array.isArray(payload?.sequences) ? payload.sequences : [];
+                renderRemoveSequenceOptions(sequences);
+
+                if (!sequences.length) {
+                    setRemoveSequenceModalHint('Nenhuma sequencia encontrada para os filtros atuais.');
+                    return;
+                }
+
+                const filteredLeadsCount = Number(payload?.filtered_leads_count || 0);
+                setRemoveSequenceModalHint(
+                    `${sequences.length} sequencia(s) disponivel(is) para ${filteredLeadsCount} lead(s) filtrado(s).`
+                );
+            };
+
+            removeSequenceAction?.addEventListener('click', async () => {
+                exportMenu?.classList.add('hidden');
+                removeSequenceModal?.classList.remove('hidden');
+
+                const originalHtml = removeSequenceAction.innerHTML;
+                removeSequenceAction.disabled = true;
+                removeSequenceAction.classList.add('opacity-60', 'pointer-events-none');
+                removeSequenceAction.textContent = 'Carregando...';
+
+                try {
+                    await loadRemoveSequenceOptions();
+                } catch (error) {
+                    setRemoveSequenceModalHint(error.message || 'Nao foi possivel carregar as sequencias para remocao.', true);
+                } finally {
+                    removeSequenceAction.disabled = false;
+                    removeSequenceAction.classList.remove('opacity-60', 'pointer-events-none');
+                    removeSequenceAction.innerHTML = originalHtml || '<span>Sequencia</span>';
+                }
+            });
+
+            document.querySelectorAll('[data-remove-sequence-close]').forEach((button) => {
+                button.addEventListener('click', closeRemoveSequenceModal);
+            });
+
+            removeSequenceModal?.addEventListener('click', (event) => {
+                if (event.target === removeSequenceModal) {
+                    closeRemoveSequenceModal();
+                }
+            });
+
+            removeSequenceSubmit?.addEventListener('click', async () => {
+                const sequenceIds = getRemoveSequenceSelectedIds();
+                if (!sequenceIds.length) {
+                    window.alert('Selecione ao menos uma sequencia para remover.');
+                    return;
+                }
+
+                const confirmed = window.confirm('Remover as sequencias selecionadas de todos os leads filtrados?');
+                if (!confirmed) {
+                    return;
+                }
+
+                const originalHtml = removeSequenceSubmit.innerHTML;
+                removeSequenceSubmit.disabled = true;
+                removeSequenceSubmit.classList.add('opacity-60', 'pointer-events-none');
+                removeSequenceSubmit.textContent = 'Removendo...';
+
+                try {
+                    const response = await fetch(buildFilteredActionUrl(removeSequencesUrl), {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            sequence_ids: sequenceIds,
+                        }),
+                    });
+
+                    let payload = {};
+                    try {
+                        payload = await response.json();
+                    } catch (error) {
+                        payload = {};
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'Nao foi possivel remover as sequencias em lote.');
+                    }
+
+                    window.alert(payload.message || 'Sequencias removidas com sucesso.');
+                    closeRemoveSequenceModal();
+
+                    const refreshUrl = new URL(window.location.href);
+                    refreshUrl.searchParams.delete('page');
+                    await fetchLeads(refreshUrl.toString(), { pushState: true });
+                } catch (error) {
+                    window.alert(error.message || 'Nao foi possivel remover as sequencias em lote.');
+                } finally {
+                    removeSequenceSubmit.disabled = false;
+                    removeSequenceSubmit.classList.remove('opacity-60', 'pointer-events-none');
+                    removeSequenceSubmit.innerHTML = originalHtml || 'Remover sequencias';
                 }
             });
 
@@ -1885,7 +2174,9 @@
                     const chip = document.createElement('span');
                     chip.dataset.chipValue = value;
                     chip.className = 'inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] text-slate-700';
-                    chip.innerHTML = `<span>${label}</span>`;
+                    const chipLabel = document.createElement('span');
+                    chipLabel.textContent = label;
+                    chip.appendChild(chipLabel);
 
                     const removeButton = document.createElement('button');
                     removeButton.type = 'button';

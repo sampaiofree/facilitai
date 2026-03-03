@@ -18,6 +18,7 @@ use App\Services\UazapiService;
 use App\Services\WhatsappCloudApiService;
 use App\DTOs\IAResult;
 use App\Support\LogContext;
+use App\Support\PhoneNumberNormalizer;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
@@ -76,11 +77,12 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return;
         }
 
-        $phone = (string) ($this->payload['phone'] ?? '');
+        $phone = app(PhoneNumberNormalizer::class)->normalizeLeadPhone((string) ($this->payload['phone'] ?? '')) ?? '';
         if ($phone === '') {
             $this->logSilentReturn('telefone_ausente');
             return;
         }
+        $this->payload['phone'] = $phone;
 
         if (($this->payload['is_group'] ?? false) === true) {
             $this->logSilentReturn('mensagem_grupo');
@@ -503,17 +505,23 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
 
     private function resolveClienteLead(string $phone, string $leadName): ?ClienteLead
     {
+        $phoneCandidates = app(PhoneNumberNormalizer::class)->buildLeadPhoneLookupCandidates($phone);
+        if (empty($phoneCandidates)) {
+            return null;
+        }
+        $canonicalPhone = $phoneCandidates[0];
+
         $lead = $this->clienteLead;
         if (!$lead) {
             $lead = ClienteLead::where('cliente_id', $this->conexao->cliente_id)
-                ->where('phone', $phone)
+                ->whereIn('phone', $phoneCandidates)
                 ->first();
         }
 
         if (!$lead) {
             $lead = ClienteLead::create([
                 'cliente_id' => $this->conexao->cliente_id,
-                'phone' => $phone,
+                'phone' => $canonicalPhone,
                 'name' => $leadName,
                 'info' => null,
                 'bot_enabled' => true,

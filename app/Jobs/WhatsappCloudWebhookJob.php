@@ -7,6 +7,7 @@ use App\Models\Conexao;
 use App\Models\WhatsappCloudAccount;
 use App\Services\WhatsappCloudConversationWindowService;
 use App\Support\LogContext;
+use App\Support\PhoneNumberNormalizer;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -321,14 +322,20 @@ class WhatsappCloudWebhookJob implements ShouldQueue
             return null;
         }
 
+        $phoneCandidates = $this->phoneNumberNormalizer()->buildLeadPhoneLookupCandidates($phone);
+        if (empty($phoneCandidates)) {
+            return null;
+        }
+
+        $canonicalPhone = $phoneCandidates[0];
         $leadName = trim((string) ($normalized['lead_name'] ?? ''));
         if ($leadName === '') {
-            $leadName = $phone;
+            $leadName = $canonicalPhone;
         }
 
         $existing = ClienteLead::query()
             ->where('cliente_id', $conexao->cliente_id)
-            ->where('phone', $phone)
+            ->whereIn('phone', $phoneCandidates)
             ->first();
 
         if ($existing) {
@@ -338,7 +345,7 @@ class WhatsappCloudWebhookJob implements ShouldQueue
         try {
             return ClienteLead::query()->create([
                 'cliente_id' => $conexao->cliente_id,
-                'phone' => $phone,
+                'phone' => $canonicalPhone,
                 'name' => $leadName,
                 'info' => null,
                 'bot_enabled' => true,
@@ -346,7 +353,7 @@ class WhatsappCloudWebhookJob implements ShouldQueue
         } catch (QueryException) {
             return ClienteLead::query()
                 ->where('cliente_id', $conexao->cliente_id)
-                ->where('phone', $phone)
+                ->whereIn('phone', $phoneCandidates)
                 ->first();
         }
     }
@@ -469,16 +476,12 @@ class WhatsappCloudWebhookJob implements ShouldQueue
 
     private function normalizePhone(string $value): ?string
     {
-        $digits = preg_replace('/\D/', '', $value);
-        if (!is_string($digits)) {
-            return null;
-        }
+        return $this->phoneNumberNormalizer()->normalizeLeadPhone($value);
+    }
 
-        if (strlen($digits) < 8 || strlen($digits) > 20) {
-            return null;
-        }
-
-        return $digits;
+    private function phoneNumberNormalizer(): PhoneNumberNormalizer
+    {
+        return app(PhoneNumberNormalizer::class);
     }
 
     private function normalizeMediaPayload(
