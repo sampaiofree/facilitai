@@ -7,6 +7,7 @@
                 <th class="px-5 py-3 text-left font-semibold">Telefone</th>
                 <th class="px-5 py-3 text-left font-semibold">Lead</th>
                 <th class="px-5 py-3 text-left font-semibold">Sequencias</th>
+                <th class="px-5 py-3 text-left font-semibold">Ultimo contato</th>
                 <th class="px-5 py-3 text-left font-semibold">Criado em</th>
                 <th class="px-5 py-3 text-right font-semibold">Acoes</th>
             </tr>
@@ -87,6 +88,7 @@
                             </div>
                         @endif
                     </td>
+                    <td class="px-5 py-4 text-slate-600">{{ $lead->updated_at?->format('d/m/Y H:i') ?? '-' }}</td>
                     <td class="px-5 py-4 text-slate-600">{{ $lead->created_at?->format('d/m/Y') ?? '-' }}</td>
                     <td class="px-5 py-4 text-right">
                         <div class="flex flex-wrap justify-end gap-2">
@@ -112,7 +114,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7" class="px-5 py-6 text-center text-xs text-slate-400">Nenhum lead encontrado.</td>
+                    <td colspan="8" class="px-5 py-6 text-center text-xs text-slate-400">Nenhum lead encontrado.</td>
                 </tr>
             @endforelse
         </tbody>

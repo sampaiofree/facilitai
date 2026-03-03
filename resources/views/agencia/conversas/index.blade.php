@@ -90,36 +90,62 @@
                             </div>
                         </div>
 
-                        <div class="flex flex-1 min-w-[280px] flex-col gap-1" data-chip-select="filter-tags" data-input-name="tags[]">
-                            <span class="text-[10px] uppercase tracking-wide text-slate-400">Tags</span>
-                            <div class="flex flex-wrap gap-2" data-chip-list></div>
+                        <div class="flex flex-1 min-w-[280px] flex-col gap-2" data-tag-mode-filter>
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[10px] uppercase tracking-wide text-slate-400">Tags</span>
+                                <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="inline-flex flex-wrap items-center gap-2" data-tag-chip-list="add"></div>
+                                <div class="inline-flex flex-wrap items-center gap-2" data-tag-chip-list="remove"></div>
+                            </div>
                             <div class="relative">
                                 <input
                                     type="search"
-                                    data-chip-search
+                                    data-tag-search
                                     placeholder="Buscar tags"
                                     class="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
                                 >
-                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
+                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-tag-options>
                                     @forelse($tags as $tag)
-                                        <button
-                                            type="button"
-                                            data-chip-option
+                                        <div
+                                            data-tag-option
                                             data-value="{{ $tag->id }}"
                                             data-label="{{ $tag->name }}"
-                                            class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                                            class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
                                         >
-                                            <span>{{ $tag->name }}</span>
-                                            <span class="text-[10px] text-slate-400">Tag</span>
-                                        </button>
+                                            <span class="truncate">{{ $tag->name }}</span>
+                                            <div class="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    data-tag-option-action="add"
+                                                    class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                                                >
+                                                    Adicionar
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    data-tag-option-action="remove"
+                                                    class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700"
+                                                >
+                                                    Remover
+                                                </button>
+                                                <span data-tag-option-status class="text-[10px] text-slate-400">Tag</span>
+                                            </div>
+                                        </div>
                                     @empty
                                         <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag vinculada ainda.</div>
                                     @endforelse
                                 </div>
                             </div>
-                            <div class="hidden" data-chip-inputs>
-                                @foreach($tagFilter as $tagId)
-                                    <input type="hidden" name="tags[]" value="{{ $tagId }}">
+                            <div class="hidden" data-tag-inputs-add>
+                                @foreach($tagAddFilter as $tagId)
+                                    <input type="hidden" name="tags_add[]" value="{{ $tagId }}">
+                                @endforeach
+                            </div>
+                            <div class="hidden" data-tag-inputs-remove>
+                                @foreach($tagRemoveFilter as $tagId)
+                                    <input type="hidden" name="tags_remove[]" value="{{ $tagId }}">
                                 @endforeach
                             </div>
                         </div>
@@ -137,6 +163,24 @@
                                     type="date"
                                     name="date_end"
                                     value="{{ $dateEnd }}"
+                                    class="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="flex min-w-[220px] flex-col gap-1">
+                            <span class="text-[10px] uppercase tracking-wide text-slate-400">Ultima mensagem</span>
+                            <div class="flex gap-2">
+                                <input
+                                    type="date"
+                                    name="last_message_start"
+                                    value="{{ $lastMessageStart }}"
+                                    class="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                <input
+                                    type="date"
+                                    name="last_message_end"
+                                    value="{{ $lastMessageEnd }}"
                                     class="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
                                 >
                             </div>
@@ -751,6 +795,7 @@
             const exportMenuLinks = Array.from(document.querySelectorAll('[data-export-format]'));
             const filtersToggle = document.getElementById('filtersToggle');
             const filtersMenu = document.getElementById('filtersMenu');
+            const filterTagsModeRoot = document.querySelector('[data-tag-mode-filter]');
             const leadSearchInput = document.getElementById('leadSearchInput');
             const leadSearchClear = document.getElementById('leadSearchClear');
             const leadTableContainer = document.getElementById('leadTableContainer');
@@ -2121,6 +2166,249 @@
                 formModal?.classList.add('hidden');
             };
 
+            const initTagModeFilter = (root) => {
+                if (!root) {
+                    return null;
+                }
+
+                const search = root.querySelector('[data-tag-search]');
+                const optionsWrap = root.querySelector('[data-tag-options]');
+                const options = Array.from(root.querySelectorAll('[data-tag-option]'));
+                const addChipList = root.querySelector('[data-tag-chip-list="add"]');
+                const removeChipList = root.querySelector('[data-tag-chip-list="remove"]');
+                const addInputsWrap = root.querySelector('[data-tag-inputs-add]');
+                const removeInputsWrap = root.querySelector('[data-tag-inputs-remove]');
+
+                if (!addChipList || !removeChipList || !addInputsWrap || !removeInputsWrap) {
+                    return null;
+                }
+
+                const INPUT_NAME_BY_MODE = {
+                    add: 'tags_add[]',
+                    remove: 'tags_remove[]',
+                };
+
+                const chipListByMode = {
+                    add: addChipList,
+                    remove: removeChipList,
+                };
+
+                const inputWrapByMode = {
+                    add: addInputsWrap,
+                    remove: removeInputsWrap,
+                };
+
+                const getSelectedValues = (mode) => Array.from(inputWrapByMode[mode].querySelectorAll('input'))
+                    .map((input) => String(input.value));
+
+                const findOptionByValue = (value) => options.find((item) => String(item.dataset.value ?? '') === String(value));
+
+                const syncOptionsVisibility = () => {
+                    const term = (search?.value ?? '').toLowerCase();
+                    const selectedAdd = new Set(getSelectedValues('add'));
+                    const selectedRemove = new Set(getSelectedValues('remove'));
+
+                    options.forEach((option) => {
+                        const label = (option.dataset.label ?? '').toLowerCase();
+                        const value = String(option.dataset.value ?? '');
+                        const matches = !term || label.includes(term);
+
+                        option.classList.toggle('hidden', !matches);
+
+                        const status = option.querySelector('[data-tag-option-status]');
+                        if (!status) {
+                            return;
+                        }
+
+                        const addActionButton = option.querySelector('[data-tag-option-action="add"]');
+                        const removeActionButton = option.querySelector('[data-tag-option-action="remove"]');
+
+                        if (selectedAdd.has(value)) {
+                            status.textContent = 'Adicionar';
+                            status.className = 'text-[10px] font-semibold text-emerald-600';
+                            if (addActionButton) {
+                                addActionButton.disabled = true;
+                                addActionButton.classList.add('opacity-60', 'pointer-events-none');
+                            }
+                            if (removeActionButton) {
+                                removeActionButton.disabled = false;
+                                removeActionButton.classList.remove('opacity-60', 'pointer-events-none');
+                            }
+                            return;
+                        }
+
+                        if (selectedRemove.has(value)) {
+                            status.textContent = 'Remover';
+                            status.className = 'text-[10px] font-semibold text-rose-600';
+                            if (addActionButton) {
+                                addActionButton.disabled = false;
+                                addActionButton.classList.remove('opacity-60', 'pointer-events-none');
+                            }
+                            if (removeActionButton) {
+                                removeActionButton.disabled = true;
+                                removeActionButton.classList.add('opacity-60', 'pointer-events-none');
+                            }
+                            return;
+                        }
+
+                        status.textContent = 'Tag';
+                        status.className = 'text-[10px] text-slate-400';
+                        if (addActionButton) {
+                            addActionButton.disabled = false;
+                            addActionButton.classList.remove('opacity-60', 'pointer-events-none');
+                        }
+                        if (removeActionButton) {
+                            removeActionButton.disabled = false;
+                            removeActionButton.classList.remove('opacity-60', 'pointer-events-none');
+                        }
+                    });
+                };
+
+                const removeChip = (mode, value) => {
+                    const normalizedMode = mode === 'remove' ? 'remove' : 'add';
+                    const input = inputWrapByMode[normalizedMode].querySelector(`input[value="${value}"]`);
+                    if (input) {
+                        input.remove();
+                    }
+
+                    const chip = chipListByMode[normalizedMode].querySelector(`[data-tag-chip-value="${value}"]`);
+                    if (chip) {
+                        chip.remove();
+                    }
+
+                    syncOptionsVisibility();
+                };
+
+                const addChip = (mode, value, label) => {
+                    const normalizedMode = mode === 'remove' ? 'remove' : 'add';
+                    const oppositeMode = normalizedMode === 'add' ? 'remove' : 'add';
+                    const normalizedValue = String(value ?? '');
+                    if (!normalizedValue) {
+                        return;
+                    }
+
+                    removeChip(oppositeMode, normalizedValue);
+
+                    if (inputWrapByMode[normalizedMode].querySelector(`input[value="${normalizedValue}"]`)) {
+                        syncOptionsVisibility();
+                        return;
+                    }
+
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = INPUT_NAME_BY_MODE[normalizedMode];
+                    input.value = normalizedValue;
+                    inputWrapByMode[normalizedMode].appendChild(input);
+
+                    const chip = document.createElement('span');
+                    chip.dataset.tagChipValue = normalizedValue;
+                    chip.className = normalizedMode === 'add'
+                        ? 'inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-medium text-emerald-700'
+                        : 'inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-medium text-rose-700';
+
+                    const chipLabel = document.createElement('span');
+                    chipLabel.textContent = label;
+                    chip.appendChild(chipLabel);
+
+                    const removeButton = document.createElement('button');
+                    removeButton.type = 'button';
+                    removeButton.className = normalizedMode === 'add'
+                        ? 'text-emerald-500 hover:text-emerald-700'
+                        : 'text-rose-500 hover:text-rose-700';
+                    removeButton.textContent = '×';
+                    removeButton.addEventListener('click', () => removeChip(normalizedMode, normalizedValue));
+                    chip.appendChild(removeButton);
+
+                    chipListByMode[normalizedMode].appendChild(chip);
+                    syncOptionsVisibility();
+                };
+
+                const hydrateFromInputs = () => {
+                    const addValues = getSelectedValues('add');
+                    const removeValues = getSelectedValues('remove');
+
+                    addInputsWrap.innerHTML = '';
+                    removeInputsWrap.innerHTML = '';
+                    addChipList.innerHTML = '';
+                    removeChipList.innerHTML = '';
+
+                    addValues.forEach((value) => {
+                        const option = findOptionByValue(value);
+                        if (option) {
+                            addChip('add', value, option.dataset.label ?? value);
+                        }
+                    });
+
+                    removeValues.forEach((value) => {
+                        const option = findOptionByValue(value);
+                        if (option) {
+                            addChip('remove', value, option.dataset.label ?? value);
+                        }
+                    });
+
+                    syncOptionsVisibility();
+                };
+
+                options.forEach((option) => {
+                    const addActionButton = option.querySelector('[data-tag-option-action="add"]');
+                    const removeActionButton = option.querySelector('[data-tag-option-action="remove"]');
+                    const value = option.dataset.value ?? '';
+                    const label = option.dataset.label ?? value;
+
+                    addActionButton?.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        addChip('add', value, label);
+                        if (search) {
+                            search.value = '';
+                            search.focus();
+                        }
+                    });
+
+                    removeActionButton?.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        addChip('remove', value, label);
+                        if (search) {
+                            search.value = '';
+                            search.focus();
+                        }
+                    });
+
+                    option.addEventListener('click', (event) => {
+                        if (event.target.closest('[data-tag-option-action]')) {
+                            return;
+                        }
+                        const value = option.dataset.value ?? '';
+                        const label = option.dataset.label ?? value;
+                        addChip('add', value, label);
+                        if (search) {
+                            search.value = '';
+                            search.focus();
+                        }
+                    });
+                });
+
+                search?.addEventListener('focus', () => {
+                    optionsWrap?.classList.remove('hidden');
+                    syncOptionsVisibility();
+                });
+
+                search?.addEventListener('input', syncOptionsVisibility);
+
+                document.addEventListener('click', (event) => {
+                    if (!root.contains(event.target)) {
+                        optionsWrap?.classList.add('hidden');
+                    }
+                });
+
+                optionsWrap?.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
+
+                hydrateFromInputs();
+
+                return { hydrateFromInputs };
+            };
+
             const initChipSelect = (root) => {
                 const inputName = root.dataset.inputName;
                 const chipList = root.querySelector('[data-chip-list]');
@@ -2245,6 +2533,8 @@
 
                 return { setSelected, hydrateFromInputs };
             };
+
+            initTagModeFilter(filterTagsModeRoot);
 
             document.querySelectorAll('[data-chip-select]').forEach(root => {
                 const key = root.dataset.chipSelect;

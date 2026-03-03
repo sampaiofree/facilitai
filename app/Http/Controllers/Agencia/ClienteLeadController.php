@@ -63,7 +63,17 @@ class ClienteLeadController extends Controller
             ])
             ->values();
 
-        [$clientFilter, $assistantFilter, $tagFilter, $dateStart, $dateEnd, $query] = $this->buildFilteredQuery($request, $user);
+        [
+            $clientFilter,
+            $assistantFilter,
+            $tagAddFilter,
+            $dateStart,
+            $dateEnd,
+            $query,
+            $lastMessageStart,
+            $lastMessageEnd,
+            $tagRemoveFilter,
+        ] = $this->buildFilteredQuery($request, $user);
 
         $leads = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
 
@@ -78,9 +88,12 @@ class ClienteLeadController extends Controller
             'leads',
             'clientFilter',
             'assistantFilter',
-            'tagFilter',
+            'tagAddFilter',
+            'tagRemoveFilter',
             'dateStart',
             'dateEnd',
+            'lastMessageStart',
+            'lastMessageEnd',
             'leadCustomFieldsData',
         ));
     }
@@ -1718,9 +1731,14 @@ class ClienteLeadController extends Controller
     {
         $clientFilter = array_values(array_filter((array) $request->input('cliente_id', []), fn ($value) => $value !== '' && $value !== null));
         $assistantFilter = array_values(array_filter((array) $request->input('assistant_id', []), fn ($value) => $value !== '' && $value !== null));
-        $tagFilter = array_values(array_filter((array) $request->input('tags', []), fn ($value) => $value !== '' && $value !== null));
+        $legacyTagFilter = (array) $request->input('tags', []);
+        $tagAddFilter = $this->filterTags((array) $request->input('tags_add', $legacyTagFilter), (int) $user->id);
+        $tagRemoveFilter = $this->filterTags((array) $request->input('tags_remove', []), (int) $user->id);
+        $tagRemoveFilter = array_values(array_diff($tagRemoveFilter, $tagAddFilter));
         $dateStart = $request->input('date_start');
         $dateEnd = $request->input('date_end');
+        $lastMessageStart = $request->input('last_message_start');
+        $lastMessageEnd = $request->input('last_message_end');
         $searchTerm = trim((string) $request->input('q', ''));
 
         $base = ClienteLead::query();
@@ -1746,8 +1764,12 @@ class ClienteLeadController extends Controller
             $query->whereHas('assistantLeads', fn ($q) => $q->whereIn('assistant_id', $assistantFilter));
         }
 
-        if (!empty($tagFilter)) {
-            $query->whereHas('tags', fn ($q) => $q->whereIn('tags.id', $tagFilter));
+        if (!empty($tagAddFilter)) {
+            $query->whereHas('tags', fn ($q) => $q->whereIn('tags.id', $tagAddFilter));
+        }
+
+        if (!empty($tagRemoveFilter)) {
+            $query->whereDoesntHave('tags', fn ($q) => $q->whereIn('tags.id', $tagRemoveFilter));
         }
 
         if ($dateStart) {
@@ -1756,6 +1778,14 @@ class ClienteLeadController extends Controller
 
         if ($dateEnd) {
             $query->whereDate('created_at', '<=', $dateEnd);
+        }
+
+        if ($lastMessageStart) {
+            $query->whereDate('updated_at', '>=', $lastMessageStart);
+        }
+
+        if ($lastMessageEnd) {
+            $query->whereDate('updated_at', '<=', $lastMessageEnd);
         }
 
         if ($searchTerm !== '' && mb_strlen($searchTerm) >= 3) {
@@ -1775,7 +1805,7 @@ class ClienteLeadController extends Controller
             });
         }
 
-        return [$clientFilter, $assistantFilter, $tagFilter, $dateStart, $dateEnd, $query];
+        return [$clientFilter, $assistantFilter, $tagAddFilter, $dateStart, $dateEnd, $query, $lastMessageStart, $lastMessageEnd, $tagRemoveFilter];
     }
 
     private function attachLeadToSequence(ClienteLead $lead, array $sequenceIds, int $userId, bool $sync = false): void

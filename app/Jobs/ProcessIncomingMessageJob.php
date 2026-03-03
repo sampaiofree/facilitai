@@ -123,6 +123,9 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return;
         }
 
+        // Registra último contato recebido do lead via updated_at.
+        $lead->touch();
+
         if (!$lead->bot_enabled) {
             $this->logSilentReturn('bot_desativado');
             return;
