@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Conversas</h2>
-            <p class="text-sm text-slate-500">Todos os leads dos seus clientes, filtráveis por cliente, data e tags.</p>
+            <p class="text-sm text-slate-500">Todos os leads dos seus clientes, filtráveis por cliente, assistente, sequencia, data e tags.</p>
         </div>
         <div class="flex items-center gap-2">
             @php
@@ -26,73 +26,125 @@
                         <input type="hidden" name="q" value="{{ request('q') }}">
                         <input type="hidden" name="sort_by" value="{{ $sortBy }}">
                         <input type="hidden" name="sort_dir" value="{{ $sortDir }}">
-                        <div class="flex flex-1 min-w-[220px] flex-col gap-1" data-chip-select="filter-clients" data-input-name="cliente_id[]">
-                            <span class="text-[10px] uppercase tracking-wide text-slate-400">Cliente</span>
-                            <div class="flex flex-wrap gap-2" data-chip-list></div>
+                        <div class="flex flex-1 min-w-[220px] flex-col gap-2" data-tag-mode-filter data-input-add-name="cliente_add[]" data-input-remove-name="cliente_remove[]">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[10px] uppercase tracking-wide text-slate-400">Clientes</span>
+                                <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="inline-flex flex-wrap items-center gap-2" data-tag-chip-list="add"></div>
+                                <div class="inline-flex flex-wrap items-center gap-2" data-tag-chip-list="remove"></div>
+                            </div>
                             <div class="relative">
                                 <input
                                     type="search"
-                                    data-chip-search
+                                    data-tag-search
                                     placeholder="Buscar cliente"
                                     class="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
                                 >
-                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
+                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-tag-options>
                                     @foreach($clients as $client)
-                                        <button
-                                            type="button"
-                                            data-chip-option
+                                        <div
+                                            data-tag-option
                                             data-value="{{ $client->id }}"
                                             data-label="{{ $client->nome }}"
-                                            class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                                            class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
                                         >
-                                            <span>{{ $client->nome }}</span>
-                                            <span class="text-[10px] text-slate-400">ID {{ $client->id }}</span>
-                                        </button>
+                                            <span class="truncate">{{ $client->nome }}</span>
+                                            <div class="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    data-tag-option-action="add"
+                                                    class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                                                >
+                                                    Adicionar
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    data-tag-option-action="remove"
+                                                    class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700"
+                                                >
+                                                    Remover
+                                                </button>
+                                                <span data-tag-option-status class="text-[10px] text-slate-400">ID {{ $client->id }}</span>
+                                            </div>
+                                        </div>
                                     @endforeach
                                 </div>
                             </div>
-                            <div class="hidden" data-chip-inputs>
-                                @foreach($clientFilter as $clientId)
-                                    <input type="hidden" name="cliente_id[]" value="{{ $clientId }}">
+                            <div class="hidden" data-tag-inputs-add>
+                                @foreach($clientAddFilter as $clientId)
+                                    <input type="hidden" name="cliente_add[]" value="{{ $clientId }}">
+                                @endforeach
+                            </div>
+                            <div class="hidden" data-tag-inputs-remove>
+                                @foreach($clientRemoveFilter as $clientId)
+                                    <input type="hidden" name="cliente_remove[]" value="{{ $clientId }}">
                                 @endforeach
                             </div>
                         </div>
 
-                        <div class="flex flex-1 min-w-[220px] flex-col gap-1" data-chip-select="filter-assistants" data-input-name="assistant_id[]">
-                            <span class="text-[10px] uppercase tracking-wide text-slate-400">Assistentes</span>
-                            <div class="flex flex-wrap gap-2" data-chip-list></div>
+                        <div class="flex flex-1 min-w-[220px] flex-col gap-2" data-tag-mode-filter data-input-add-name="assistant_add[]" data-input-remove-name="assistant_remove[]">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[10px] uppercase tracking-wide text-slate-400">Assistentes</span>
+                                <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="inline-flex flex-wrap items-center gap-2" data-tag-chip-list="add"></div>
+                                <div class="inline-flex flex-wrap items-center gap-2" data-tag-chip-list="remove"></div>
+                            </div>
                             <div class="relative">
                                 <input
                                     type="search"
-                                    data-chip-search
+                                    data-tag-search
                                     placeholder="Buscar assistente"
                                     class="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
                                 >
-                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
+                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-tag-options>
                                     @forelse($assistants as $assistant)
-                                        <button
-                                            type="button"
-                                            data-chip-option
+                                        <div
+                                            data-tag-option
                                             data-value="{{ $assistant->id }}"
                                             data-label="{{ $assistant->name }}"
-                                            class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                                            class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
                                         >
-                                            <span>{{ $assistant->name }}</span>
-                                            <span class="text-[10px] text-slate-400">ID {{ $assistant->id }}</span>
-                                        </button>
+                                            <span class="truncate">{{ $assistant->name }}</span>
+                                            <div class="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    data-tag-option-action="add"
+                                                    class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                                                >
+                                                    Adicionar
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    data-tag-option-action="remove"
+                                                    class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700"
+                                                >
+                                                    Remover
+                                                </button>
+                                                <span data-tag-option-status class="text-[10px] text-slate-400">ID {{ $assistant->id }}</span>
+                                            </div>
+                                        </div>
                                     @empty
                                         <div class="px-3 py-2 text-xs text-slate-400">Nenhum assistente cadastrado.</div>
                                     @endforelse
                                 </div>
                             </div>
-                            <div class="hidden" data-chip-inputs>
-                                @foreach($assistantFilter as $assistantId)
-                                    <input type="hidden" name="assistant_id[]" value="{{ $assistantId }}">
+                            <div class="hidden" data-tag-inputs-add>
+                                @foreach($assistantAddFilter as $assistantId)
+                                    <input type="hidden" name="assistant_add[]" value="{{ $assistantId }}">
+                                @endforeach
+                            </div>
+                            <div class="hidden" data-tag-inputs-remove>
+                                @foreach($assistantRemoveFilter as $assistantId)
+                                    <input type="hidden" name="assistant_remove[]" value="{{ $assistantId }}">
                                 @endforeach
                             </div>
                         </div>
 
-                        <div class="flex flex-1 min-w-[280px] flex-col gap-2" data-tag-mode-filter>
+                        <div class="flex flex-1 min-w-[280px] flex-col gap-2" data-tag-mode-filter data-input-add-name="tags_add[]" data-input-remove-name="tags_remove[]">
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[10px] uppercase tracking-wide text-slate-400">Tags</span>
                                 <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
@@ -148,6 +200,71 @@
                             <div class="hidden" data-tag-inputs-remove>
                                 @foreach($tagRemoveFilter as $tagId)
                                     <input type="hidden" name="tags_remove[]" value="{{ $tagId }}">
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <div class="flex flex-1 min-w-[280px] flex-col gap-2" data-tag-mode-filter data-input-add-name="sequence_add[]" data-input-remove-name="sequence_remove[]">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[10px] uppercase tracking-wide text-slate-400">Sequencias</span>
+                                <span class="text-[10px] text-slate-400">Escolha na lista: adicionar ou remover</span>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="inline-flex flex-wrap items-center gap-2" data-tag-chip-list="add"></div>
+                                <div class="inline-flex flex-wrap items-center gap-2" data-tag-chip-list="remove"></div>
+                            </div>
+                            <div class="relative">
+                                <input
+                                    type="search"
+                                    data-tag-search
+                                    placeholder="Buscar sequencia"
+                                    class="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-tag-options>
+                                    @forelse($sequences as $sequence)
+                                        @php
+                                            $sequenceLabel = $sequence->name . ($sequence->cliente?->nome ? ' (' . $sequence->cliente->nome . ')' : '');
+                                        @endphp
+                                        <div
+                                            data-tag-option
+                                            data-value="{{ $sequence->id }}"
+                                            data-label="{{ $sequenceLabel }}"
+                                            class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+                                        >
+                                            <span class="truncate">{{ $sequence->name }}</span>
+                                            <div class="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    data-tag-option-action="add"
+                                                    class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700"
+                                                >
+                                                    Adicionar
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    data-tag-option-action="remove"
+                                                    class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700"
+                                                >
+                                                    Remover
+                                                </button>
+                                                <span data-tag-option-status class="text-[10px] text-slate-400">
+                                                    {{ $sequence->cliente?->nome ? 'Cliente: ' . $sequence->cliente->nome : 'Sem cliente' }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    @empty
+                                        <div class="px-3 py-2 text-xs text-slate-400">Nenhuma sequencia cadastrada.</div>
+                                    @endforelse
+                                </div>
+                            </div>
+                            <div class="hidden" data-tag-inputs-add>
+                                @foreach($sequenceAddFilter as $sequenceId)
+                                    <input type="hidden" name="sequence_add[]" value="{{ $sequenceId }}">
+                                @endforeach
+                            </div>
+                            <div class="hidden" data-tag-inputs-remove>
+                                @foreach($sequenceRemoveFilter as $sequenceId)
+                                    <input type="hidden" name="sequence_remove[]" value="{{ $sequenceId }}">
                                 @endforeach
                             </div>
                         </div>
@@ -229,6 +346,14 @@
                     >
                         <span>Sequencia</span>
                         <span class="text-[11px] font-medium text-amber-600">Remover dos filtros</span>
+                    </button>
+                    <button
+                        type="button"
+                        id="bulkTagsAction"
+                        class="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold text-sky-700 hover:bg-sky-50"
+                    >
+                        <span>Tags</span>
+                        <span class="text-[11px] font-medium text-sky-600">Filtros atuais</span>
                     </button>
                     <div class="my-2 border-t border-slate-100"></div>
                     <p class="px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Exportar</p>
@@ -759,6 +884,63 @@
             </div>
         </div>
     </div>
+
+    <div id="bulkTagsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-auto bg-black/50 px-4 py-6">
+        <div class="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900">Tags em lote</h3>
+                <button type="button" data-bulk-tags-close class="text-slate-500 hover:text-slate-700">x</button>
+            </div>
+            <p class="mt-2 text-xs text-slate-500">A ação será aplicada a todos os leads dos filtros atuais.</p>
+
+            <div class="mt-4">
+                <label for="bulkTagsOperation" class="text-[11px] uppercase tracking-wide text-slate-400">Operação</label>
+                <select
+                    id="bulkTagsOperation"
+                    class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                >
+                    <option value="add">Adicionar tags</option>
+                    <option value="remove">Remover tags</option>
+                </select>
+            </div>
+
+            <div class="mt-4 space-y-2" data-chip-select="bulk-tags" data-input-name="tag_ids[]">
+                <div class="flex flex-wrap gap-2" data-chip-list></div>
+                <div class="relative">
+                    <input
+                        type="search"
+                        data-chip-search
+                        placeholder="Buscar tags"
+                        class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                    >
+                    <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
+                        @forelse($tags as $tag)
+                            <button
+                                type="button"
+                                data-chip-option
+                                data-value="{{ $tag->id }}"
+                                data-label="{{ $tag->name }}"
+                                class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                            >
+                                <span>{{ $tag->name }}</span>
+                                <span class="text-[10px] text-slate-400">Tag</span>
+                            </button>
+                        @empty
+                            <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
+                        @endforelse
+                    </div>
+                </div>
+                <div class="hidden" data-chip-inputs></div>
+            </div>
+
+            <p id="bulkTagsModalHint" class="mt-3 text-[11px] text-slate-500">Selecione as tags e a operação desejada.</p>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" data-bulk-tags-close class="rounded-2xl border border-slate-200 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
+                <button type="button" id="bulkTagsSubmit" class="rounded-2xl bg-sky-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-sky-700">Aplicar tags</button>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -794,10 +976,11 @@
             const activateBotForAllAction = document.getElementById('activateBotForAllAction');
             const deleteAllAction = document.getElementById('deleteAllAction');
             const removeSequenceAction = document.getElementById('removeSequenceAction');
+            const bulkTagsAction = document.getElementById('bulkTagsAction');
             const exportMenuLinks = Array.from(document.querySelectorAll('[data-export-format]'));
             const filtersToggle = document.getElementById('filtersToggle');
             const filtersMenu = document.getElementById('filtersMenu');
-            const filterTagsModeRoot = document.querySelector('[data-tag-mode-filter]');
+            const dualModeFilterRoots = Array.from(document.querySelectorAll('[data-tag-mode-filter]'));
             const leadSearchInput = document.getElementById('leadSearchInput');
             const leadSearchClear = document.getElementById('leadSearchClear');
             const leadTableContainer = document.getElementById('leadTableContainer');
@@ -831,6 +1014,11 @@
             const removeSequenceSubmit = document.getElementById('removeSequenceSubmit');
             const removeSequenceModalHint = document.getElementById('removeSequenceModalHint');
             const removeSequenceChipRoot = document.querySelector('[data-chip-select="remove-sequences"]');
+            const bulkTagsModal = document.getElementById('bulkTagsModal');
+            const bulkTagsSubmit = document.getElementById('bulkTagsSubmit');
+            const bulkTagsModalHint = document.getElementById('bulkTagsModalHint');
+            const bulkTagsOperation = document.getElementById('bulkTagsOperation');
+            const bulkTagsChipRoot = document.querySelector('[data-chip-select="bulk-tags"]');
             const messageTabButtons = document.querySelectorAll('[data-message-tab-button]');
             const messageTabText = document.getElementById('leadMessageTabText');
             const messageTabTemplate = document.getElementById('leadMessageTabTemplate');
@@ -847,6 +1035,7 @@
             const destroyAllUrl = @json(route('agencia.conversas.destroy-all'));
             const removeSequencesOptionsUrl = @json(route('agencia.conversas.remove-sequences.options'));
             const removeSequencesUrl = @json(route('agencia.conversas.remove-sequences'));
+            const bulkTagsUrl = @json(route('agencia.conversas.tags.bulk'));
             const exportBaseUrl = @json(route('agencia.conversas.export'));
             const availableLeadCustomFields = @json($leadCustomFieldsData, JSON_UNESCAPED_UNICODE);
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -996,6 +1185,114 @@
                     deleteAllAction.disabled = false;
                     deleteAllAction.classList.remove('opacity-60', 'pointer-events-none');
                     deleteAllAction.innerHTML = originalHtml || '<span>Excluir todos</span>';
+                }
+            });
+
+            const closeBulkTagsModal = () => {
+                bulkTagsModal?.classList.add('hidden');
+            };
+
+            const setBulkTagsModalHint = (message, isError = false) => {
+                if (!bulkTagsModalHint) {
+                    return;
+                }
+
+                bulkTagsModalHint.textContent = message;
+                bulkTagsModalHint.className = isError
+                    ? 'mt-3 text-[11px] text-rose-600'
+                    : 'mt-3 text-[11px] text-slate-500';
+            };
+
+            const getBulkTagsSelectedIds = () => {
+                if (!bulkTagsChipRoot) {
+                    return [];
+                }
+
+                return Array.from(
+                    bulkTagsChipRoot.querySelectorAll('[data-chip-inputs] input[name="tag_ids[]"]')
+                )
+                    .map((input) => Number(input.value || 0))
+                    .filter((id) => Number.isInteger(id) && id > 0);
+            };
+
+            bulkTagsAction?.addEventListener('click', () => {
+                exportMenu?.classList.add('hidden');
+                bulkTagsModal?.classList.remove('hidden');
+                if (bulkTagsOperation) {
+                    bulkTagsOperation.value = 'add';
+                }
+                setBulkTagsModalHint('Selecione as tags e a operação desejada.');
+                chipSelects['bulk-tags']?.setSelected([]);
+            });
+
+            document.querySelectorAll('[data-bulk-tags-close]').forEach((button) => {
+                button.addEventListener('click', closeBulkTagsModal);
+            });
+
+            bulkTagsModal?.addEventListener('click', (event) => {
+                if (event.target === bulkTagsModal) {
+                    closeBulkTagsModal();
+                }
+            });
+
+            bulkTagsSubmit?.addEventListener('click', async () => {
+                const tagIds = getBulkTagsSelectedIds();
+                if (!tagIds.length) {
+                    window.alert('Selecione ao menos uma tag.');
+                    return;
+                }
+
+                const action = bulkTagsOperation?.value === 'remove' ? 'remove' : 'add';
+                const confirmed = action === 'remove'
+                    ? window.confirm('Remover as tags selecionadas de todos os leads filtrados?')
+                    : window.confirm('Adicionar as tags selecionadas em todos os leads filtrados?');
+                if (!confirmed) {
+                    return;
+                }
+
+                const originalHtml = bulkTagsSubmit.innerHTML;
+                bulkTagsSubmit.disabled = true;
+                bulkTagsSubmit.classList.add('opacity-60', 'pointer-events-none');
+                bulkTagsSubmit.textContent = action === 'remove' ? 'Removendo...' : 'Adicionando...';
+
+                try {
+                    const response = await fetch(buildFilteredActionUrl(bulkTagsUrl), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            action,
+                            tag_ids: tagIds,
+                        }),
+                    });
+
+                    let payload = {};
+                    try {
+                        payload = await response.json();
+                    } catch (error) {
+                        payload = {};
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'Nao foi possivel atualizar tags em lote.');
+                    }
+
+                    window.alert(payload.message || 'Tags atualizadas com sucesso.');
+                    closeBulkTagsModal();
+
+                    const refreshUrl = new URL(window.location.href);
+                    refreshUrl.searchParams.delete('page');
+                    await fetchLeads(refreshUrl.toString(), { pushState: true });
+                } catch (error) {
+                    window.alert(error.message || 'Nao foi possivel atualizar tags em lote.');
+                } finally {
+                    bulkTagsSubmit.disabled = false;
+                    bulkTagsSubmit.classList.remove('opacity-60', 'pointer-events-none');
+                    bulkTagsSubmit.innerHTML = originalHtml || 'Aplicar tags';
                 }
             });
 
@@ -2205,9 +2502,11 @@
                     return null;
                 }
 
+                const addInputName = root.dataset.inputAddName || 'tags_add[]';
+                const removeInputName = root.dataset.inputRemoveName || 'tags_remove[]';
                 const INPUT_NAME_BY_MODE = {
-                    add: 'tags_add[]',
-                    remove: 'tags_remove[]',
+                    add: addInputName,
+                    remove: removeInputName,
                 };
 
                 const chipListByMode = {
@@ -2224,6 +2523,13 @@
                     .map((input) => String(input.value));
 
                 const findOptionByValue = (value) => options.find((item) => String(item.dataset.value ?? '') === String(value));
+
+                options.forEach((option) => {
+                    const status = option.querySelector('[data-tag-option-status]');
+                    if (status && !status.dataset.defaultLabel) {
+                        status.dataset.defaultLabel = status.textContent?.trim() || 'Selecionar';
+                    }
+                });
 
                 const syncOptionsVisibility = () => {
                     const term = (search?.value ?? '').toLowerCase();
@@ -2273,7 +2579,7 @@
                             return;
                         }
 
-                        status.textContent = 'Tag';
+                        status.textContent = status.dataset.defaultLabel || 'Selecionar';
                         status.className = 'text-[10px] text-slate-400';
                         if (addActionButton) {
                             addActionButton.disabled = false;
@@ -2556,7 +2862,7 @@
                 return { setSelected, hydrateFromInputs };
             };
 
-            initTagModeFilter(filterTagsModeRoot);
+            dualModeFilterRoots.forEach((root) => initTagModeFilter(root));
 
             document.querySelectorAll('[data-chip-select]').forEach(root => {
                 const key = root.dataset.chipSelect;

@@ -50,6 +50,11 @@ class ClienteLeadController extends Controller
         $clients = Cliente::where('user_id', $user->id)->orderBy('nome')->get();
         $assistants = Assistant::where('user_id', $user->id)->orderBy('name')->get();
         $tags = Tag::where('user_id', $user->id)->orderBy('name')->get();
+        $sequences = Sequence::query()
+            ->where('user_id', $user->id)
+            ->with(['cliente:id,nome'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'cliente_id']);
         $leadCustomFieldsData = WhatsappCloudCustomField::query()
             ->where('user_id', $user->id)
             ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
@@ -64,8 +69,8 @@ class ClienteLeadController extends Controller
             ->values();
 
         [
-            $clientFilter,
-            $assistantFilter,
+            $clientAddFilter,
+            $assistantAddFilter,
             $tagAddFilter,
             $dateStart,
             $dateEnd,
@@ -73,6 +78,10 @@ class ClienteLeadController extends Controller
             $lastMessageStart,
             $lastMessageEnd,
             $tagRemoveFilter,
+            $clientRemoveFilter,
+            $assistantRemoveFilter,
+            $sequenceAddFilter,
+            $sequenceRemoveFilter,
         ] = $this->buildFilteredQuery($request, $user);
         [$sortBy, $sortDir] = $this->resolveLeadSort($request);
 
@@ -86,11 +95,16 @@ class ClienteLeadController extends Controller
             'clients',
             'assistants',
             'tags',
+            'sequences',
             'leads',
-            'clientFilter',
-            'assistantFilter',
+            'clientAddFilter',
+            'clientRemoveFilter',
+            'assistantAddFilter',
+            'assistantRemoveFilter',
             'tagAddFilter',
             'tagRemoveFilter',
+            'sequenceAddFilter',
+            'sequenceRemoveFilter',
             'dateStart',
             'dateEnd',
             'lastMessageStart',
@@ -189,6 +203,126 @@ class ClienteLeadController extends Controller
                 'message' => $message,
                 'matched_count' => $matchedCount,
                 'deleted_count' => $deletedCount,
+            ]);
+        }
+
+        return redirect()
+            ->route('agencia.conversas.index', $request->query())
+            ->with('success', $message);
+    }
+
+    public function bulkUpdateTags(Request $request): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        $validated = $request->validate([
+            'action' => ['required', 'in:add,remove'],
+            'tag_ids' => ['required', 'array', 'min:1'],
+            'tag_ids.*' => ['integer'],
+        ]);
+
+        $action = (string) ($validated['action'] ?? 'add');
+        $requestedTagIds = collect((array) ($validated['tag_ids'] ?? []))
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($requestedTagIds)) {
+            throw ValidationException::withMessages([
+                'tag_ids' => ['Selecione ao menos uma tag.'],
+            ]);
+        }
+
+        $ownedTagIds = $this->filterTags($requestedTagIds, (int) $user->id);
+        $sortedRequestedTagIds = $requestedTagIds;
+        sort($sortedRequestedTagIds);
+        $sortedOwnedTagIds = $ownedTagIds;
+        sort($sortedOwnedTagIds);
+
+        if ($sortedRequestedTagIds !== $sortedOwnedTagIds) {
+            throw ValidationException::withMessages([
+                'tag_ids' => ['Tag(s) invalida(s) para atualizacao em lote.'],
+            ]);
+        }
+
+        [, , , , , $query] = $this->buildFilteredQuery($request, $user);
+        $matchedCount = (clone $query)->count();
+        $affectedCount = 0;
+
+        if ($matchedCount > 0) {
+            $leadIdsQuery = (clone $query)->setEagerLoads([])->select('cliente_lead.id');
+
+            if ($action === 'add') {
+                $now = now();
+                $leadIdsQuery->chunkById(1000, function ($leads) use (&$affectedCount, $ownedTagIds, $now) {
+                    $rows = [];
+                    foreach ($leads as $lead) {
+                        $leadId = (int) ($lead->id ?? 0);
+                        if ($leadId <= 0) {
+                            continue;
+                        }
+
+                        foreach ($ownedTagIds as $tagId) {
+                            $rows[] = [
+                                'cliente_lead_id' => $leadId,
+                                'tag_id' => (int) $tagId,
+                                'created_at' => $now,
+                                'updated_at' => $now,
+                            ];
+                        }
+                    }
+
+                    if (!empty($rows)) {
+                        $affectedCount += (int) DB::table('cliente_lead_tag')->insertOrIgnore($rows);
+                    }
+                }, 'cliente_lead.id', 'id');
+            } else {
+                $leadIdsQuery->chunkById(1000, function ($leads) use (&$affectedCount, $ownedTagIds) {
+                    $leadIds = collect($leads)
+                        ->pluck('id')
+                        ->map(fn ($id) => (int) $id)
+                        ->filter(fn ($id) => $id > 0)
+                        ->values()
+                        ->all();
+
+                    if (empty($leadIds)) {
+                        return;
+                    }
+
+                    $affectedCount += (int) DB::table('cliente_lead_tag')
+                        ->whereIn('cliente_lead_id', $leadIds)
+                        ->whereIn('tag_id', $ownedTagIds)
+                        ->delete();
+                }, 'cliente_lead.id', 'id');
+            }
+        }
+
+        if ($matchedCount === 0) {
+            $message = 'Nenhum lead encontrado com os filtros atuais.';
+        } elseif ($action === 'add' && $affectedCount === 0) {
+            $message = 'As tags selecionadas já estavam vinculadas aos leads filtrados.';
+        } elseif ($action === 'remove' && $affectedCount === 0) {
+            $message = 'Nenhum vinculo de tag foi removido dos leads filtrados.';
+        } elseif ($action === 'add') {
+            $message = sprintf(
+                'Atualizacao concluida: %d vinculo(s) de tag adicionado(s). Total considerado pelos filtros: %d lead(s).',
+                $affectedCount,
+                $matchedCount
+            );
+        } else {
+            $message = sprintf(
+                'Atualizacao concluida: %d vinculo(s) de tag removido(s). Total considerado pelos filtros: %d lead(s).',
+                $affectedCount,
+                $matchedCount
+            );
+        }
+
+        if ($request->ajax() || $request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'matched_count' => $matchedCount,
+                'affected_count' => $affectedCount,
             ]);
         }
 
@@ -1456,6 +1590,39 @@ class ClienteLeadController extends Controller
         return Tag::where('user_id', $userId)->whereIn('id', $tagIds)->pluck('id')->all();
     }
 
+    private function filterClientes(array $clienteIds, int $userId): array
+    {
+        $clienteIds = array_values(array_filter($clienteIds, fn ($value) => $value !== '' && $value !== null));
+
+        if (empty($clienteIds)) {
+            return [];
+        }
+
+        return Cliente::where('user_id', $userId)->whereIn('id', $clienteIds)->pluck('id')->all();
+    }
+
+    private function filterAssistants(array $assistantIds, int $userId): array
+    {
+        $assistantIds = array_values(array_filter($assistantIds, fn ($value) => $value !== '' && $value !== null));
+
+        if (empty($assistantIds)) {
+            return [];
+        }
+
+        return Assistant::where('user_id', $userId)->whereIn('id', $assistantIds)->pluck('id')->all();
+    }
+
+    private function filterSequences(array $sequenceIds, int $userId): array
+    {
+        $sequenceIds = array_values(array_filter($sequenceIds, fn ($value) => $value !== '' && $value !== null));
+
+        if (empty($sequenceIds)) {
+            return [];
+        }
+
+        return Sequence::where('user_id', $userId)->whereIn('id', $sequenceIds)->pluck('id')->all();
+    }
+
     private function resolveLeadCustomFieldsForPersist(array $customFields, int $userId, int $clienteId): array
     {
         $normalized = [];
@@ -1732,12 +1899,24 @@ class ClienteLeadController extends Controller
 
     private function buildFilteredQuery(Request $request, $user, bool $eager = false): array
     {
-        $clientFilter = array_values(array_filter((array) $request->input('cliente_id', []), fn ($value) => $value !== '' && $value !== null));
-        $assistantFilter = array_values(array_filter((array) $request->input('assistant_id', []), fn ($value) => $value !== '' && $value !== null));
+        $legacyClientFilter = (array) $request->input('cliente_id', []);
+        $clientAddFilter = $this->filterClientes((array) $request->input('cliente_add', $legacyClientFilter), (int) $user->id);
+        $clientRemoveFilter = $this->filterClientes((array) $request->input('cliente_remove', []), (int) $user->id);
+        $clientRemoveFilter = array_values(array_diff($clientRemoveFilter, $clientAddFilter));
+
+        $legacyAssistantFilter = (array) $request->input('assistant_id', []);
+        $assistantAddFilter = $this->filterAssistants((array) $request->input('assistant_add', $legacyAssistantFilter), (int) $user->id);
+        $assistantRemoveFilter = $this->filterAssistants((array) $request->input('assistant_remove', []), (int) $user->id);
+        $assistantRemoveFilter = array_values(array_diff($assistantRemoveFilter, $assistantAddFilter));
+
         $legacyTagFilter = (array) $request->input('tags', []);
         $tagAddFilter = $this->filterTags((array) $request->input('tags_add', $legacyTagFilter), (int) $user->id);
         $tagRemoveFilter = $this->filterTags((array) $request->input('tags_remove', []), (int) $user->id);
         $tagRemoveFilter = array_values(array_diff($tagRemoveFilter, $tagAddFilter));
+
+        $sequenceAddFilter = $this->filterSequences((array) $request->input('sequence_add', []), (int) $user->id);
+        $sequenceRemoveFilter = $this->filterSequences((array) $request->input('sequence_remove', []), (int) $user->id);
+        $sequenceRemoveFilter = array_values(array_diff($sequenceRemoveFilter, $sequenceAddFilter));
         $dateStart = $request->input('date_start');
         $dateEnd = $request->input('date_end');
         $lastMessageStart = $request->input('last_message_start');
@@ -1759,12 +1938,20 @@ class ClienteLeadController extends Controller
 
         $query = $base->whereHas('cliente', fn ($q) => $q->where('user_id', $user->id));
 
-        if (!empty($clientFilter)) {
-            $query->whereIn('cliente_id', $clientFilter);
+        if (!empty($clientAddFilter)) {
+            $query->whereIn('cliente_id', $clientAddFilter);
         }
 
-        if (!empty($assistantFilter)) {
-            $query->whereHas('assistantLeads', fn ($q) => $q->whereIn('assistant_id', $assistantFilter));
+        if (!empty($clientRemoveFilter)) {
+            $query->whereNotIn('cliente_id', $clientRemoveFilter);
+        }
+
+        if (!empty($assistantAddFilter)) {
+            $query->whereHas('assistantLeads', fn ($q) => $q->whereIn('assistant_id', $assistantAddFilter));
+        }
+
+        if (!empty($assistantRemoveFilter)) {
+            $query->whereDoesntHave('assistantLeads', fn ($q) => $q->whereIn('assistant_id', $assistantRemoveFilter));
         }
 
         if (!empty($tagAddFilter)) {
@@ -1773,6 +1960,14 @@ class ClienteLeadController extends Controller
 
         if (!empty($tagRemoveFilter)) {
             $query->whereDoesntHave('tags', fn ($q) => $q->whereIn('tags.id', $tagRemoveFilter));
+        }
+
+        if (!empty($sequenceAddFilter)) {
+            $query->whereHas('sequenceChats', fn ($q) => $q->whereIn('sequence_id', $sequenceAddFilter));
+        }
+
+        if (!empty($sequenceRemoveFilter)) {
+            $query->whereDoesntHave('sequenceChats', fn ($q) => $q->whereIn('sequence_id', $sequenceRemoveFilter));
         }
 
         if ($dateStart) {
@@ -1808,7 +2003,21 @@ class ClienteLeadController extends Controller
             });
         }
 
-        return [$clientFilter, $assistantFilter, $tagAddFilter, $dateStart, $dateEnd, $query, $lastMessageStart, $lastMessageEnd, $tagRemoveFilter];
+        return [
+            $clientAddFilter,
+            $assistantAddFilter,
+            $tagAddFilter,
+            $dateStart,
+            $dateEnd,
+            $query,
+            $lastMessageStart,
+            $lastMessageEnd,
+            $tagRemoveFilter,
+            $clientRemoveFilter,
+            $assistantRemoveFilter,
+            $sequenceAddFilter,
+            $sequenceRemoveFilter,
+        ];
     }
 
     private function attachLeadToSequence(ClienteLead $lead, array $sequenceIds, int $userId, bool $sync = false): void

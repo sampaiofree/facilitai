@@ -393,6 +393,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::post('conversas', [AgenciaClienteLeadController::class, 'store'])->name('conversas.store');
     Route::post('conversas/ativar-bot-todos', [AgenciaClienteLeadController::class, 'activateBotForAll'])->name('conversas.activate-bot-all');
     Route::delete('conversas/excluir-todos', [AgenciaClienteLeadController::class, 'destroyAll'])->name('conversas.destroy-all');
+    Route::post('conversas/tags/lote', [AgenciaClienteLeadController::class, 'bulkUpdateTags'])->name('conversas.tags.bulk');
     Route::get('conversas/sequencias/remocao/opcoes', [AgenciaClienteLeadController::class, 'removeSequencesOptions'])->name('conversas.remove-sequences.options');
     Route::delete('conversas/sequencias/remocao', [AgenciaClienteLeadController::class, 'removeSequences'])->name('conversas.remove-sequences');
     Route::post('conversas/{clienteLead}/send-message', [AgenciaClienteLeadController::class, 'sendMessage'])->name('conversas.send-message');
