@@ -38,6 +38,7 @@
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Credencial</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Status</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ativa</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Phone</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Assistente</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Modelo</th>
@@ -65,8 +66,14 @@
                                     data-conexao-connect
                                     data-conexao-id="{{ $conexao->id }}"
                                     data-can-connect="{{ $conexao->whatsappApi?->slug === 'uazapi' ? '1' : '0' }}"
+                                    data-is-active="{{ $conexao->is_active ? '1' : '0' }}"
                                 >Conectar</button>
                             </div>
+                        </td>
+                        <td class="px-5 py-4">
+                            <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $conexao->is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }}">
+                                {{ $conexao->is_active ? 'Ativa' : 'Inativa' }}
+                            </span>
                         </td>
                         <td class="px-5 py-4 text-slate-600">{{ $conexao->phone ?? '-' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ optional($conexao->assistant)->name ?? '-' }}</td>
@@ -86,6 +93,7 @@
                                     data-whatsapp-api-id="{{ $conexao->whatsapp_api_id }}"
                                     data-whatsapp-api-slug="{{ $conexao->whatsappApi?->slug }}"
                                     data-whatsapp-cloud-account-id="{{ $conexao->whatsapp_cloud_account_id }}"
+                                    data-is-active="{{ $conexao->is_active ? '1' : '0' }}"
                                     data-phone="{{ $conexao->phone }}"
                                 >Editar</button>
                                 <form method="POST" action="{{ route('agencia.conexoes.destroy', $conexao) }}" onsubmit="return confirm('Deseja excluir esta conexão?');">
@@ -98,7 +106,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="px-5 py-6 text-center text-slate-500">Nenhuma conexão cadastrada.</td>
+                        <td colspan="9" class="px-5 py-6 text-center text-slate-500">Nenhuma conexão cadastrada.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -257,6 +265,19 @@
                     <p class="mt-1 text-xs text-slate-400">A conexão usará as credenciais da conta cloud selecionada. Regra: 1 conta cloud = 1 conexão.</p>
                 </div>
 
+                <div class="flex items-center gap-3">
+                    <input type="hidden" name="is_active" value="0">
+                    <input
+                        id="conexaoActive"
+                        name="is_active"
+                        type="checkbox"
+                        value="1"
+                        class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        @checked(old('is_active', '1') === '1')
+                    >
+                    <label for="conexaoActive" class="text-sm text-slate-600">Conexão ativa</label>
+                </div>
+
                 <div class="flex items-center justify-end gap-3 pt-2">
                     <button type="button" class="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" data-close-modal>Cancelar</button>
                     <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Salvar</button>
@@ -310,6 +331,7 @@
             const apiOficialNumberInput = document.getElementById('conexaoApiOficialNumber');
             const cloudFields = document.getElementById('conexaoCloudFields');
             const cloudAccountSelect = document.getElementById('conexaoCloudAccount');
+            const activeInput = document.getElementById('conexaoActive');
             const storeRoute = "{{ route('agencia.conexoes.store') }}";
             const baseUrl = "{{ url('/agencia/conexoes') }}";
             const hasErrors = @json($errors->any());
@@ -324,6 +346,7 @@
             const oldPhone = @json(old('phone'));
             const oldBusinessId = @json(old('businessId'));
             const oldNumber = @json(old('number'));
+            const oldIsActive = @json(old('is_active', '1'));
             const statusElements = Array.from(document.querySelectorAll('[data-conexao-status]'));
             const connectButtons = Array.from(document.querySelectorAll('[data-conexao-connect]'));
             const statusUrl = (id) => `${baseUrl}/${id}/status`;
@@ -451,7 +474,7 @@
             const updateConnectVisibility = (id, status) => {
                 const button = getConnectButton(id);
                 if (!button) return;
-                if (button.dataset.canConnect !== '1') {
+                if (button.dataset.canConnect !== '1' || button.dataset.isActive !== '1') {
                     button.classList.add('hidden');
                     return;
                 }
@@ -502,6 +525,9 @@
                 if (cloudAccountSelect) {
                     cloudAccountSelect.value = '';
                 }
+                if (activeInput) {
+                    activeInput.checked = true;
+                }
                 toggleConnectionFields({ slug: '', isEditing: false });
             };
 
@@ -544,6 +570,9 @@
                         if (cloudAccountSelect) {
                             cloudAccountSelect.value = button.dataset.whatsappCloudAccountId || '';
                         }
+                        if (activeInput) {
+                            activeInput.checked = button.dataset.isActive !== '0';
+                        }
                         toggleConnectionFields({
                             slug: button.dataset.whatsappApiSlug || getSelectedWhatsappApiSlug(),
                             isEditing: true,
@@ -574,6 +603,9 @@
                 if (phoneInput) {
                     phoneInput.value = oldPhone ?? '';
                 }
+                if (activeInput) {
+                    activeInput.checked = oldIsActive === '1' || oldIsActive === 1 || oldIsActive === true;
+                }
                 toggleConnectionFields({
                     slug: getSelectedWhatsappApiSlug(),
                     isEditing: true,
@@ -599,6 +631,9 @@
                 }
                 if (cloudAccountSelect) {
                     cloudAccountSelect.value = oldWhatsappCloudAccountId ?? '';
+                }
+                if (activeInput) {
+                    activeInput.checked = oldIsActive === '1' || oldIsActive === 1 || oldIsActive === true;
                 }
                 if (apiOficialNumberInput) {
                     apiOficialNumberInput.value = oldNumber ?? '';
@@ -741,7 +776,7 @@
 
             connectButtons.forEach(button => {
                 button.addEventListener('click', () => {
-                    if (button.dataset.canConnect !== '1') {
+                    if (button.dataset.canConnect !== '1' || button.dataset.isActive !== '1') {
                         return;
                     }
                     currentConnectId = button.dataset.conexaoId;
@@ -773,6 +808,10 @@
                 try {
                     const response = await fetch(statusUrl(id), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                     const payload = await response.json();
+                    const connectButton = getConnectButton(id);
+                    if (connectButton && payload?.is_active !== undefined) {
+                        connectButton.dataset.isActive = payload.is_active ? '1' : '0';
+                    }
                     if (payload?.status) {
                         element.textContent = payload.status;
                         updateConnectVisibility(id, payload.status);

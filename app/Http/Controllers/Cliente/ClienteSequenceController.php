@@ -106,6 +106,7 @@ class ClienteSequenceController extends Controller
         $conexao = Conexao::query()
             ->where('id', $data['conexao_id'])
             ->where('cliente_id', $cliente->id)
+            ->where('is_active', true)
             ->firstOrFail();
 
         $payload = [
@@ -231,7 +232,11 @@ class ClienteSequenceController extends Controller
             403
         );
 
-        return $cliente->conexoes()->select('id', 'name')->orderBy('name')->get();
+        return $cliente->conexoes()
+            ->where('is_active', true)
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
     }
 
     public function sequences(Cliente $cliente)

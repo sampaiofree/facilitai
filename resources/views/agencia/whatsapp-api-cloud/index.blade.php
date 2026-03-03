@@ -286,8 +286,8 @@
                         </div>
                     @endif
 
-                    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                        <table class="min-w-full text-sm">
+                    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <table class="min-w-[1100px] text-sm">
                             <thead class="bg-slate-50 text-slate-500">
                                 <tr>
                                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Campanha</th>
@@ -672,7 +672,7 @@
     @endphp
 
     <div id="campaignModal" class="fixed inset-0 z-50 hidden items-start justify-center overflow-y-auto bg-black/50 px-4 py-6">
-        <div class="my-2 w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div class="my-2 flex h-[min(920px,92vh)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
                 <div>
                     <h3 class="text-lg font-semibold text-slate-900">Nova campanha em massa</h3>
@@ -681,11 +681,11 @@
                 <button type="button" class="text-slate-500 hover:text-slate-700" data-campaign-close>x</button>
             </div>
 
-            <form id="campaignForm" method="POST" action="{{ route('agencia.whatsapp-cloud.campaigns.store') }}" class="grid max-h-[calc(100vh-6rem)] gap-0 lg:grid-cols-3">
+            <form id="campaignForm" method="POST" action="{{ route('agencia.whatsapp-cloud.campaigns.store') }}" class="grid min-h-0 flex-1 gap-0 lg:grid-cols-3">
                 @csrf
                 <input type="hidden" name="active_tab" value="campaigns">
 
-                <section class="space-y-4 overflow-y-auto border-r border-slate-200 p-6 lg:col-span-2">
+                <section class="min-h-0 space-y-4 overflow-y-auto border-r border-slate-200 p-6 lg:col-span-2">
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="campaignName">Nome da campanha (opcional)</label>
@@ -900,7 +900,7 @@
                     </div>
                 </section>
 
-                <section class="space-y-4 overflow-y-auto bg-slate-50 p-6 lg:col-span-1">
+                <section class="min-h-0 space-y-4 overflow-y-auto bg-slate-50 p-6 lg:col-span-1">
                     <div>
                         <h4 class="text-sm font-semibold text-slate-900">Preview do modelo</h4>
                         <p class="text-xs text-slate-500">Mensagem exibida ao selecionar o modelo.</p>

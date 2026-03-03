@@ -2248,6 +2248,7 @@ class WhatsappCloudController extends Controller
     private function ownedCloudConexoesQuery(int $userId)
     {
         return Conexao::query()
+            ->where('is_active', true)
             ->whereHas('cliente', fn ($query) => $query->where('user_id', $userId))
             ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'whatsapp_cloud'));
     }

@@ -18,7 +18,17 @@ class AgenciaSequenceController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
+        $activeTab = $request->input('tab') === 'chats' ? 'chats' : 'steps';
+
         $clients = Cliente::where('user_id', $user->id)->orderBy('nome')->get();
+        $allowedClientIds = $clients->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $selectedClientIds = collect((array) $request->input('cliente_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0 && in_array($id, $allowedClientIds, true))
+            ->unique()
+            ->values()
+            ->all();
+
         $tags = Tag::where('user_id', $user->id)->orderBy('name')->get();
         $promptHelpTipos = PromptHelpTipo::with([
             'sections' => function ($query) {
@@ -31,22 +41,51 @@ class AgenciaSequenceController extends Controller
         ])
             ->orderBy('name')
             ->get();
-        $sequences = Sequence::with(['cliente', 'conexao', 'steps', 'logs.sequenceStep'])
-            ->where('user_id', $user->id)
-            ->latest()
-            ->get();
 
-        $sequenceChatsBySequence = [];
-        foreach ($sequences as $sequence) {
-            $pageParam = (int) $request->input("sequence_chats_page_{$sequence->id}", 1);
-            $sequenceChatsBySequence[$sequence->id] = SequenceChat::with('clienteLead')
-                ->where('sequence_id', $sequence->id)
-                ->orderByDesc('id')
-                ->paginate(50, ['*'], "sequence_chats_page_{$sequence->id}", $pageParam)
-                ->withQueryString();
+        $sequencesQuery = Sequence::query()
+            ->select(['id', 'user_id', 'cliente_id', 'name', 'active', 'created_at'])
+            ->with(['cliente:id,nome'])
+            ->withCount(['steps', 'chats'])
+            ->where('user_id', $user->id)
+            ->latest();
+
+        if (!empty($selectedClientIds)) {
+            $sequencesQuery->whereIn('cliente_id', $selectedClientIds);
         }
 
-        return view('agencia.sequences.index', compact('sequences', 'clients', 'tags', 'promptHelpTipos', 'sequenceChatsBySequence'));
+        $sequences = $sequencesQuery->get();
+
+        $selectedSequenceId = $request->filled('sequence_id') ? (int) $request->input('sequence_id') : null;
+        if (!$selectedSequenceId || !$sequences->contains('id', $selectedSequenceId)) {
+            $selectedSequenceId = $sequences->first()?->id;
+        }
+
+        $selectedSequence = null;
+        $sequenceChatsPaginator = null;
+        if ($selectedSequenceId) {
+            $selectedSequence = Sequence::with(['cliente', 'conexao', 'steps'])
+                ->where('user_id', $user->id)
+                ->find($selectedSequenceId);
+
+            if ($selectedSequence) {
+                $sequenceChatsPaginator = SequenceChat::with('clienteLead')
+                    ->where('sequence_id', $selectedSequence->id)
+                    ->orderByDesc('id')
+                    ->paginate(50, ['*'], 'sequence_chats_page')
+                    ->withQueryString();
+            }
+        }
+
+        return view('agencia.sequences.index', compact(
+            'sequences',
+            'clients',
+            'tags',
+            'promptHelpTipos',
+            'selectedSequence',
+            'sequenceChatsPaginator',
+            'selectedClientIds',
+            'activeTab'
+        ));
     }
 
     public function destroySequenceChat(Request $request, SequenceChat $sequenceChat): RedirectResponse
@@ -56,7 +95,9 @@ class AgenciaSequenceController extends Controller
 
         $sequenceChat->delete();
 
-        return back()->with('success', 'Registro de SequenceChat removido com sucesso.');
+        return redirect()
+            ->route('agencia.sequences.index', $this->stateForRedirect($request, $sequence->id))
+            ->with('success', 'Registro de SequenceChat removido com sucesso.');
     }
 
     public function destroySequenceChatsBySequence(Request $request, Sequence $sequence): RedirectResponse
@@ -65,7 +106,9 @@ class AgenciaSequenceController extends Controller
 
         $deleted = SequenceChat::where('sequence_id', $sequence->id)->delete();
 
-        return back()->with('success', "{$deleted} chat(s) da sequência removido(s) com sucesso.");
+        return redirect()
+            ->route('agencia.sequences.index', $this->stateForRedirect($request, $sequence->id))
+            ->with('success', "{$deleted} chat(s) da sequência removido(s) com sucesso.");
     }
 
     public function store(Request $request)
@@ -83,7 +126,9 @@ class AgenciaSequenceController extends Controller
         ]);
 
         $cliente = Cliente::where('user_id', $user->id)->findOrFail($data['cliente_id']);
-        $conexao = Conexao::where('cliente_id', $cliente->id)->findOrFail($data['conexao_id']);
+        $conexao = Conexao::where('cliente_id', $cliente->id)
+            ->where('is_active', true)
+            ->findOrFail($data['conexao_id']);
 
         $payload = [
             'user_id' => $user->id,
@@ -96,26 +141,35 @@ class AgenciaSequenceController extends Controller
             'tags_excluir' => $this->normalizeTags($data['tags_excluir'] ?? []),
         ];
 
+        $selectedSequenceId = null;
         if (!empty($data['sequence_id'])) {
             $sequence = Sequence::where('user_id', $user->id)->findOrFail($data['sequence_id']);
             $sequence->update($payload);
+            $selectedSequenceId = $sequence->id;
             $message = 'Sequência atualizada com sucesso.';
         } else {
-            Sequence::create($payload);
+            $createdSequence = Sequence::create($payload);
+            $selectedSequenceId = $createdSequence->id;
             $message = 'Sequência criada com sucesso.';
         }
 
-        return redirect()->route('agencia.sequences.index')->with('success', $message);
-        }
+        return redirect()
+            ->route('agencia.sequences.index', $this->stateForRedirect($request, $selectedSequenceId))
+            ->with('success', $message);
+    }
 
     public function destroy(Request $request, Sequence $sequence): RedirectResponse
     {
         $this->ensureSequenceOwnership($sequence, $request->user()->id);
 
+        $state = $this->stateForRedirect($request);
         $sequence->delete();
+        if (isset($state['sequence_id']) && (int) $state['sequence_id'] === (int) $sequence->id) {
+            unset($state['sequence_id'], $state['sequence_chats_page']);
+        }
 
         return redirect()
-            ->route('agencia.sequences.index')
+            ->route('agencia.sequences.index', $state)
             ->with('success', 'Sequencia removida com sucesso.');
     }
 
@@ -147,7 +201,9 @@ class AgenciaSequenceController extends Controller
             'ordem' => (int) ($sequence->steps()->max('ordem') ?? 0) + 1,
         ]);
 
-        return redirect()->route('agencia.sequences.index')->with('success', 'Etapa criada com sucesso.');
+        return redirect()
+            ->route('agencia.sequences.index', $this->stateForRedirect($request, $sequence->id))
+            ->with('success', 'Etapa criada com sucesso.');
     }
 
     public function updateStep(Request $request, Sequence $sequence, SequenceStep $step)
@@ -178,7 +234,9 @@ class AgenciaSequenceController extends Controller
             'active' => $request->boolean('active'),
         ]);
 
-        return redirect()->route('agencia.sequences.index')->with('success', 'Etapa atualizada com sucesso.');
+        return redirect()
+            ->route('agencia.sequences.index', $this->stateForRedirect($request, $sequence->id))
+            ->with('success', 'Etapa atualizada com sucesso.');
     }
 
     public function destroyStep(Request $request, Sequence $sequence, SequenceStep $step): RedirectResponse
@@ -189,14 +247,18 @@ class AgenciaSequenceController extends Controller
         $step->delete();
 
         return redirect()
-            ->route('agencia.sequences.index')
+            ->route('agencia.sequences.index', $this->stateForRedirect($request, $sequence->id))
             ->with('success', 'Etapa removida com sucesso.');
     }
 
     public function conexoes(Cliente $cliente)
     {
         abort_unless($cliente->user_id === auth()->id(), 403);
-        return $cliente->conexoes()->select('id', 'name')->orderBy('name')->get();
+        return $cliente->conexoes()
+            ->where('is_active', true)
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
     }
 
     public function sequences(Cliente $cliente)
@@ -225,6 +287,30 @@ class AgenciaSequenceController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function stateForRedirect(Request $request, ?int $selectedSequenceId = null): array
+    {
+        $tab = $request->input('tab') === 'chats' ? 'chats' : 'steps';
+        $clientIds = collect((array) $request->input('filter_cliente_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+        $sequenceId = $selectedSequenceId ?: ($request->filled('current_sequence_id') ? (int) $request->input('current_sequence_id') : null);
+        $sequenceChatsPage = $request->filled('sequence_chats_page') ? (int) $request->input('sequence_chats_page') : null;
+        $state = array_filter([
+            'tab' => $tab === 'chats' ? 'chats' : null,
+            'sequence_id' => $sequenceId ?: null,
+            'sequence_chats_page' => ($sequenceChatsPage && $sequenceChatsPage > 1) ? $sequenceChatsPage : null,
+        ], static fn ($value) => $value !== null && $value !== '');
+
+        if (!empty($clientIds)) {
+            $state['cliente_ids'] = $clientIds;
+        }
+
+        return $state;
     }
 
     private function ensureSequenceOwnership(Sequence $sequence, int $userId): void

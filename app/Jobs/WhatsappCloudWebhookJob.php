@@ -889,7 +889,9 @@ class WhatsappCloudWebhookJob implements ShouldQueue
 
     private function userStatus(Conexao $conexao): bool
     {
-        return !empty($conexao->cliente) && !empty($conexao->cliente->user_id);
+        return !empty($conexao->cliente)
+            && !empty($conexao->cliente->user_id)
+            && (bool) $conexao->is_active;
     }
 
     private function logContext(array $context = []): array

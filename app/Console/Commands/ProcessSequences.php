@@ -310,6 +310,11 @@ class ProcessSequences extends Command
                 continue;
             }
 
+            if (!$conexao->is_active) {
+                $erros[] = $candidato['source'] . '=' . $conexao->id . ' inativa';
+                continue;
+            }
+
             if (empty($conexao->assistant_id)) {
                 $erros[] = $candidato['source'] . '=' . $conexao->id . ' sem assistant_id';
                 continue;

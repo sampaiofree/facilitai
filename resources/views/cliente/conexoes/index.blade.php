@@ -22,6 +22,9 @@
                         <div>
                             <p class="text-sm font-semibold text-slate-900">{{ $conexao->name ?? 'Conexão' }}</p>
                             <p class="text-xs text-slate-500">Phone: {{ $conexao->phone ?? '-' }}</p>
+                            <span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $conexao->is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }}">
+                                {{ $conexao->is_active ? 'Ativa' : 'Inativa' }}
+                            </span>
                         </div>
                         <span
                             class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold transition {{ $conexao->status === 'connected' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}"
@@ -38,7 +41,8 @@
                             data-conexao-connect
                             data-conexao-id="{{ $conexao->id }}"
                             data-can-connect="{{ $conexao->whatsappApi?->slug === 'uazapi' ? '1' : '0' }}"
-                            {{ $conexao->whatsappApi?->slug === 'uazapi' ? '' : 'disabled' }}
+                            data-is-active="{{ $conexao->is_active ? '1' : '0' }}"
+                            {{ $conexao->whatsappApi?->slug === 'uazapi' && $conexao->is_active ? '' : 'disabled' }}
                         >Conectar</button>
                     </div>
                 </div>
@@ -141,7 +145,7 @@
             }
             const btn = connectButtons.find(e => e.dataset.conexaoId === String(id));
             if (btn) {
-                const show = normalized !== 'connected' && btn.dataset.canConnect === '1';
+                const show = normalized !== 'connected' && btn.dataset.canConnect === '1' && btn.dataset.isActive === '1';
                 btn.classList.toggle('hidden', !show);
             }
         };
@@ -217,7 +221,7 @@
 
         connectButtons.forEach(button => {
             button.addEventListener('click', () => {
-                if (button.dataset.canConnect !== '1') return;
+                if (button.dataset.canConnect !== '1' || button.dataset.isActive !== '1') return;
                 currentConnectId = button.dataset.conexaoId;
                 stopConnectTimers();
                 resetConnectModal();
@@ -247,6 +251,10 @@
             try {
                 const response = await fetch(statusUrl(id), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                 const payload = await response.json();
+                const button = connectButtons.find(e => e.dataset.conexaoId === String(id));
+                if (button && payload?.is_active !== undefined) {
+                    button.dataset.isActive = payload.is_active ? '1' : '0';
+                }
                 if (payload?.status) {
                     element.textContent = payload.status;
                     applyStatusUpdate(id, payload.status);

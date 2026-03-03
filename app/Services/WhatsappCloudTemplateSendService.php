@@ -6,12 +6,14 @@ use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Models\WhatsappCloudCustomField;
 use App\Models\WhatsappCloudTemplate;
+use App\Support\PhoneNumberNormalizer;
 use Illuminate\Support\Str;
 
 class WhatsappCloudTemplateSendService
 {
     public function __construct(
-        private readonly WhatsappCloudApiService $whatsappCloudApiService
+        private readonly WhatsappCloudApiService $whatsappCloudApiService,
+        private readonly PhoneNumberNormalizer $phoneNumberNormalizer
     ) {
     }
 
@@ -97,8 +99,8 @@ class WhatsappCloudTemplateSendService
             );
         }
 
-        $phone = preg_replace('/\D/', '', (string) ($lead->phone ?? ''));
-        if (!is_string($phone) || $phone === '' || strlen($phone) < 8) {
+        $phone = $this->phoneNumberNormalizer->normalizeLeadPhone((string) ($lead->phone ?? ''));
+        if ($phone === null) {
             return $this->error(
                 'lead_phone_invalid',
                 'Lead sem telefone válido para envio.'
@@ -483,4 +485,3 @@ class WhatsappCloudTemplateSendService
         }, $text);
     }
 }
-

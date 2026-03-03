@@ -206,283 +206,273 @@
         @include('agencia.conversas._table', ['leads' => $leads])
     </div>
 
-    <div id="agenciaClienteLeadFormModal" class="fixed inset-0 z-50 hidden flex items-start justify-center overflow-auto bg-black/50 px-4 py-6">
-        <div class="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
-            <div class="flex items-center justify-between">
+    <div id="agenciaClienteLeadFormModal" class="fixed inset-0 z-50 hidden bg-black/50">
+        <div class="flex h-full w-full flex-col bg-white">
+            <div class="flex shrink-0 items-center justify-between border-b border-slate-200 px-6 py-4">
                 <h3 id="clienteLeadFormTitle" class="text-lg font-semibold text-slate-900">Adicionar lead</h3>
                 <button type="button" class="text-slate-500 hover:text-slate-700" data-form-close>x</button>
             </div>
-            <div class="mt-4 flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 text-xs font-semibold text-slate-500">
-                <button type="button" data-form-tab="manual" class="rounded-full px-4 py-1.5 text-slate-700 bg-white shadow-sm">Adicionar</button>
-                <button type="button" data-form-tab="import" class="rounded-full px-4 py-1.5 text-slate-500">Importar lista</button>
-            </div>
 
-            <form
-                id="clienteLeadForm"
-                method="POST"
-                action="{{ route('agencia.conversas.store') }}"
-                data-create-route="{{ route('agencia.conversas.store') }}"
-                data-update-route-template="{{ route('agencia.conversas.update', ['clienteLead' => '__LEAD_ID__']) }}"
-                class="mt-4 space-y-4"
-            >
-                @csrf
-                <input type="hidden" name="_method" value="POST" id="clienteLeadFormMethod">
-
-                <div class="space-y-2">
-                    <span class="text-[11px] uppercase tracking-wide text-slate-400">Cliente</span>
-                    <select
-                        id="clienteLeadFormClient"
-                        name="cliente_id"
-                        required
-                        class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                    >
-                        <option value="">Selecione um cliente</option>
-                        @foreach($clients as $client)
-                            <option value="{{ $client->id }}">{{ $client->nome }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div data-chip-select="lead-sequences" data-input-name="sequence_ids[]">
-                    <span class="text-[11px] uppercase tracking-wide text-slate-400">Sequências</span>
-                    <div class="mt-2 flex flex-wrap gap-2" data-chip-list></div>
-                    <div class="relative mt-2">
-                        <input
-                            type="search"
-                            data-chip-search
-                            placeholder="Buscar sequência"
-                            class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
-                        >
-                        <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options></div>
+            <div class="flex-1 overflow-y-auto px-6 py-4">
+                <div class="mx-auto w-full max-w-6xl">
+                    <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 text-xs font-semibold text-slate-500">
+                        <button type="button" data-form-tab="manual" class="rounded-full bg-white px-4 py-1.5 text-slate-700 shadow-sm">Adicionar</button>
+                        <button type="button" data-form-tab="import" class="rounded-full px-4 py-1.5 text-slate-500">Importar lista</button>
                     </div>
-                    <div class="hidden" data-chip-inputs></div>
-                </div>
 
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" id="clienteLeadFormBot" name="bot_enabled" value="1" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                    <label for="clienteLeadFormBot" class="text-sm text-slate-600">Bot habilitado</label>
-                </div>
-
-                <div class="grid gap-4 md:grid-cols-2">
-                    <input
-                        id="clienteLeadFormPhone"
-                        name="phone"
-                        type="text"
-                        placeholder="Telefone"
-                        class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                    <form
+                        id="clienteLeadForm"
+                        method="POST"
+                        action="{{ route('agencia.conversas.store') }}"
+                        data-create-route="{{ route('agencia.conversas.store') }}"
+                        data-update-route-template="{{ route('agencia.conversas.update', ['clienteLead' => '__LEAD_ID__']) }}"
+                        class="mt-4 space-y-4"
                     >
-                    <input
-                        id="clienteLeadFormName"
-                        name="name"
-                        type="text"
-                        placeholder="Nome"
-                        class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                    >
-                </div>
+                        @csrf
+                        <input type="hidden" name="_method" value="POST" id="clienteLeadFormMethod">
 
-                <div>
-                    <textarea
-                        id="clienteLeadFormInfo"
-                        name="info"
-                        rows="3"
-                        placeholder="Informações adicionais"
-                        class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                    ></textarea>
-                </div>
+                        <div class="space-y-2">
+                            <span class="text-[11px] uppercase tracking-wide text-slate-400">Cliente</span>
+                            <select
+                                id="clienteLeadFormClient"
+                                name="cliente_id"
+                                required
+                                class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                            >
+                                <option value="">Selecione um cliente</option>
+                                @foreach($clients as $client)
+                                    <option value="{{ $client->id }}">{{ $client->nome }}</option>
+                                @endforeach
+                            </select>
+                        </div>
 
-                <div class="space-y-2">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Campos personalizados</span>
-                        <button
-                            type="button"
-                            id="leadCustomFieldAddBtn"
-                            class="rounded-full border border-slate-300 px-3 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-500 hover:text-slate-900"
-                        >Adicionar campo personalizado</button>
-                    </div>
-                    <div
-                        id="leadCustomFieldsEmpty"
-                        class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500"
-                    >Selecione um cliente e adicione os campos personalizados do lead.</div>
-                    <div id="leadCustomFieldsRows" class="space-y-2"></div>
-                </div>
+                        <div data-chip-select="lead-sequences" data-input-name="sequence_ids[]">
+                            <span class="text-[11px] uppercase tracking-wide text-slate-400">Sequências</span>
+                            <div class="mt-2 flex flex-wrap gap-2" data-chip-list></div>
+                            <div class="relative mt-2">
+                                <input
+                                    type="search"
+                                    data-chip-search
+                                    placeholder="Buscar sequência"
+                                    class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options></div>
+                            </div>
+                            <div class="hidden" data-chip-inputs></div>
+                        </div>
 
-                <div data-chip-select="lead-tags" data-input-name="tags[]">
-                    <span class="text-[11px] uppercase tracking-wide text-slate-400">Tags</span>
-                    <div class="mt-2 flex flex-wrap gap-2" data-chip-list></div>
-                    <div class="relative mt-2">
-                        <input
-                            type="search"
-                            data-chip-search
-                            placeholder="Buscar tags"
-                            class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
-                        >
-                        <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
-                            @forelse($tags as $tag)
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" id="clienteLeadFormBot" name="bot_enabled" value="1" checked class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                            <label for="clienteLeadFormBot" class="text-sm text-slate-600">Bot habilitado</label>
+                        </div>
+
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <input
+                                id="clienteLeadFormPhone"
+                                name="phone"
+                                type="text"
+                                placeholder="Telefone"
+                                class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                            >
+                            <input
+                                id="clienteLeadFormName"
+                                name="name"
+                                type="text"
+                                placeholder="Nome"
+                                class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                            >
+                        </div>
+
+                        <div>
+                            <textarea
+                                id="clienteLeadFormInfo"
+                                name="info"
+                                rows="3"
+                                placeholder="Informações adicionais"
+                                class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                            ></textarea>
+                        </div>
+
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] uppercase tracking-wide text-slate-400">Campos personalizados</span>
                                 <button
                                     type="button"
-                                    data-chip-option
-                                    data-value="{{ $tag->id }}"
-                                    data-label="{{ $tag->name }}"
-                                    class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
-                                >
-                                    <span>{{ $tag->name }}</span>
-                                    <span class="text-[10px] text-slate-400">Tag</span>
-                                </button>
-                            @empty
-                                <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
-                            @endforelse
+                                    id="leadCustomFieldAddBtn"
+                                    class="rounded-full border border-slate-300 px-3 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-500 hover:text-slate-900"
+                                >Adicionar campo personalizado</button>
+                            </div>
+                            <div
+                                id="leadCustomFieldsEmpty"
+                                class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500"
+                            >Selecione um cliente e adicione os campos personalizados do lead.</div>
+                            <div id="leadCustomFieldsRows" class="space-y-2"></div>
                         </div>
-                    </div>
-                    <div class="hidden" data-chip-inputs></div>
-                    </div>
-                <div class="flex justify-end gap-3">
-                    <button type="button" data-form-close class="rounded-2xl border border-slate-200 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
-                    <button type="submit" id="clienteLeadFormSubmit" class="rounded-2xl bg-blue-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-blue-700">Salvar</button>
-                </div>
-            </form>
 
-            <form
-                id="clienteLeadImportForm"
-                method="POST"
-                data-preview-url="{{ route('agencia.conversas.preview') }}"
-                action="{{ route('agencia.conversas.import') }}"
-                enctype="multipart/form-data"
-                class="mt-4 hidden space-y-4"
-            >
-                @csrf
+                        <div data-chip-select="lead-tags" data-input-name="tags[]">
+                            <span class="text-[11px] uppercase tracking-wide text-slate-400">Tags</span>
+                            <div class="mt-2 flex flex-wrap gap-2" data-chip-list></div>
+                            <div class="relative mt-2">
+                                <input
+                                    type="search"
+                                    data-chip-search
+                                    placeholder="Buscar tags"
+                                    class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
+                                    @forelse($tags as $tag)
+                                        <button
+                                            type="button"
+                                            data-chip-option
+                                            data-value="{{ $tag->id }}"
+                                            data-label="{{ $tag->name }}"
+                                            class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                                        >
+                                            <span>{{ $tag->name }}</span>
+                                            <span class="text-[10px] text-slate-400">Tag</span>
+                                        </button>
+                                    @empty
+                                        <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
+                                    @endforelse
+                                </div>
+                            </div>
+                            <div class="hidden" data-chip-inputs></div>
+                        </div>
 
-                <div class="grid gap-4 md:grid-cols-2">
-                    <div class="space-y-2">
-                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Cliente</span>
-                        <select
-                            name="cliente_id"
-                            required
-                            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                        >
-                            <option value="">Selecione um cliente</option>
-                            @foreach($clients as $client)
-                                <option value="{{ $client->id }}">{{ $client->nome }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="space-y-2">
-                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Arquivo CSV</span>
-                        <input
-                            type="file"
-                            name="csv_file"
-                            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            required
-                            data-csv-file
-                            class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600 focus:border-slate-400 focus:outline-none"
-                        >
-                        <p class="text-[11px] text-slate-400">A primeira linha do arquivo será usada como cabeçalho.</p>
-                    </div>
-                </div>
+                        <div class="flex justify-end gap-3">
+                            <button type="button" data-form-close class="rounded-2xl border border-slate-200 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
+                            <button type="submit" id="clienteLeadFormSubmit" class="rounded-2xl bg-blue-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-blue-700">Salvar</button>
+                        </div>
+                    </form>
 
-                <div class="grid gap-4 md:grid-cols-3">
-                    <div class="space-y-2">
-                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Delimitador</span>
-                        <select
-                            name="delimiter"
-                            data-csv-delimiter
-                            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                        >
-                            <option value="semicolon">; (padrão)</option>
-                            <option value="comma">, (vírgula)</option>
-                        </select>
-                        <p class="text-[11px] text-slate-400">Para XLSX, o delimitador é ignorado.</p>
-                    </div>
-                    <div class="space-y-2">
-                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Mapear telefone</span>
-                        <select
-                            name="map_phone"
-                            required
-                            data-map-select="phone"
-                            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                        >
-                            <option value="">Selecione a coluna</option>
-                        </select>
-                    </div>
-                    <div class="space-y-2">
-                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Mapear nome</span>
-                        <select
-                            name="map_name"
-                            data-map-select="name"
-                            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                        >
-                            <option value="">Não mapear</option>
-                        </select>
-                    </div>
-                </div>
+                    <form
+                        id="clienteLeadImportForm"
+                        method="POST"
+                        data-preview-url="{{ route('agencia.conversas.preview') }}"
+                        action="{{ route('agencia.conversas.import') }}"
+                        enctype="multipart/form-data"
+                        class="mt-4 hidden space-y-4"
+                    >
+                        @csrf
 
-                <div class="grid gap-4 md:grid-cols-2">
-                    <div class="space-y-2">
-                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Mapear informações</span>
-                        <select
-                            name="map_info"
-                            data-map-select="info"
-                            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                        >
-                            <option value="">Não mapear</option>
-                        </select>
-                        <p class="text-[11px] text-slate-400">Em XLSX, as colunas são exibidas por posição.</p>
-                    </div>
-                    <div data-chip-select="import-tags" data-input-name="tags[]" class="space-y-2">
-                        <span class="text-[11px] uppercase tracking-wide text-slate-400">Tags para todos</span>
-                        
-                        <div class="relative">
-                            <input
-                                type="search"
-                                data-chip-search
-                                placeholder="Buscar tags"
-                                class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
-                            >
-                            <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
-                                @forelse($tags as $tag)
-                                    <button
-                                        type="button"
-                                        data-chip-option
-                                        data-value="{{ $tag->id }}"
-                                        data-label="{{ $tag->name }}"
-                                        class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
-                                    >
-                                        <span>{{ $tag->name }}</span>
-                                        <span class="text-[10px] text-slate-400">Tag</span>
-                                    </button>
-                                @empty
-                                    <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
-                                @endforelse
+                        <div class="grid gap-4 md:grid-cols-3">
+                            <div class="space-y-2">
+                                <span class="text-[11px] uppercase tracking-wide text-slate-400">Cliente</span>
+                                <select
+                                    id="clienteLeadImportClient"
+                                    name="cliente_id"
+                                    required
+                                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                    <option value="">Selecione um cliente</option>
+                                    @foreach($clients as $client)
+                                        <option value="{{ $client->id }}">{{ $client->nome }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="space-y-2">
+                                <span class="text-[11px] uppercase tracking-wide text-slate-400">Arquivo CSV/XLSX</span>
+                                <input
+                                    type="file"
+                                    name="csv_file"
+                                    accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                    required
+                                    data-csv-file
+                                    class="w-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600 focus:border-slate-400 focus:outline-none"
+                                >
+                            </div>
+                            <div class="space-y-2">
+                                <span class="text-[11px] uppercase tracking-wide text-slate-400">Planilha tem cabeçalho?</span>
+                                <select
+                                    name="has_header"
+                                    data-csv-has-header
+                                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                    <option value="yes" selected>Sim</option>
+                                    <option value="no">Não</option>
+                                </select>
                             </div>
                         </div>
-                        <div class="flex flex-wrap gap-2" data-chip-list></div>
-                        <div class="hidden" data-chip-inputs>
-                            @foreach((array) old('tags', []) as $tagId)
-                                <input type="hidden" name="tags[]" value="{{ $tagId }}">
-                            @endforeach
+
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div class="space-y-2">
+                                <span class="text-[11px] uppercase tracking-wide text-slate-400">Delimitador</span>
+                                <select
+                                    name="delimiter"
+                                    data-csv-delimiter
+                                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                                >
+                                    <option value="semicolon">; (padrão)</option>
+                                    <option value="comma">, (vírgula)</option>
+                                </select>
+                                <p class="text-[11px] text-slate-400">Para XLSX, o delimitador é ignorado.</p>
+                            </div>
+                            <div data-chip-select="import-tags" data-input-name="tags[]" class="space-y-2">
+                                <span class="text-[11px] uppercase tracking-wide text-slate-400">Tags para todos</span>
+                                <div class="relative">
+                                    <input
+                                        type="search"
+                                        data-chip-search
+                                        placeholder="Buscar tags"
+                                        class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700 focus:border-slate-400 focus:outline-none"
+                                    >
+                                    <div class="absolute left-0 right-0 z-10 mt-1 hidden max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white shadow-lg" data-chip-options>
+                                        @forelse($tags as $tag)
+                                            <button
+                                                type="button"
+                                                data-chip-option
+                                                data-value="{{ $tag->id }}"
+                                                data-label="{{ $tag->name }}"
+                                                class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                                            >
+                                                <span>{{ $tag->name }}</span>
+                                                <span class="text-[10px] text-slate-400">Tag</span>
+                                            </button>
+                                        @empty
+                                            <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
+                                        @endforelse
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-2" data-chip-list></div>
+                                <div class="hidden" data-chip-inputs>
+                                    @foreach((array) old('tags', []) as $tagId)
+                                        <input type="hidden" name="tags[]" value="{{ $tagId }}">
+                                    @endforeach
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div class="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                            <p class="text-sm font-semibold text-slate-700">Previa do arquivo (ate 3 linhas)</p>
-                            <p class="text-xs text-slate-500">Revise os dados antes de importar e confirme se o telefone esta correto.</p>
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-700">Prévia e mapeamento (1 linha)</p>
+                                    <p class="text-xs text-slate-500">Coluna da planilha na esquerda e campo de destino na direita.</p>
+                                </div>
+                                <span id="previewPhoneStatus" class="text-[11px] font-semibold text-slate-500">Telefone: -</span>
+                            </div>
+                            <div id="previewEmpty" class="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-500">
+                                Selecione um arquivo para visualizar a prévia.
+                            </div>
+                            <div id="importMappingWrap" class="mt-3 hidden overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                                <table class="min-w-full text-xs text-slate-700">
+                                    <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left font-semibold">Coluna da planilha</th>
+                                            <th class="px-3 py-2 text-left font-semibold">Associar com</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="importMappingRows" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
                         </div>
-                        <span id="previewPhoneStatus" class="text-[11px] font-semibold text-slate-500">Telefone: -</span>
-                    </div>
-                    <div id="previewEmpty" class="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-500">
-                        Selecione um arquivo para visualizar a previa.
-                    </div>
-                    <div id="previewCards" class="mt-3 space-y-3 hidden"></div>
-                </div>
 
-
-                <div class="flex justify-end gap-3">
-                    <button type="button" data-form-close class="rounded-2xl border border-slate-200 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
-                    <button type="submit" class="rounded-2xl bg-blue-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-blue-700">Importar</button>
+                        <div class="flex justify-end gap-3">
+                            <button type="button" data-form-close class="rounded-2xl border border-slate-200 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
+                            <button type="submit" class="rounded-2xl bg-blue-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-blue-700">Importar</button>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -691,6 +681,8 @@
             const importTabButton = document.querySelector('[data-form-tab="import"]');
             const csvFileInput = document.querySelector('[data-csv-file]');
             const csvDelimiterSelect = document.querySelector('[data-csv-delimiter]');
+            const csvHasHeaderSelect = document.querySelector('[data-csv-has-header]');
+            const importClientSelect = document.getElementById('clienteLeadImportClient');
             const exportToggle = document.getElementById('exportToggle');
             const exportMenu = document.getElementById('exportMenu');
             const activateBotForAllAction = document.getElementById('activateBotForAllAction');
@@ -703,7 +695,8 @@
             const filtersQueryInput = filtersMenu?.querySelector('input[name="q"]');
             const convIdBaseUrl = @json(route('agencia.openai.conv_id'));
             const previewEmpty = document.getElementById('previewEmpty');
-            const previewCards = document.getElementById('previewCards');
+            const importMappingWrap = document.getElementById('importMappingWrap');
+            const importMappingRows = document.getElementById('importMappingRows');
             const previewPhoneStatus = document.getElementById('previewPhoneStatus');
             const previewEmptyDefault = previewEmpty?.textContent || '';
             const sequencesUrlTemplate = @json(route('agencia.sequences.cliente.sequences', ['cliente' => '__CLIENT__']));
@@ -740,8 +733,7 @@
             const availableLeadCustomFields = @json($leadCustomFieldsData, JSON_UNESCAPED_UNICODE);
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
             let previewHeaders = [];
-            let previewRows = [];
-            const mapSelects = document.querySelectorAll('[data-map-select]');
+            let previewSampleRow = [];
             const chipSelects = {};
             let currentLead = null;
             let currentAssistant = null;
@@ -2211,7 +2203,7 @@
                     clientLeadFormSubmit.textContent = 'Salvar';
                 }
                 if (clientLeadFormBot) {
-                    clientLeadFormBot.checked = false;
+                    clientLeadFormBot.checked = true;
                 }
                 chipSelects['lead-sequences']?.setSelected([]);
                 chipSelects['lead-tags']?.setSelected([]);
@@ -2287,6 +2279,13 @@
                 }
 
                 resetForm();
+                importForm?.reset();
+                chipSelects['import-tags']?.setSelected([]);
+                if (csvDelimiterSelect) {
+                    csvDelimiterSelect.disabled = false;
+                    csvDelimiterSelect.classList.remove('opacity-60');
+                }
+                resetImportPreviewState();
                 setImportTabVisible(mode !== 'edit');
                 setActiveTab('manual');
                 if (mode === 'edit' && data) {
@@ -2370,146 +2369,11 @@
                 button.addEventListener('click', () => setActiveTab(button.dataset.formTab));
             });
 
-
             const sanitizeValue = (value) => (value ?? '').toString().trim();
 
             const isValidPhone = (value) => {
                 const digits = sanitizeValue(value).replace(/\D/g, '');
-                return digits.length >= 11;
-            };
-
-            const renderPreview = () => {
-                if (!previewCards || !previewEmpty) {
-                    return;
-                }
-
-                previewCards.innerHTML = '';
-
-                if (!previewRows.length) {
-                    previewCards.classList.add('hidden');
-                    previewEmpty.classList.remove('hidden');
-                    if (previewEmptyDefault && previewEmpty) {
-                        previewEmpty.textContent = previewEmptyDefault;
-                    }
-                    if (previewPhoneStatus) {
-                        previewPhoneStatus.textContent = 'Telefone: -';
-                        previewPhoneStatus.className = 'text-[11px] font-semibold text-slate-500';
-                    }
-                    return;
-                }
-
-                const phoneSelect = document.querySelector('[data-map-select="phone"]');
-                const phoneIndex = phoneSelect && phoneSelect.value !== '' ? Number(phoneSelect.value) : null;
-
-                let validCount = 0;
-                previewRows.forEach((row, idx) => {
-                    const card = document.createElement('div');
-                    card.className = 'rounded-xl border border-slate-200 bg-white px-4 py-3';
-
-                    const header = document.createElement('div');
-                    header.className = 'flex items-center justify-between mb-2';
-                    header.innerHTML = `<span class="text-xs font-semibold text-slate-500">Linha ${idx + 1}</span>`;
-
-                    const phoneValue = phoneIndex !== null ? sanitizeValue(row[phoneIndex]) : '';
-                    const phoneOk = phoneIndex !== null ? isValidPhone(phoneValue) : false;
-                    if (phoneOk) {
-                        validCount += 1;
-                    }
-
-                    const statusBadge = document.createElement('span');
-                    statusBadge.className = phoneIndex === null
-                        ? 'text-[11px] text-slate-400'
-                        : phoneOk
-                            ? 'text-[11px] font-semibold text-emerald-600'
-                            : 'text-[11px] font-semibold text-amber-600';
-                    statusBadge.textContent = phoneIndex === null
-                        ? 'Telefone: selecione a coluna'
-                        : phoneOk
-                            ? 'Telefone valido'
-                            : 'Telefone possivelmente invalido';
-                    header.appendChild(statusBadge);
-                    card.appendChild(header);
-
-                    const grid = document.createElement('div');
-                    grid.className = 'grid gap-2 sm:grid-cols-2';
-
-                    previewHeaders.forEach((label, colIndex) => {
-                        const value = sanitizeValue(row[colIndex]);
-                        if (value === '' && !label) {
-                            return;
-                        }
-                        const block = document.createElement('div');
-                        block.className = 'rounded-lg border border-slate-100 bg-slate-50 px-3 py-2';
-                        const title = document.createElement('p');
-                        title.className = 'text-[10px] uppercase tracking-wide text-slate-400';
-                        title.textContent = label || `Coluna ${colIndex + 1}`;
-                        const content = document.createElement('p');
-                        content.className = colIndex === phoneIndex
-                            ? 'text-xs font-semibold text-slate-800'
-                            : 'text-xs text-slate-700';
-                        content.textContent = value || '-';
-                        block.appendChild(title);
-                        block.appendChild(content);
-                        grid.appendChild(block);
-                    });
-
-                    card.appendChild(grid);
-                    previewCards.appendChild(card);
-                });
-
-                previewEmpty.classList.add('hidden');
-                previewCards.classList.remove('hidden');
-                if (previewPhoneStatus) {
-                    previewPhoneStatus.textContent = phoneIndex === null
-                        ? 'Telefone: coluna nao selecionada'
-                        : `Telefone: ${validCount}/${previewRows.length} linhas validas`;
-                    previewPhoneStatus.className = phoneIndex === null
-                        ? 'text-[11px] font-semibold text-slate-500'
-                        : validCount === previewRows.length
-                            ? 'text-[11px] font-semibold text-emerald-600'
-                            : 'text-[11px] font-semibold text-amber-600';
-                }
-            };
-
-            const parseCsvLine = (line, delimiter) => {
-                const result = [];
-                let current = '';
-                let inQuotes = false;
-                for (let i = 0; i < line.length; i += 1) {
-                    const char = line[i];
-                    const next = line[i + 1];
-                    if (char === '"' && inQuotes && next === '"') {
-                        current += '"';
-                        i += 1;
-                        continue;
-                    }
-                    if (char === '"') {
-                        inQuotes = !inQuotes;
-                        continue;
-                    }
-                    if (char === delimiter && !inQuotes) {
-                        result.push(current);
-                        current = '';
-                        continue;
-                    }
-                    current += char;
-                }
-                result.push(current);
-                return result.map(value => value.trim());
-            };
-
-            const populateMappingOptions = (headers) => {
-                mapSelects.forEach(select => {
-                    const isPhone = select.dataset.mapSelect === 'phone';
-                    const defaultLabel = isPhone ? 'Selecione a coluna' : 'Não mapear';
-                    select.innerHTML = `<option value="">${defaultLabel}</option>`;
-                    headers.forEach((header, index) => {
-                        const option = document.createElement('option');
-                        option.value = index;
-                        option.textContent = header;
-                        select.appendChild(option);
-                    });
-                });
+                return digits.length >= 10 && digits.length <= 15;
             };
 
             const normalizeArray = (value) => {
@@ -2527,17 +2391,212 @@
                     previewEmpty.textContent = message;
                     previewEmpty.classList.remove('hidden');
                 }
-                if (previewCards) {
-                    previewCards.classList.add('hidden');
+                if (importMappingWrap) {
+                    importMappingWrap.classList.add('hidden');
+                }
+                if (previewPhoneStatus) {
+                    previewPhoneStatus.textContent = 'Telefone: -';
+                    previewPhoneStatus.className = 'text-[11px] font-semibold text-slate-500';
                 }
             };
 
+            const resolveAllowedImportCustomFields = () => {
+                const clienteId = Number(importClientSelect?.value || 0);
+                if (!Number.isInteger(clienteId) || clienteId <= 0) {
+                    return [];
+                }
+
+                return (Array.isArray(availableLeadCustomFields) ? availableLeadCustomFields : [])
+                    .filter((field) => {
+                        const fieldClienteId = field?.cliente_id ? Number(field.cliente_id) : null;
+                        return fieldClienteId === null || fieldClienteId === clienteId;
+                    });
+            };
+
+            const getImportMappingSelects = () => Array.from(
+                importMappingRows?.querySelectorAll('[data-import-map-select]') ?? []
+            );
+
+            const syncImportMappingSelectAvailability = () => {
+                const selects = getImportMappingSelects();
+                selects.forEach((select) => {
+                    const currentValue = select.value;
+                    Array.from(select.options).forEach((option) => {
+                        if (option.value === 'ignore' || option.value === currentValue) {
+                            option.disabled = false;
+                            return;
+                        }
+
+                        const selectedElsewhere = selects.some((other) => other !== select && other.value === option.value);
+                        option.disabled = selectedElsewhere;
+                    });
+                });
+            };
+
+            const buildImportMappingRows = () => {
+                if (!importMappingRows) {
+                    return;
+                }
+
+                const previousSelections = new Map(
+                    getImportMappingSelects().map((select) => [
+                        Number(select.dataset.columnIndex || -1),
+                        select.value || 'ignore',
+                    ])
+                );
+
+                importMappingRows.innerHTML = '';
+                const columnCount = Math.max(previewHeaders.length, previewSampleRow.length);
+                if (columnCount === 0) {
+                    if (importMappingWrap) {
+                        importMappingWrap.classList.add('hidden');
+                    }
+                    return;
+                }
+
+                const customFieldOptions = resolveAllowedImportCustomFields();
+                for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
+                    const label = sanitizeValue(previewHeaders[columnIndex]) || `Coluna ${columnIndex + 1}`;
+                    const sample = sanitizeValue(previewSampleRow[columnIndex]) || '-';
+                    const selectedValue = previousSelections.get(columnIndex) || 'ignore';
+
+                    const row = document.createElement('tr');
+                    row.className = 'align-top';
+
+                    const columnCell = document.createElement('td');
+                    columnCell.className = 'px-3 py-2';
+                    columnCell.innerHTML = `
+                        <p class="font-semibold text-slate-700">${escapeHtml(label)}</p>
+                        <p class="mt-1 text-[11px] text-slate-500">${escapeHtml(sample)}</p>
+                    `;
+
+                    const mappingCell = document.createElement('td');
+                    mappingCell.className = 'px-3 py-2';
+
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = `column_mappings[${columnIndex}][column_index]`;
+                    hiddenInput.value = String(columnIndex);
+
+                    const select = document.createElement('select');
+                    select.name = `column_mappings[${columnIndex}][target]`;
+                    select.dataset.importMapSelect = '1';
+                    select.dataset.columnIndex = String(columnIndex);
+                    select.className = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-slate-400 focus:outline-none';
+
+                    const options = [
+                        { value: 'ignore', label: 'Não importar' },
+                        { value: 'phone', label: 'ClienteLead.phone (Telefone)' },
+                        { value: 'name', label: 'ClienteLead.name (Nome)' },
+                        ...customFieldOptions.map((field) => ({
+                            value: `custom_field:${field.id}`,
+                            label: `Campo personalizado: ${buildLeadCustomFieldLabel(field)}`,
+                        })),
+                    ];
+
+                    options.forEach((item) => {
+                        const option = document.createElement('option');
+                        option.value = item.value;
+                        option.textContent = item.label;
+                        if (item.value === selectedValue) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+
+                    if (!Array.from(select.options).some((option) => option.value === selectedValue)) {
+                        select.value = 'ignore';
+                    }
+
+                    select.addEventListener('change', () => {
+                        if (select.value !== 'ignore') {
+                            const duplicated = getImportMappingSelects().find(
+                                (other) => other !== select && other.value === select.value
+                            );
+                            if (duplicated) {
+                                window.alert('Este campo já foi associado a outra coluna.');
+                                select.value = 'ignore';
+                            }
+                        }
+
+                        syncImportMappingSelectAvailability();
+                        renderPreview();
+                    });
+
+                    mappingCell.appendChild(hiddenInput);
+                    mappingCell.appendChild(select);
+                    row.appendChild(columnCell);
+                    row.appendChild(mappingCell);
+                    importMappingRows.appendChild(row);
+                }
+
+                syncImportMappingSelectAvailability();
+                if (importMappingWrap) {
+                    importMappingWrap.classList.remove('hidden');
+                }
+            };
+
+            const renderPreview = () => {
+                if (!previewEmpty) {
+                    return;
+                }
+
+                const columnCount = Math.max(previewHeaders.length, previewSampleRow.length);
+                if (columnCount === 0) {
+                    if (previewEmptyDefault) {
+                        previewEmpty.textContent = previewEmptyDefault;
+                    }
+                    previewEmpty.classList.remove('hidden');
+                    importMappingWrap?.classList.add('hidden');
+                    if (previewPhoneStatus) {
+                        previewPhoneStatus.textContent = 'Telefone: -';
+                        previewPhoneStatus.className = 'text-[11px] font-semibold text-slate-500';
+                    }
+                    return;
+                }
+
+                previewEmpty.classList.add('hidden');
+                importMappingWrap?.classList.remove('hidden');
+
+                const phoneSelect = getImportMappingSelects().find((select) => select.value === 'phone');
+                const phoneIndex = phoneSelect ? Number(phoneSelect.dataset.columnIndex || -1) : -1;
+                const phoneValue = phoneIndex >= 0 ? sanitizeValue(previewSampleRow[phoneIndex]) : '';
+                const phoneValid = phoneIndex >= 0 && phoneValue !== '' ? isValidPhone(phoneValue) : false;
+
+                if (!previewPhoneStatus) {
+                    return;
+                }
+
+                if (phoneIndex < 0) {
+                    previewPhoneStatus.textContent = 'Telefone: selecione um mapeamento';
+                    previewPhoneStatus.className = 'text-[11px] font-semibold text-slate-500';
+                    return;
+                }
+
+                if (phoneValue === '') {
+                    previewPhoneStatus.textContent = 'Telefone: coluna mapeada, sem valor na prévia';
+                    previewPhoneStatus.className = 'text-[11px] font-semibold text-amber-600';
+                    return;
+                }
+
+                previewPhoneStatus.textContent = phoneValid
+                    ? 'Telefone: valor de prévia válido'
+                    : 'Telefone: valor de prévia possivelmente inválido';
+                previewPhoneStatus.className = phoneValid
+                    ? 'text-[11px] font-semibold text-emerald-600'
+                    : 'text-[11px] font-semibold text-amber-600';
+            };
+
+            const resetImportPreviewState = () => {
+                previewHeaders = [];
+                previewSampleRow = [];
+                buildImportMappingRows();
+                renderPreview();
+            };
 
             const readCsvHeaders = async () => {
                 if (!csvFileInput || !csvFileInput.files || !csvFileInput.files[0]) {
-                    previewHeaders = [];
-                    previewRows = [];
-                    renderPreview();
+                    resetImportPreviewState();
                     return;
                 }
 
@@ -2551,9 +2610,11 @@
                 }
 
                 const delimiterKey = csvDelimiterSelect?.value ?? 'semicolon';
+                const hasHeader = csvHasHeaderSelect?.value ?? 'yes';
                 const formData = new FormData();
                 formData.append('csv_file', file);
                 formData.append('delimiter', delimiterKey);
+                formData.append('has_header', hasHeader);
 
                 const previewUrl = importForm?.dataset.previewUrl;
                 if (!previewUrl) {
@@ -2561,6 +2622,7 @@
                 }
 
                 try {
+                    setPreviewMessage('Carregando prévia do arquivo...');
                     const response = await fetch(previewUrl, {
                         method: 'POST',
                         headers: {
@@ -2571,40 +2633,44 @@
                     });
 
                     if (!response.ok) {
-                        previewHeaders = [];
-                        previewRows = [];
-                        populateMappingOptions([]);
+                        resetImportPreviewState();
                         setPreviewMessage('Não foi possível ler o arquivo. Verifique o formato e tente novamente.');
                         return;
                     }
 
                     const payload = await response.json();
                     if (payload?.error) {
-                        previewHeaders = [];
-                        previewRows = [];
-                        populateMappingOptions([]);
+                        resetImportPreviewState();
                         setPreviewMessage(payload.error);
                         return;
                     }
 
                     previewHeaders = normalizeArray(payload?.headers);
-                    previewRows = normalizeArray(payload?.rows).map(row => normalizeArray(row));
+                    const previewRows = normalizeArray(payload?.rows).map(row => normalizeArray(row));
+                    previewSampleRow = previewRows.length ? previewRows[0] : [];
 
-                    populateMappingOptions(previewHeaders);
+                    buildImportMappingRows();
                     renderPreview();
                 } catch (error) {
-                    previewHeaders = [];
-                    previewRows = [];
-                    populateMappingOptions([]);
+                    resetImportPreviewState();
                     setPreviewMessage('Não foi possível ler o arquivo. Verifique o formato e tente novamente.');
                 }
             };
 
             csvFileInput?.addEventListener('change', readCsvHeaders);
             csvDelimiterSelect?.addEventListener('change', readCsvHeaders);
+            csvHasHeaderSelect?.addEventListener('change', readCsvHeaders);
+            importClientSelect?.addEventListener('change', () => {
+                buildImportMappingRows();
+                renderPreview();
+            });
 
-            mapSelects.forEach(select => {
-                select.addEventListener('change', renderPreview);
+            importForm?.addEventListener('submit', (event) => {
+                const hasPhoneMapping = getImportMappingSelects().some((select) => select.value === 'phone');
+                if (!hasPhoneMapping) {
+                    event.preventDefault();
+                    window.alert('Mapeie uma coluna para o campo telefone antes de importar.');
+                }
             });
 
             // Chip filters are handled by initChipSelect above.

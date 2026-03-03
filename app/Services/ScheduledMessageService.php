@@ -6,10 +6,16 @@ use App\Models\AgencySetting;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Models\User;
+use App\Support\PhoneNumberNormalizer;
 use Illuminate\Support\Carbon;
 
 class ScheduledMessageService
 {
+    public function __construct(
+        private readonly PhoneNumberNormalizer $phoneNumberNormalizer
+    ) {
+    }
+
     public function resolveTimezoneForUser(User $user): string
     {
         $timezone = AgencySetting::where('user_id', $user->id)->value('timezone');
@@ -56,9 +62,8 @@ class ScheduledMessageService
             return ['ok' => false, 'message' => 'Bot desativado para este lead.'];
         }
 
-        $phoneRaw = trim((string) ($lead->phone ?? ''));
-        $phone = preg_replace('/\D/', '', $phoneRaw);
-        if (!is_string($phone) || $phone === '' || strlen($phone) < 11) {
+        $phone = $this->phoneNumberNormalizer->normalizeLeadPhone((string) ($lead->phone ?? ''));
+        if ($phone === null) {
             return ['ok' => false, 'message' => 'Lead sem telefone valido.'];
         }
 
@@ -103,6 +108,7 @@ class ScheduledMessageService
         $query = Conexao::query()
             ->where('cliente_id', $clienteId)
             ->where('assistant_id', $assistantId)
+            ->where('is_active', true)
             ->whereNull('deleted_at');
 
         if ($ownerUserId !== null) {

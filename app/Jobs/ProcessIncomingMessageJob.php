@@ -486,6 +486,13 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return null;
         }
 
+        if (!$conexao->is_active) {
+            Log::channel('process_job')->info('Conexao inativa ignorada no ProcessIncomingMessageJob.', $this->logContext([
+                'conexao_id' => $this->conexaoId,
+            ]));
+            return null;
+        }
+
         $this->conexao = $conexao;
         if ($this->clienteLeadId) {
             $this->clienteLead = ClienteLead::find($this->clienteLeadId);

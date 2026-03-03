@@ -9,10 +9,40 @@
         .log-accordion[open] summary svg {
             transform: rotate(180deg);
         }
+
+        .sequence-loader {
+            width: 24px;
+            height: 24px;
+            border-radius: 9999px;
+            border: 2px solid #cbd5e1;
+            border-top-color: #2563eb;
+            animation: sequence-loader-spin .8s linear infinite;
+        }
+
+        @keyframes sequence-loader-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 @endpush
 
 @section('content')
+    @php
+        $baseFilterQuery = [];
+        if (!empty($selectedClientIds)) {
+            $baseFilterQuery['cliente_ids'] = $selectedClientIds;
+        }
+
+        $baseSequenceQuery = $baseFilterQuery;
+        if ($activeTab === 'chats') {
+            $baseSequenceQuery['tab'] = 'chats';
+        }
+
+        $sequenceChats = collect($sequenceChatsPaginator?->items() ?? []);
+        $clientsById = $clients->keyBy('id');
+    @endphp
+
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Sequências</h2>
@@ -21,76 +51,201 @@
         <button id="openSequenceModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Nova sequência</button>
     </div>
 
-    <div class="grid gap-4">
-        @forelse($sequences as $sequence)
-            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <h3 class="text-lg font-semibold text-slate-900">{{ $sequence->name }}</h3>
-                            <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">id: {{ $sequence->id }}</span>
+    <div class="grid gap-6 xl:grid-cols-3">
+        <aside class="xl:col-span-1 space-y-4">
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <details id="sequenceFiltersDetails">
+                    <summary class="flex cursor-pointer list-none items-center justify-between text-sm font-semibold text-slate-900">
+                        <span class="inline-flex items-center gap-2">
+                            <span>Filtros</span>
+                            @if(!empty($selectedClientIds))
+                                <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">{{ count($selectedClientIds) }}</span>
+                            @endif
+                        </span>
+                        <span class="text-xs text-slate-500">abrir</span>
+                    </summary>
+                    <form id="sequenceFiltersForm" method="GET" action="{{ route('agencia.sequences.index') }}" class="mt-3 space-y-3">
+                        <div>
+                            <label for="sequenceFilterClientSelect" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</label>
+                            <select id="sequenceFilterClientSelect" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                                <option value="">Selecione</option>
+                                @foreach($clients as $cliente)
+                                    <option value="{{ $cliente->id }}" data-label="{{ $cliente->nome }}">{{ $cliente->nome }}</option>
+                                @endforeach
+                            </select>
                         </div>
-                        <p class="text-sm text-slate-500">{{ $sequence->description ?? 'Sem descrição' }}</p>
-                    </div>
-                    <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ $sequence->active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }}">
-                        {{ $sequence->active ? 'Ativa' : 'Inativa' }}
-                    </span>
-                </div>
-                <div class="mt-4 flex flex-wrap gap-4 text-sm text-slate-600">
-                    <div><span class="font-semibold text-slate-800">Cliente:</span> {{ $sequence->cliente?->nome ?? '—' }}</div>
-                    <div><span class="font-semibold text-slate-800">Conexão:</span> {{ $sequence->conexao?->name ?? '—' }}</div>
-                    <div>
-                        <span class="font-semibold text-slate-800">Tags incluir:</span>
-                        {{ collect($sequence->tags_incluir ?? [])->implode(', ') ?: '—' }}
-                    </div>
-                    <div>
-                        <span class="font-semibold text-slate-800">Tags excluir:</span>
-                        {{ collect($sequence->tags_excluir ?? [])->implode(', ') ?: '—' }}
-                    </div>
-                </div>
-                <div class="mt-4 flex items-center gap-2">
-                    <button type="button"
-                        class="rounded-lg bg-indigo-500 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
-                        data-action="edit-sequence"
-                        data-payload="{{ json_encode([
-                            'id' => $sequence->id,
-                            'name' => $sequence->name,
-                            'description' => $sequence->description,
-                            'active' => $sequence->active,
-                            'cliente_id' => $sequence->cliente_id,
-                            'conexao_id' => $sequence->conexao_id,
-                            'tags_incluir' => $sequence->tags_incluir ?? [],
-                            'tags_excluir' => $sequence->tags_excluir ?? [],
-                        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
-                    >Editar</button>
-                    <button type="button"
-                        class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                        data-action="create-step"
-                        data-sequence="{{ $sequence->id }}"
-                    >Criar Etapa</button>
-                    <form
-                        method="POST"
-                        action="{{ route('agencia.sequences.destroy', $sequence) }}"
-                        onsubmit="return confirm('Deseja excluir esta sequencia? Esta acao tambem removera etapas, chats e logs vinculados.');"
-                    >
-                        @csrf
-                        @method('DELETE')
-                        <button
-                            type="submit"
-                            class="rounded-lg bg-rose-500 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-600"
-                        >Excluir</button>
+
+                        <div id="sequenceFilterClientPills" class="flex flex-wrap gap-2">
+                            @foreach($selectedClientIds as $clientId)
+                                @php
+                                    $selectedClient = $clientsById->get($clientId);
+                                @endphp
+                                <span
+                                    class="inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700"
+                                    data-client-pill
+                                    data-client-id="{{ $clientId }}"
+                                >
+                                    <span>{{ $selectedClient?->nome ?? ('Cliente #' . $clientId) }}</span>
+                                    <button type="button" class="text-blue-500 hover:text-blue-700" data-remove-client-pill>&times;</button>
+                                    <input type="hidden" name="cliente_ids[]" value="{{ $clientId }}">
+                                </span>
+                            @endforeach
+                            <span id="sequenceFilterClientPillsEmpty" class="text-xs text-slate-500 {{ empty($selectedClientIds) ? '' : 'hidden' }}">Nenhum cliente selecionado.</span>
+                        </div>
+
+                        @if($selectedSequence)
+                            <input type="hidden" name="sequence_id" value="{{ $selectedSequence->id }}">
+                        @endif
+                        @if($activeTab === 'chats')
+                            <input type="hidden" name="tab" value="chats">
+                        @endif
+                        <div class="flex items-center gap-2 pt-1">
+                            <button type="submit" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">Aplicar</button>
+                            <a href="{{ route('agencia.sequences.index') }}" data-show-loader class="text-xs font-semibold text-slate-500 hover:text-slate-700">Limpar</a>
+                        </div>
                     </form>
+                </details>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                <h3 class="px-1 text-sm font-semibold text-slate-900">Sequências</h3>
+                <div class="mt-3 space-y-2 max-h-[calc(100vh-20rem)] overflow-y-auto pr-1">
+                    @forelse($sequences as $sequenceItem)
+                        @php
+                            $itemQuery = array_filter(array_merge($baseSequenceQuery, ['sequence_id' => $sequenceItem->id]), static fn ($value) => $value !== null && $value !== '');
+                            $isSelected = $selectedSequence && (int) $selectedSequence->id === (int) $sequenceItem->id;
+                        @endphp
+                        <a
+                            href="{{ route('agencia.sequences.index', $itemQuery) }}"
+                            data-sequence-nav
+                            class="block rounded-xl border px-3 py-2 transition {{ $isSelected ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50' }}"
+                        >
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="truncate text-sm font-semibold text-slate-800">{{ $sequenceItem->name }}</p>
+                                    <p class="mt-0.5 text-[11px] text-slate-500">id: {{ $sequenceItem->id }} · {{ $sequenceItem->cliente?->nome ?? 'Sem cliente' }}</p>
+                                </div>
+                                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold {{ $sequenceItem->active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }}">
+                                    {{ $sequenceItem->active ? 'Ativa' : 'Inativa' }}
+                                </span>
+                            </div>
+                            <div class="mt-2 flex items-center gap-2 text-[11px] text-slate-500">
+                                <span class="rounded-full bg-slate-100 px-2 py-0.5">{{ $sequenceItem->steps_count }} etapa(s)</span>
+                                <span class="rounded-full bg-slate-100 px-2 py-0.5">{{ $sequenceItem->chats_count }} chat(s)</span>
+                            </div>
+                        </a>
+                    @empty
+                        <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
+                            Nenhuma sequência encontrada.
+                        </div>
+                    @endforelse
                 </div>
-                <div class="mt-4">
-                    <details class="step-accordion rounded-2xl border border-slate-200 bg-slate-50">
-                        <summary class="flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 cursor-pointer">
-                            <span>Etapas ({{ $sequence->steps->count() }})</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6" />
-                            </svg>
-                        </summary>
-                        <div class="px-4 py-3">
-                            @if($sequence->steps->isEmpty())
+            </div>
+        </aside>
+
+        <section id="sequenceDetailPanel" class="xl:col-span-2">
+            @if(!$selectedSequence)
+                <div class="flex min-h-[420px] items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-700">Nenhuma sequência selecionada</p>
+                        <p class="mt-1 text-xs text-slate-500">Escolha uma sequência na lateral para carregar etapas e chats.</p>
+                    </div>
+                </div>
+            @else
+                @php
+                    $stepsTabQuery = array_filter(array_merge($baseFilterQuery, ['sequence_id' => $selectedSequence->id]), static fn ($value) => $value !== null && $value !== '');
+                    $chatsTabQuery = array_filter(array_merge($baseFilterQuery, ['sequence_id' => $selectedSequence->id, 'tab' => 'chats']), static fn ($value) => $value !== null && $value !== '');
+                @endphp
+                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-xl font-semibold text-slate-900">{{ $selectedSequence->name }}</h3>
+                                <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">id: {{ $selectedSequence->id }}</span>
+                            </div>
+                            <p class="mt-1 text-sm text-slate-500">{{ $selectedSequence->description ?? 'Sem descrição' }}</p>
+                        </div>
+                        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ $selectedSequence->active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }}">
+                            {{ $selectedSequence->active ? 'Ativa' : 'Inativa' }}
+                        </span>
+                    </div>
+
+                    <div class="mt-4 flex flex-wrap gap-4 text-sm text-slate-600">
+                        <div><span class="font-semibold text-slate-800">Cliente:</span> {{ $selectedSequence->cliente?->nome ?? '—' }}</div>
+                        <div><span class="font-semibold text-slate-800">Conexão:</span> {{ $selectedSequence->conexao?->name ?? '—' }}</div>
+                        <div><span class="font-semibold text-slate-800">Tags incluir:</span> {{ collect($selectedSequence->tags_incluir ?? [])->implode(', ') ?: '—' }}</div>
+                        <div><span class="font-semibold text-slate-800">Tags excluir:</span> {{ collect($selectedSequence->tags_excluir ?? [])->implode(', ') ?: '—' }}</div>
+                    </div>
+
+                    <div class="mt-4 flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            class="rounded-lg bg-indigo-500 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+                            data-action="edit-sequence"
+                            data-payload="{{ json_encode([
+                                'id' => $selectedSequence->id,
+                                'name' => $selectedSequence->name,
+                                'description' => $selectedSequence->description,
+                                'active' => $selectedSequence->active,
+                                'cliente_id' => $selectedSequence->cliente_id,
+                                'conexao_id' => $selectedSequence->conexao_id,
+                                'tags_incluir' => $selectedSequence->tags_incluir ?? [],
+                                'tags_excluir' => $selectedSequence->tags_excluir ?? [],
+                            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
+                        >Editar</button>
+                        <button
+                            type="button"
+                            class="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            data-action="create-step"
+                            data-sequence="{{ $selectedSequence->id }}"
+                        >Criar Etapa</button>
+                        <form
+                            method="POST"
+                            action="{{ route('agencia.sequences.destroy', $selectedSequence) }}"
+                            data-show-loader-on-submit
+                            onsubmit="return confirm('Deseja excluir esta sequencia? Esta acao tambem removera etapas, chats e logs vinculados.');"
+                        >
+                            @csrf
+                            @method('DELETE')
+                            @foreach($selectedClientIds as $filterClientId)
+                                <input type="hidden" name="filter_cliente_ids[]" value="{{ $filterClientId }}">
+                            @endforeach
+                            @if($activeTab === 'chats')
+                                <input type="hidden" name="tab" value="chats">
+                            @endif
+                            <input type="hidden" name="current_sequence_id" value="{{ $selectedSequence->id }}">
+                            @if($sequenceChatsPaginator && $sequenceChatsPaginator->currentPage() > 1)
+                                <input type="hidden" name="sequence_chats_page" value="{{ $sequenceChatsPaginator->currentPage() }}">
+                            @endif
+                            <button
+                                type="submit"
+                                class="rounded-lg bg-rose-500 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-600"
+                            >Excluir</button>
+                        </form>
+                    </div>
+
+                    <div class="mt-5 border-b border-slate-200">
+                        <div class="-mb-px flex items-center gap-2">
+                            <a
+                                href="{{ route('agencia.sequences.index', $stepsTabQuery) }}"
+                                data-sequence-nav
+                                class="rounded-t-lg border border-b-0 px-4 py-2 text-xs font-semibold transition {{ $activeTab === 'steps' ? 'border-slate-200 bg-white text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700' }}"
+                            >
+                                Etapas ({{ $selectedSequence->steps->count() }})
+                            </a>
+                            <a
+                                href="{{ route('agencia.sequences.index', $chatsTabQuery) }}"
+                                data-sequence-nav
+                                class="rounded-t-lg border border-b-0 px-4 py-2 text-xs font-semibold transition {{ $activeTab === 'chats' ? 'border-slate-200 bg-white text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700' }}"
+                            >
+                                Chats ({{ $sequenceChatsPaginator ? $sequenceChatsPaginator->total() : 0 }})
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="pt-4">
+                        @if($activeTab === 'steps')
+                            @if($selectedSequence->steps->isEmpty())
                                 <p class="text-xs text-slate-500">Nenhuma etapa criada.</p>
                             @else
                                 <div class="overflow-x-auto">
@@ -105,7 +260,7 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            @forelse($sequence->steps as $step)
+                                            @foreach($selectedSequence->steps as $step)
                                                 <tr class="border-t border-slate-100">
                                                     <td class="px-3 py-2">{{ $step->title ?: 'Sem título' }}</td>
                                                     <td class="px-3 py-2">{{ $step->atraso_valor }}</td>
@@ -118,10 +273,11 @@
                                                         @endif
                                                     </td>
                                                     <td class="px-3 py-2">
-                                                        <button type="button"
+                                                        <button
+                                                            type="button"
                                                             class="rounded-lg bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white hover:bg-slate-800"
                                                             data-action="edit-step"
-                                                            data-sequence="{{ $sequence->id }}"
+                                                            data-sequence="{{ $selectedSequence->id }}"
                                                             data-step="{{ json_encode([
                                                                 'id' => $step->id,
                                                                 'title' => $step->title,
@@ -134,179 +290,110 @@
                                                                 'active' => $step->active,
                                                             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
                                                         >Editar</button>
-                                                        {{--
-                                                        <form
-                                                            method="POST"
-                                                            action="{{ route('agencia.sequences.steps.destroy', ['sequence' => $sequence->id, 'step' => $step->id]) }}"
-                                                            class="inline"
-                                                            onsubmit="return confirm('Deseja excluir esta etapa?');"
-                                                        >
-                                                            @csrf
-                                                            @method('DELETE')
-                                                            <button
-                                                                type="submit"
-                                                                class="rounded-lg bg-rose-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-rose-600"
-                                                            >Excluir</button>
-                                                        </form>
-                                                        --}}
                                                     </td>
                                                 </tr>
-                                            @empty
-                                                <tr>
-                                                    <td colspan="5" class="px-3 py-2 text-xs text-slate-400">Nenhuma etapa criada.</td>
-                                                </tr>
-                                            @endforelse
+                                            @endforeach
                                         </tbody>
                                     </table>
                                 </div>
                             @endif
-                        </div>
-                    </details>
-                </div>
-            {{--
-            <div class="mt-4">
-                <details class="log-accordion rounded-2xl border border-slate-200 bg-slate-50">
-                    <summary class="flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 cursor-pointer">
-                        <span>Log ({{ $sequence->logs->count() }})</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6" />
-                        </svg>
-                    </summary>
-                    <div class="px-4 py-3">
-                        @if($sequence->logs->isEmpty())
-                            <p class="text-xs text-slate-500">Sem registros no log.</p>
                         @else
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-xs text-slate-600 border border-slate-100">
-                                    <thead class="bg-slate-100 text-slate-500 text-[11px] uppercase">
-                                        <tr>
-                                            <th class="px-3 py-2 text-left">Log</th>
-                                            <th class="px-3 py-2 text-left">SequenceChat</th>
-                                            <th class="px-3 py-2 text-left">SequenceStep</th>
-                                            <th class="px-3 py-2 text-left">Passo</th>
-                                            <th class="px-3 py-2 text-left">Status</th>
-                                            <th class="px-3 py-2 text-left">Mensagem</th>
-                                            <th class="px-3 py-2 text-left">Criado em</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($sequence->logs as $log)
-                                        <tr class="border-t border-slate-100">
-                                            <td class="px-3 py-2">{{ $log->id }}</td>
-                                            <td class="px-3 py-2">{{ $log->sequence_chat_id }}</td>
-                                            <td class="px-3 py-2">{{ $log->sequence_step_id ?? '—' }}</td>
-                                            <td class="px-3 py-2">
-                                                {{ $log->sequenceStep?->ordem ? 'Passo ' . $log->sequenceStep->ordem : '—' }}
-                                            </td>
-                                            <td class="px-3 py-2">{{ ucfirst($log->status) }}</td>
-                                            <td class="px-3 py-2">{{ $log->message ?? '—' }}</td>
-                                            <td class="px-3 py-2">
-                                                {{ $log->created_at?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}
-                                            </td>
-                                        </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endif
-                    </div>
-                </details>
-            </div>
-            --}}
-            <div class="mt-4">
-                @php
-                    $sequenceChatsPaginator = $sequenceChatsBySequence[$sequence->id] ?? null;
-                    $sequenceChats = collect($sequenceChatsPaginator?->items() ?? []);
-                @endphp
-                <details class="log-accordion sequence-chats-accordion rounded-2xl border border-slate-200 bg-slate-50">
-                    <summary class="flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700 cursor-pointer">
-                        <span class="inline-flex items-center gap-2">
-                            <span>Chats da sequência ({{ $sequenceChatsPaginator ? $sequenceChatsPaginator->total() : 0 }})</span>
-                            <form method="POST" action="{{ route('agencia.sequence-chats.destroy-by-sequence', $sequence) }}" onclick="event.stopPropagation();">
-                                @csrf
-                                @method('DELETE')
-                                <button
-                                    type="submit"
-                                    class="inline-flex items-center rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-200"
-                                    onclick="event.stopPropagation(); return confirm('Tem certeza de que deseja limpar todos os chats desta sequência?');"
+                            <div class="mb-3 flex items-center justify-between gap-3">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Chats da sequência ({{ $sequenceChatsPaginator ? $sequenceChatsPaginator->total() : 0 }})
+                                </p>
+                                <form
+                                    method="POST"
+                                    action="{{ route('agencia.sequence-chats.destroy-by-sequence', $selectedSequence) }}"
+                                    data-show-loader-on-submit
+                                    onsubmit="return confirm('Tem certeza de que deseja limpar todos os chats desta sequência?');"
                                 >
-                                    Limpar chats
-                                </button>
-                            </form>
-                        </span>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 9l6 6 6-6" />
-                        </svg>
-                    </summary>
-                    <div class="px-4 py-3">
-                        @if($sequenceChats->isEmpty())
-                            <p class="text-xs text-slate-500">Nenhum chat associado a esta sequência.</p>
-                        @else
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-xs text-slate-600 border border-slate-100">
-                                    <thead class="bg-slate-100 text-slate-500 text-[11px] uppercase">
-                                        <tr>
-                                            <th class="px-3 py-2 text-left">ClienteLead (ID)</th>
-                                            <th class="px-3 py-2 text-left">Passo atual</th>
-                                            <th class="px-3 py-2 text-left">Status</th>
-                                            <th class="px-3 py-2 text-left">Iniciado em</th>
-                                            <th class="px-3 py-2 text-left">Próximo envio</th>
-                                            <th class="px-3 py-2 text-left">Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach($sequenceChats as $chat)
-                                            <tr class="border-t border-slate-100">
-                                            <td class="px-3 py-2">
-                                                {{ $chat->cliente_lead_id ?? '—' }}
-                                                @if($chat->clienteLead?->name)
-                                                    ({{ $chat->clienteLead->name }})
-                                                @endif
-                                                @if($chat->clienteLead?->phone)
-                                                    ({{ $chat->clienteLead->phone }})
-                                                @endif
-                                            </td>
-                                                <td class="px-3 py-2">{{ $chat->passo_atual_id ?? '—' }}</td>
-                                                <td class="px-3 py-2">{{ $chat->status ? ucfirst($chat->status) : '—' }}</td>
-                                                <td class="px-3 py-2">
-                                                    {{ $chat->iniciado_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}
-                                                </td>
-                                                <td class="px-3 py-2">
-                                                    {{ $chat->proximo_envio_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}
-                                                </td>
-                                                <td class="px-3 py-2">
-                                                    <form method="POST" action="{{ route('agencia.sequence-chats.destroy', $chat) }}">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button
-                                                            type="submit"
-                                                            class="inline-flex items-center rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-200"
-                                                            onclick="return confirm('Tem certeza de que deseja excluir este SequenceChat?');"
-                                                        >
-                                                            Excluir
-                                                        </button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    </tbody>
-                                </table>
+                                    @csrf
+                                    @method('DELETE')
+                                    @foreach($selectedClientIds as $filterClientId)
+                                        <input type="hidden" name="filter_cliente_ids[]" value="{{ $filterClientId }}">
+                                    @endforeach
+                                    <input type="hidden" name="tab" value="chats">
+                                    <input type="hidden" name="current_sequence_id" value="{{ $selectedSequence->id }}">
+                                    @if($sequenceChatsPaginator && $sequenceChatsPaginator->currentPage() > 1)
+                                        <input type="hidden" name="sequence_chats_page" value="{{ $sequenceChatsPaginator->currentPage() }}">
+                                    @endif
+                                    <button
+                                        type="submit"
+                                        class="inline-flex items-center rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-200"
+                                    >
+                                        Limpar chats
+                                    </button>
+                                </form>
                             </div>
-                            @if($sequenceChatsPaginator && $sequenceChatsPaginator->hasPages())
-                                <div class="mt-3 flex items-center justify-end">
-                                    {{ $sequenceChatsPaginator->links('pagination::tailwind') }}
+
+                            @if($sequenceChats->isEmpty())
+                                <p class="text-xs text-slate-500">Nenhum chat associado a esta sequência.</p>
+                            @else
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs text-slate-600 border border-slate-100">
+                                        <thead class="bg-slate-100 text-slate-500 text-[11px] uppercase">
+                                            <tr>
+                                                <th class="px-3 py-2 text-left">ClienteLead (ID)</th>
+                                                <th class="px-3 py-2 text-left">Passo atual</th>
+                                                <th class="px-3 py-2 text-left">Status</th>
+                                                <th class="px-3 py-2 text-left">Iniciado em</th>
+                                                <th class="px-3 py-2 text-left">Próximo envio</th>
+                                                <th class="px-3 py-2 text-left">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($sequenceChats as $chat)
+                                                <tr class="border-t border-slate-100">
+                                                    <td class="px-3 py-2">
+                                                        {{ $chat->cliente_lead_id ?? '—' }}
+                                                        @if($chat->clienteLead?->name)
+                                                            ({{ $chat->clienteLead->name }})
+                                                        @endif
+                                                        @if($chat->clienteLead?->phone)
+                                                            ({{ $chat->clienteLead->phone }})
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-3 py-2">{{ $chat->passo_atual_id ?? '—' }}</td>
+                                                    <td class="px-3 py-2">{{ $chat->status ? ucfirst($chat->status) : '—' }}</td>
+                                                    <td class="px-3 py-2">{{ $chat->iniciado_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}</td>
+                                                    <td class="px-3 py-2">{{ $chat->proximo_envio_em?->timezone('America/Sao_Paulo')->format('d/m/Y H:i') ?? '—' }}</td>
+                                                    <td class="px-3 py-2">
+                                                        <form method="POST" action="{{ route('agencia.sequence-chats.destroy', $chat) }}" data-show-loader-on-submit onsubmit="return confirm('Tem certeza de que deseja excluir este SequenceChat?');">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            @foreach($selectedClientIds as $filterClientId)
+                                                                <input type="hidden" name="filter_cliente_ids[]" value="{{ $filterClientId }}">
+                                                            @endforeach
+                                                            <input type="hidden" name="tab" value="chats">
+                                                            <input type="hidden" name="current_sequence_id" value="{{ $selectedSequence->id }}">
+                                                            @if($sequenceChatsPaginator && $sequenceChatsPaginator->currentPage() > 1)
+                                                                <input type="hidden" name="sequence_chats_page" value="{{ $sequenceChatsPaginator->currentPage() }}">
+                                                            @endif
+                                                            <button
+                                                                type="submit"
+                                                                class="inline-flex items-center rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-200"
+                                                            >
+                                                                Excluir
+                                                            </button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
                                 </div>
+                                @if($sequenceChatsPaginator && $sequenceChatsPaginator->hasPages())
+                                    <div class="mt-3 flex items-center justify-end">
+                                        {{ $sequenceChatsPaginator->links('pagination::tailwind') }}
+                                    </div>
+                                @endif
                             @endif
                         @endif
                     </div>
-                </details>
-            </div>
-        </article>
-        @empty
-            <div class="rounded-2xl border border-slate-200 bg-white p-5 text-center text-sm text-slate-500">
-                Nenhuma sequência encontrada.
-            </div>
-        @endforelse
+                </article>
+            @endif
+        </section>
     </div>
 
     <div id="sequenceModal" class="fixed inset-0 hidden items-center justify-center bg-black/50 backdrop-blur">
@@ -315,9 +402,19 @@
                 <h3 class="text-lg font-semibold text-slate-900" id="sequenceModalTitle">Nova sequência</h3>
                 <button type="button" data-close-modal class="text-slate-500 hover:text-slate-700">x</button>
             </div>
-            <form id="sequenceForm" method="POST" action="{{ route('agencia.sequences.store') }}" class="mt-5 space-y-4">
+            <form id="sequenceForm" method="POST" action="{{ route('agencia.sequences.store') }}" class="mt-5 space-y-4" data-show-loader-on-submit>
                 @csrf
                 <input type="hidden" name="sequence_id" id="sequenceId" value="">
+                @foreach($selectedClientIds as $filterClientId)
+                    <input type="hidden" name="filter_cliente_ids[]" value="{{ $filterClientId }}">
+                @endforeach
+                @if($activeTab === 'chats')
+                    <input type="hidden" name="tab" value="chats">
+                @endif
+                <input type="hidden" name="current_sequence_id" id="sequenceCurrentSequenceId" value="{{ $selectedSequence?->id }}">
+                @if($sequenceChatsPaginator && $sequenceChatsPaginator->currentPage() > 1)
+                    <input type="hidden" name="sequence_chats_page" value="{{ $sequenceChatsPaginator->currentPage() }}">
+                @endif
 
                 <div>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="sequenceClient">Cliente</label>
@@ -383,11 +480,21 @@
                 <h3 id="stepModalTitle" class="text-lg font-semibold text-slate-900">Nova etapa</h3>
                 <button type="button" data-close-step-modal class="text-slate-500 hover:text-slate-700">x</button>
             </div>
-            <form id="sequenceStepForm" method="POST" class="mt-5 space-y-4">
+            <form id="sequenceStepForm" method="POST" class="mt-5 space-y-4" data-show-loader-on-submit>
                 @csrf
                 <input type="hidden" name="_method" id="stepFormMethod" value="POST">
                 <input type="hidden" name="sequence_id" id="stepSequenceId" value="">
                 <input type="hidden" name="step_id" id="stepId" value="">
+                @foreach($selectedClientIds as $filterClientId)
+                    <input type="hidden" name="filter_cliente_ids[]" value="{{ $filterClientId }}">
+                @endforeach
+                @if($activeTab === 'chats')
+                    <input type="hidden" name="tab" value="chats">
+                @endif
+                <input type="hidden" name="current_sequence_id" id="stepCurrentSequenceId" value="{{ $selectedSequence?->id }}">
+                @if($sequenceChatsPaginator && $sequenceChatsPaginator->currentPage() > 1)
+                    <input type="hidden" name="sequence_chats_page" value="{{ $sequenceChatsPaginator->currentPage() }}">
+                @endif
 
                 <div>
                     <label class="text-xs uppercase tracking-wide text-slate-500">Título</label>
@@ -511,8 +618,121 @@
         </div>
     </div>
 
+    <div id="sequencePageLoader" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/35 backdrop-blur-[1px]">
+        <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-2xl">
+            <span class="sequence-loader" aria-hidden="true"></span>
+            <div>
+                <p class="text-sm font-semibold text-slate-800">Carregando sequência</p>
+                <p class="text-xs text-slate-500">Atualizando etapas e chats...</p>
+            </div>
+        </div>
+    </div>
+
     <script>
         (function () {
+            const pageLoader = document.getElementById('sequencePageLoader');
+            const showPageLoader = () => {
+                if (!pageLoader) {
+                    return;
+                }
+                pageLoader.classList.remove('hidden');
+                pageLoader.classList.add('flex');
+            };
+
+            document.querySelectorAll('[data-sequence-nav], [data-show-loader]').forEach(element => {
+                element.addEventListener('click', showPageLoader);
+            });
+
+            document.querySelectorAll('form[data-show-loader-on-submit]').forEach(form => {
+                form.addEventListener('submit', (event) => {
+                    if (event.defaultPrevented) {
+                        return;
+                    }
+                    showPageLoader();
+                });
+            });
+
+            const filterForm = document.getElementById('sequenceFiltersForm');
+            const filterClientSelect = document.getElementById('sequenceFilterClientSelect');
+            const filterClientPills = document.getElementById('sequenceFilterClientPills');
+            const filterClientPillsEmpty = document.getElementById('sequenceFilterClientPillsEmpty');
+
+            const updateClientPillsEmptyState = () => {
+                if (!filterClientPills || !filterClientPillsEmpty) {
+                    return;
+                }
+                const hasPills = filterClientPills.querySelector('[data-client-pill]');
+                filterClientPillsEmpty.classList.toggle('hidden', !!hasPills);
+            };
+
+            filterForm?.addEventListener('submit', showPageLoader);
+
+            const bindClientPillRemove = (button) => {
+                button?.addEventListener('click', () => {
+                    const pill = button.closest('[data-client-pill]');
+                    pill?.remove();
+                    updateClientPillsEmptyState();
+                });
+            };
+
+            filterClientPills?.querySelectorAll('[data-remove-client-pill]').forEach(bindClientPillRemove);
+
+            const addClientPill = () => {
+                if (!filterClientSelect || !filterClientPills) {
+                    return;
+                }
+
+                const clientId = String(filterClientSelect.value || '').trim();
+                if (!clientId) {
+                    return;
+                }
+                if (filterClientPills.querySelector(`[data-client-pill][data-client-id="${clientId}"]`)) {
+                    filterClientSelect.value = '';
+                    return;
+                }
+
+                const selectedOption = filterClientSelect.options[filterClientSelect.selectedIndex];
+                const clientLabel = selectedOption?.dataset?.label || selectedOption?.textContent || `Cliente #${clientId}`;
+
+                const pill = document.createElement('span');
+                pill.className = 'inline-flex items-center gap-2 rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700';
+                pill.dataset.clientPill = '';
+                pill.dataset.clientId = clientId;
+
+                const label = document.createElement('span');
+                label.textContent = clientLabel;
+
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'text-blue-500 hover:text-blue-700';
+                removeButton.dataset.removeClientPill = '';
+                removeButton.innerHTML = '&times;';
+                bindClientPillRemove(removeButton);
+
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = 'cliente_ids[]';
+                hiddenInput.value = clientId;
+
+                pill.appendChild(label);
+                pill.appendChild(removeButton);
+                pill.appendChild(hiddenInput);
+                filterClientPills.appendChild(pill);
+                filterClientSelect.value = '';
+                updateClientPillsEmptyState();
+            };
+
+            filterClientSelect?.addEventListener('change', addClientPill);
+            updateClientPillsEmptyState();
+
+            const detailPanel = document.getElementById('sequenceDetailPanel');
+            detailPanel?.addEventListener('click', (event) => {
+                const link = event.target.closest('a[href*="sequence_chats_page="]');
+                if (link) {
+                    showPageLoader();
+                }
+            });
+
             const modal = document.getElementById('sequenceModal');
             const openBtn = document.getElementById('openSequenceModal');
             const closeBtns = modal.querySelectorAll('[data-close-modal]');
@@ -521,6 +741,7 @@
             const form = document.getElementById('sequenceForm');
             const title = document.getElementById('sequenceModalTitle');
             const hiddenId = document.getElementById('sequenceId');
+            const currentSequenceInput = document.getElementById('sequenceCurrentSequenceId');
             const nameInput = document.getElementById('sequenceName');
             const descriptionInput = document.getElementById('sequenceDescription');
             const activeInput = document.getElementById('sequenceActive');
@@ -676,17 +897,13 @@
                 }
             });
 
-            const setSelectOptions = (select, values) => {
-                const normalized = values.map(v => String(v).trim()).filter(v => v !== '');
-                [...select.options].forEach(option => {
-                    option.selected = normalized.includes(option.value);
-                });
-            };
-
             document.querySelectorAll('[data-action="edit-sequence"]').forEach(button => {
                 button.addEventListener('click', async () => {
                     const data = JSON.parse(button.dataset.payload);
                     hiddenId.value = data.id;
+                    if (currentSequenceInput) {
+                        currentSequenceInput.value = data.id;
+                    }
                     nameInput.value = data.name ?? '';
                     descriptionInput.value = data.description ?? '';
                     activeInput.checked = data.active ?? true;
@@ -703,6 +920,7 @@
             const stepForm = document.getElementById('sequenceStepForm');
             const stepMethodInput = document.getElementById('stepFormMethod');
             const stepSequenceInput = document.getElementById('stepSequenceId');
+            const stepCurrentSequenceInput = document.getElementById('stepCurrentSequenceId');
             const stepIdInput = document.getElementById('stepId');
             const stepTitleInput = document.getElementById('stepTitle');
             const stepAtrasoValorInput = document.getElementById('stepAtrasoValor');
@@ -856,6 +1074,9 @@
 
             const openStepModal = (sequenceId, stepData = null) => {
                 stepSequenceInput.value = sequenceId;
+                if (stepCurrentSequenceInput) {
+                    stepCurrentSequenceInput.value = sequenceId;
+                }
                 if (stepData) {
                     stepForm.action = stepUpdateTemplate.replace('__SEQ__', sequenceId).replace('__STEP__', stepData.id);
                     stepMethodInput.value = 'PATCH';

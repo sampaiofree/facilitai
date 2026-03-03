@@ -17,6 +17,7 @@ use App\Models\WhatsappCloudCustomField;
 use App\Models\WhatsappCloudTemplate;
 use App\Jobs\ProcessIncomingMessageJob;
 use App\Jobs\SyncCloudTemplateContextJob;
+use App\Support\PhoneNumberNormalizer;
 use App\Services\ScheduledMessageService;
 use App\Services\WhatsappCloudConversationWindowService;
 use App\Services\WhatsappCloudTemplateSendService;
@@ -38,6 +39,11 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ClienteLeadController extends Controller
 {
+    public function __construct(
+        private readonly PhoneNumberNormalizer $phoneNumberNormalizer
+    ) {
+    }
+
     public function index(Request $request): View
     {
         $user = $request->user();
@@ -165,9 +171,17 @@ class ClienteLeadController extends Controller
             (int) $cliente->id
         );
 
-        if (!empty($data['phone'])) {
+        $rawPhone = $data['phone'] ?? null;
+        $normalizedPhone = $this->phoneNumberNormalizer->normalizeLeadPhone($rawPhone);
+        if ($rawPhone !== null && trim((string) $rawPhone) !== '' && $normalizedPhone === null) {
+            return redirect()
+                ->route('agencia.conversas.index')
+                ->with('error', 'Número inválido. Informe o telefone com DDD ou DDI.');
+        }
+
+        if ($normalizedPhone) {
             $exists = ClienteLead::where('cliente_id', $cliente->id)
-                ->where('phone', $data['phone'])
+                ->where('phone', $normalizedPhone)
                 ->exists();
             if ($exists) {
                 return redirect()
@@ -176,11 +190,11 @@ class ClienteLeadController extends Controller
             }
         }
 
-        $lead = DB::transaction(function () use ($request, $data, $cliente, $user, $customFields) {
+        $lead = DB::transaction(function () use ($request, $data, $cliente, $user, $customFields, $normalizedPhone) {
             $lead = ClienteLead::create([
                 'cliente_id' => $cliente->id,
                 'bot_enabled' => $request->boolean('bot_enabled'),
-                'phone' => $data['phone'] ?? null,
+                'phone' => $normalizedPhone,
                 'name' => $data['name'] ?? null,
                 'info' => $data['info'] ?? null,
             ]);
@@ -225,11 +239,33 @@ class ClienteLeadController extends Controller
             (int) $cliente->id
         );
 
-        DB::transaction(function () use ($request, $data, $clienteLead, $cliente, $user, $customFields) {
+        $rawPhone = $data['phone'] ?? null;
+        $normalizedPhone = $this->phoneNumberNormalizer->normalizeLeadPhone($rawPhone);
+        if ($rawPhone !== null && trim((string) $rawPhone) !== '' && $normalizedPhone === null) {
+            return redirect()
+                ->route('agencia.conversas.index', $request->query())
+                ->with('error', 'Número inválido. Informe o telefone com DDD ou DDI.');
+        }
+
+        if ($normalizedPhone) {
+            $exists = ClienteLead::query()
+                ->where('cliente_id', $cliente->id)
+                ->where('phone', $normalizedPhone)
+                ->where('id', '!=', $clienteLead->id)
+                ->exists();
+
+            if ($exists) {
+                return redirect()
+                    ->route('agencia.conversas.index', $request->query())
+                    ->with('error', 'Este telefone já está cadastrado para o cliente selecionado.');
+            }
+        }
+
+        DB::transaction(function () use ($request, $data, $clienteLead, $cliente, $user, $customFields, $normalizedPhone) {
             $clienteLead->update([
                 'cliente_id' => $cliente->id,
                 'bot_enabled' => $request->boolean('bot_enabled'),
-                'phone' => $data['phone'] ?? null,
+                'phone' => $normalizedPhone,
                 'name' => $data['name'] ?? null,
                 'info' => $data['info'] ?? null,
             ]);
@@ -274,6 +310,7 @@ class ClienteLeadController extends Controller
         if ($conexaoId > 0) {
             $selectedConexao = Conexao::query()
                 ->whereKey($conexaoId)
+                ->where('is_active', true)
                 ->whereNull('deleted_at')
                 ->whereHas('cliente', fn ($query) => $query->where('user_id', $user->id))
                 ->first();
@@ -451,6 +488,7 @@ class ClienteLeadController extends Controller
 
         $conexoes = Conexao::query()
             ->where('cliente_id', $clienteLead->cliente_id)
+            ->where('is_active', true)
             ->whereNull('deleted_at')
             ->whereNotNull('whatsapp_cloud_account_id')
             ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'whatsapp_cloud'))
@@ -599,6 +637,7 @@ class ClienteLeadController extends Controller
         $conexao = Conexao::query()
             ->with(['whatsappApi', 'whatsappCloudAccount'])
             ->whereKey((int) $data['conexao_id'])
+            ->where('is_active', true)
             ->whereNull('deleted_at')
             ->whereHas('cliente', fn ($query) => $query->where('user_id', $user->id))
             ->first();
@@ -657,8 +696,8 @@ class ClienteLeadController extends Controller
             ], 422);
         }
 
-        $phone = preg_replace('/\D/', '', (string) ($clienteLead->phone ?? ''));
-        if (!is_string($phone) || $phone === '' || strlen($phone) < 8) {
+        $phone = $this->phoneNumberNormalizer->normalizeLeadPhone((string) ($clienteLead->phone ?? ''));
+        if ($phone === null) {
             return response()->json([
                 'message' => 'Lead sem telefone valido para envio.',
             ], 422);
@@ -857,9 +896,10 @@ class ClienteLeadController extends Controller
         $validated = $request->validate([
             'cliente_id' => ['required', 'integer'],
             'delimiter' => ['nullable', 'in:semicolon,comma'],
-            'map_phone' => ['required', 'integer', 'min:0'],
-            'map_name' => ['nullable', 'integer', 'min:0'],
-            'map_info' => ['nullable', 'integer', 'min:0'],
+            'has_header' => ['nullable', 'in:yes,no'],
+            'column_mappings' => ['required', 'array', 'min:1'],
+            'column_mappings.*.column_index' => ['required', 'integer', 'min:0'],
+            'column_mappings.*.target' => ['nullable', 'string', 'max:120'],
             'tags' => ['sometimes', 'array'],
             'tags.*' => ['integer'],
             'csv_file' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:10240'],
@@ -867,14 +907,20 @@ class ClienteLeadController extends Controller
 
         $cliente = $this->resolveClienteForUser($validated['cliente_id'], $user->id);
         $delimiter = ($validated['delimiter'] ?? 'semicolon') === 'comma' ? ',' : ';';
+        $hasHeader = ($validated['has_header'] ?? 'yes') === 'yes';
         $tagIds = $this->filterTags((array) ($validated['tags'] ?? []), $user->id);
+        $mapping = $this->parseImportColumnMappings(
+            (array) ($validated['column_mappings'] ?? []),
+            (int) $user->id,
+            (int) $cliente->id
+        );
 
         $file = $validated['csv_file'];
         $extension = strtolower($file->getClientOriginalExtension());
 
-        $mapPhone = (int) $validated['map_phone'];
-        $mapName = is_numeric($validated['map_name'] ?? null) ? (int) $validated['map_name'] : null;
-        $mapInfo = is_numeric($validated['map_info'] ?? null) ? (int) $validated['map_info'] : null;
+        $mapPhone = $mapping['phone_index'];
+        $mapName = $mapping['name_index'];
+        $customFieldIndexes = $mapping['custom_field_indexes'];
 
         $created = 0;
         $skippedDuplicate = 0;
@@ -893,14 +939,15 @@ class ClienteLeadController extends Controller
                     ->with('error', 'O XLSX está vazio.');
             }
 
-            $headerIndex = $this->firstNonEmptyRowIndex($rows);
-            if ($headerIndex === null) {
+            $firstDataIndex = $this->firstNonEmptyRowIndex($rows);
+            if ($firstDataIndex === null) {
                 return redirect()
                     ->route('agencia.conversas.index')
                     ->with('error', 'O XLSX está vazio.');
             }
 
-            $rows = array_slice($rows, $headerIndex + 1);
+            $dataStart = $hasHeader ? $firstDataIndex + 1 : $firstDataIndex;
+            $rows = array_slice($rows, $dataStart);
 
             foreach ($rows as $row) {
                 if ($this->rowIsEmpty($row)) {
@@ -908,7 +955,13 @@ class ClienteLeadController extends Controller
                 }
 
                 $row = array_values($row);
-                $phone = $this->columnValue($row, $mapPhone);
+                $rawPhone = $this->columnValue($row, $mapPhone);
+                if (!$rawPhone) {
+                    $skippedInvalid++;
+                    continue;
+                }
+
+                $phone = $this->phoneNumberNormalizer->normalizeLeadPhone($rawPhone);
                 if (!$phone) {
                     $skippedInvalid++;
                     continue;
@@ -922,17 +975,24 @@ class ClienteLeadController extends Controller
                     continue;
                 }
 
-                $lead = ClienteLead::create([
-                    'cliente_id' => $cliente->id,
-                    'bot_enabled' => false,
-                    'phone' => $phone,
-                    'name' => $mapName !== null ? $this->columnValue($row, $mapName) : null,
-                    'info' => $mapInfo !== null ? $this->columnValue($row, $mapInfo) : null,
-                ]);
+                $customFields = $this->resolveImportedCustomFieldValues($row, $customFieldIndexes);
+                DB::transaction(function () use ($cliente, $phone, $mapName, $row, $tagIds, $customFields) {
+                    $lead = ClienteLead::create([
+                        'cliente_id' => $cliente->id,
+                        'bot_enabled' => false,
+                        'phone' => $phone,
+                        'name' => $mapName !== null ? $this->columnValue($row, $mapName) : null,
+                        'info' => null,
+                    ]);
 
-                if (!empty($tagIds)) {
-                    $lead->tags()->sync($tagIds);
-                }
+                    if (!empty($tagIds)) {
+                        $lead->tags()->sync($tagIds);
+                    }
+
+                    if (!empty($customFields)) {
+                        $this->syncLeadCustomFields($lead, $customFields);
+                    }
+                });
 
                 $created++;
             }
@@ -944,12 +1004,23 @@ class ClienteLeadController extends Controller
                     ->with('error', 'Não foi possível abrir o arquivo CSV.');
             }
 
-            $header = fgetcsv($handle, 0, $delimiter);
-            if ($header === false) {
-                fclose($handle);
-                return redirect()
-                    ->route('agencia.conversas.index')
-                    ->with('error', 'O CSV está vazio.');
+            if ($hasHeader) {
+                $headerFound = false;
+                while (($header = fgetcsv($handle, 0, $delimiter)) !== false) {
+                    if ($this->rowIsEmpty($header)) {
+                        continue;
+                    }
+
+                    $headerFound = true;
+                    break;
+                }
+
+                if (!$headerFound) {
+                    fclose($handle);
+                    return redirect()
+                        ->route('agencia.conversas.index')
+                        ->with('error', 'O CSV está vazio.');
+                }
             }
 
             while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
@@ -957,7 +1028,13 @@ class ClienteLeadController extends Controller
                     continue;
                 }
 
-                $phone = $this->columnValue($row, $mapPhone);
+                $rawPhone = $this->columnValue($row, $mapPhone);
+                if (!$rawPhone) {
+                    $skippedInvalid++;
+                    continue;
+                }
+
+                $phone = $this->phoneNumberNormalizer->normalizeLeadPhone($rawPhone);
                 if (!$phone) {
                     $skippedInvalid++;
                     continue;
@@ -971,17 +1048,24 @@ class ClienteLeadController extends Controller
                     continue;
                 }
 
-                $lead = ClienteLead::create([
-                    'cliente_id' => $cliente->id,
-                    'bot_enabled' => false,
-                    'phone' => $phone,
-                    'name' => $mapName !== null ? $this->columnValue($row, $mapName) : null,
-                    'info' => $mapInfo !== null ? $this->columnValue($row, $mapInfo) : null,
-                ]);
+                $customFields = $this->resolveImportedCustomFieldValues($row, $customFieldIndexes);
+                DB::transaction(function () use ($cliente, $phone, $mapName, $row, $tagIds, $customFields) {
+                    $lead = ClienteLead::create([
+                        'cliente_id' => $cliente->id,
+                        'bot_enabled' => false,
+                        'phone' => $phone,
+                        'name' => $mapName !== null ? $this->columnValue($row, $mapName) : null,
+                        'info' => null,
+                    ]);
 
-                if (!empty($tagIds)) {
-                    $lead->tags()->sync($tagIds);
-                }
+                    if (!empty($tagIds)) {
+                        $lead->tags()->sync($tagIds);
+                    }
+
+                    if (!empty($customFields)) {
+                        $this->syncLeadCustomFields($lead, $customFields);
+                    }
+                });
 
                 $created++;
             }
@@ -1049,12 +1133,14 @@ class ClienteLeadController extends Controller
     {
         $validated = $request->validate([
             'delimiter' => ['nullable', 'in:semicolon,comma'],
+            'has_header' => ['nullable', 'in:yes,no'],
             'csv_file' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:10240'],
         ]);
 
         $file = $validated['csv_file'];
         $extension = strtolower($file->getClientOriginalExtension());
         $delimiter = ($validated['delimiter'] ?? 'semicolon') === 'comma' ? ',' : ';';
+        $hasHeader = ($validated['has_header'] ?? 'yes') === 'yes';
 
         $headers = [];
         $rows = [];
@@ -1070,12 +1156,26 @@ class ClienteLeadController extends Controller
                 ]);
             }
             $sheetRows = $sheetRows ?? [];
-            $headerIndex = $this->firstNonEmptyRowIndex($sheetRows);
-            if ($headerIndex !== null) {
-                $headers = array_map('strval', array_values($sheetRows[$headerIndex]));
-                $headers = $this->normalizeHeaders($headers);
-                $rows = array_slice($sheetRows, $headerIndex + 1, 3);
-                $rows = array_map('array_values', $rows);
+            $firstNonEmptyIndex = $this->firstNonEmptyRowIndex($sheetRows);
+            if ($firstNonEmptyIndex !== null) {
+                if ($hasHeader) {
+                    $headers = array_map('strval', array_values($sheetRows[$firstNonEmptyIndex]));
+                    $headers = $this->normalizeHeaders($headers);
+
+                    for ($index = $firstNonEmptyIndex + 1, $max = count($sheetRows); $index < $max; $index++) {
+                        $row = is_array($sheetRows[$index]) ? $sheetRows[$index] : [];
+                        if ($this->rowIsEmpty($row)) {
+                            continue;
+                        }
+
+                        $rows[] = array_values($row);
+                        break;
+                    }
+                } else {
+                    $sampleRow = array_values($sheetRows[$firstNonEmptyIndex]);
+                    $rows[] = $sampleRow;
+                    $headers = $this->normalizeHeaders(array_fill(0, count($sampleRow), ''));
+                }
             }
         } else {
             $handle = fopen($file->getRealPath(), 'r');
@@ -1083,17 +1183,32 @@ class ClienteLeadController extends Controller
                 return response()->json(['headers' => [], 'rows' => [], 'is_xlsx' => false]);
             }
 
-            $headerRow = fgetcsv($handle, 0, $delimiter);
-            if ($headerRow !== false) {
-                $headers = $this->normalizeHeaders(array_map('strval', $headerRow));
-            }
+            if ($hasHeader) {
+                while (($headerRow = fgetcsv($handle, 0, $delimiter)) !== false) {
+                    if ($this->rowIsEmpty($headerRow)) {
+                        continue;
+                    }
 
-            while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
-                if ($this->rowIsEmpty($row)) {
-                    continue;
+                    $headers = $this->normalizeHeaders(array_map('strval', $headerRow));
+                    break;
                 }
-                $rows[] = $row;
-                if (count($rows) >= 3) {
+
+                while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+                    if ($this->rowIsEmpty($row)) {
+                        continue;
+                    }
+
+                    $rows[] = $row;
+                    break;
+                }
+            } else {
+                while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+                    if ($this->rowIsEmpty($row)) {
+                        continue;
+                    }
+
+                    $rows[] = $row;
+                    $headers = $this->normalizeHeaders(array_fill(0, count($row), ''));
                     break;
                 }
             }
@@ -1233,6 +1348,139 @@ class ClienteLeadController extends Controller
                 'value' => $value,
             ]);
         }
+    }
+
+    private function parseImportColumnMappings(array $columnMappings, int $userId, int $clienteId): array
+    {
+        $normalizedByColumn = [];
+        foreach ($columnMappings as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $columnIndex = (int) ($row['column_index'] ?? -1);
+            $target = Str::lower(trim((string) ($row['target'] ?? 'ignore')));
+
+            if ($columnIndex < 0) {
+                continue;
+            }
+
+            if (array_key_exists($columnIndex, $normalizedByColumn)) {
+                throw ValidationException::withMessages([
+                    'column_mappings' => ['Cada coluna da planilha pode ser mapeada apenas uma vez.'],
+                ]);
+            }
+
+            if ($target === '' || $target === 'ignore') {
+                continue;
+            }
+
+            $normalizedByColumn[$columnIndex] = $target;
+        }
+
+        $phoneIndex = null;
+        $nameIndex = null;
+        $customFieldIndexes = [];
+        $customFieldIds = [];
+
+        foreach ($normalizedByColumn as $columnIndex => $target) {
+            if ($target === 'phone') {
+                if ($phoneIndex !== null) {
+                    throw ValidationException::withMessages([
+                        'column_mappings' => ['Somente uma coluna pode ser mapeada para telefone.'],
+                    ]);
+                }
+
+                $phoneIndex = $columnIndex;
+                continue;
+            }
+
+            if ($target === 'name') {
+                if ($nameIndex !== null) {
+                    throw ValidationException::withMessages([
+                        'column_mappings' => ['Somente uma coluna pode ser mapeada para nome.'],
+                    ]);
+                }
+
+                $nameIndex = $columnIndex;
+                continue;
+            }
+
+            if (!Str::startsWith($target, 'custom_field:')) {
+                throw ValidationException::withMessages([
+                    'column_mappings' => ['Mapeamento inválido enviado para importação.'],
+                ]);
+            }
+
+            $fieldId = (int) Str::after($target, 'custom_field:');
+            if ($fieldId <= 0) {
+                throw ValidationException::withMessages([
+                    'column_mappings' => ['Mapeamento de campo personalizado inválido.'],
+                ]);
+            }
+
+            if (in_array($fieldId, $customFieldIds, true)) {
+                throw ValidationException::withMessages([
+                    'column_mappings' => ['Não é permitido mapear o mesmo campo personalizado em mais de uma coluna.'],
+                ]);
+            }
+
+            $customFieldIds[] = $fieldId;
+            $customFieldIndexes[$columnIndex] = $fieldId;
+        }
+
+        if ($phoneIndex === null) {
+            throw ValidationException::withMessages([
+                'column_mappings' => ['Mapeie uma coluna da planilha para o campo telefone.'],
+            ]);
+        }
+
+        if (!empty($customFieldIds)) {
+            $allowedFieldIds = WhatsappCloudCustomField::query()
+                ->where('user_id', $userId)
+                ->whereIn('id', $customFieldIds)
+                ->where(function ($query) use ($clienteId) {
+                    $query->whereNull('cliente_id')
+                        ->orWhere('cliente_id', $clienteId);
+                })
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            sort($allowedFieldIds);
+            $sortedFieldIds = $customFieldIds;
+            sort($sortedFieldIds);
+
+            if ($allowedFieldIds !== $sortedFieldIds) {
+                throw ValidationException::withMessages([
+                    'column_mappings' => ['Há campo(s) personalizado(s) inválido(s) para o cliente selecionado.'],
+                ]);
+            }
+        }
+
+        return [
+            'phone_index' => $phoneIndex,
+            'name_index' => $nameIndex,
+            'custom_field_indexes' => $customFieldIndexes,
+        ];
+    }
+
+    private function resolveImportedCustomFieldValues(array $row, array $customFieldIndexes): array
+    {
+        $customFields = [];
+        foreach ($customFieldIndexes as $columnIndex => $fieldId) {
+            $value = $this->columnValue($row, (int) $columnIndex);
+            if ($value === null) {
+                continue;
+            }
+
+            $customFields[] = [
+                'field_id' => (int) $fieldId,
+                'value' => $value,
+            ];
+        }
+
+        return $customFields;
     }
 
     private function buildFilteredQuery(Request $request, $user, bool $eager = false): array

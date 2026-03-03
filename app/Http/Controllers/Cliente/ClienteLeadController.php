@@ -7,6 +7,7 @@ use App\Models\Assistant;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Models\Tag;
+use App\Support\PhoneNumberNormalizer;
 use App\Services\UazapiService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +23,10 @@ use Illuminate\Support\Str;
 
 class ClienteLeadController extends Controller
 {
-    public function __construct(protected UazapiService $uazapiService)
+    public function __construct(
+        protected UazapiService $uazapiService,
+        protected PhoneNumberNormalizer $phoneNumberNormalizer
+    )
     {
     }
 
@@ -89,14 +93,14 @@ class ClienteLeadController extends Controller
         if ($rawPhone !== null && $rawPhone !== '' && !$normalizedPhone) {
             return redirect()
                 ->route('cliente.conversas.index')
-                ->with('error', 'Número inválido. Informe o telefone com DDI (ex: 55).');
+                ->with('error', 'Número inválido. Informe o telefone com DDD ou DDI.');
         }
 
         if ($normalizedPhone) {
             if (!preg_match('/^\d{11,15}$/', $normalizedPhone)) {
                 return redirect()
                     ->route('cliente.conversas.index')
-                    ->with('error', 'Número inválido. Informe o telefone com DDI (ex: 55).');
+                    ->with('error', 'Número inválido. Informe o telefone com DDD ou DDI.');
             }
 
             $uazapiToken = $this->resolveUazapiToken($cliente);
@@ -153,9 +157,30 @@ class ClienteLeadController extends Controller
             'tags.*' => ['integer'],
         ]);
 
+        $rawPhone = $data['phone'] ?? null;
+        $normalizedPhone = $this->normalizePhone($rawPhone);
+        if ($rawPhone !== null && trim((string) $rawPhone) !== '' && !$normalizedPhone) {
+            return redirect()
+                ->route('cliente.conversas.index')
+                ->with('error', 'Número inválido. Informe o telefone com DDD ou DDI.');
+        }
+
+        if ($normalizedPhone) {
+            $exists = ClienteLead::query()
+                ->where('cliente_id', $cliente->id)
+                ->where('phone', $normalizedPhone)
+                ->where('id', '!=', $clienteLead->id)
+                ->exists();
+            if ($exists) {
+                return redirect()
+                    ->route('cliente.conversas.index')
+                    ->with('error', 'Este telefone já está cadastrado para o cliente selecionado.');
+            }
+        }
+
         $clienteLead->update([
             'bot_enabled' => $request->boolean('bot_enabled'),
-            'phone' => $data['phone'] ?? null,
+            'phone' => $normalizedPhone,
             'name' => $data['name'] ?? null,
             'info' => $data['info'] ?? null,
         ]);
@@ -538,20 +563,7 @@ class ClienteLeadController extends Controller
 
     private function normalizePhone(?string $phone): ?string
     {
-        if ($phone === null) {
-            return null;
-        }
-
-        $digits = preg_replace('/\D/', '', $phone);
-        if ($digits === '') {
-            return null;
-        }
-
-        if (strlen($digits) <= 11) {
-            $digits = '55' . $digits;
-        }
-
-        return $digits;
+        return $this->phoneNumberNormalizer->normalizeLeadPhone($phone);
     }
 
     private function resolveUazapiToken($cliente): ?string

@@ -33,8 +33,18 @@ class ConexaoClienteController extends Controller
 
         $conexao->loadMissing('whatsappApi');
         $defaultStatus = $conexao->status ?? 'pendente';
+        if (!$conexao->is_active) {
+            return response()->json([
+                'status' => $defaultStatus,
+                'is_active' => false,
+            ]);
+        }
+
         if ($conexao->whatsappApi?->slug !== 'uazapi' || !$conexao->whatsapp_api_key) {
-            return response()->json(['status' => $defaultStatus]);
+            return response()->json([
+                'status' => $defaultStatus,
+                'is_active' => true,
+            ]);
         }
 
         $result = $this->uazapiService->instance_status($conexao->whatsapp_api_key);
@@ -65,12 +75,22 @@ class ConexaoClienteController extends Controller
             $conexao->save();
         }
 
-        return response()->json(['status' => $status]);
+        return response()->json([
+            'status' => $status,
+            'is_active' => true,
+        ]);
     }
 
     public function connect(Request $request, Conexao $conexao)
     {
         $this->ensureOwner($conexao);
+
+        if (!$conexao->is_active) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Conexão inativa. Ative a conexão para conectar o WhatsApp.',
+            ], 422);
+        }
 
         $conexao->loadMissing('whatsappApi');
         if ($conexao->whatsappApi?->slug !== 'uazapi' || !$conexao->whatsapp_api_key) {
