@@ -897,6 +897,7 @@ class ClienteLeadController extends Controller
             'cliente_id' => ['required', 'integer'],
             'delimiter' => ['nullable', 'in:semicolon,comma'],
             'has_header' => ['nullable', 'in:yes,no'],
+            'bot_enabled' => ['nullable', 'boolean'],
             'column_mappings' => ['required', 'array', 'min:1'],
             'column_mappings.*.column_index' => ['required', 'integer', 'min:0'],
             'column_mappings.*.target' => ['nullable', 'string', 'max:120'],
@@ -908,6 +909,7 @@ class ClienteLeadController extends Controller
         $cliente = $this->resolveClienteForUser($validated['cliente_id'], $user->id);
         $delimiter = ($validated['delimiter'] ?? 'semicolon') === 'comma' ? ',' : ';';
         $hasHeader = ($validated['has_header'] ?? 'yes') === 'yes';
+        $importBotEnabled = $request->boolean('bot_enabled', true);
         $tagIds = $this->filterTags((array) ($validated['tags'] ?? []), $user->id);
         $mapping = $this->parseImportColumnMappings(
             (array) ($validated['column_mappings'] ?? []),
@@ -923,7 +925,7 @@ class ClienteLeadController extends Controller
         $customFieldIndexes = $mapping['custom_field_indexes'];
 
         $created = 0;
-        $skippedDuplicate = 0;
+        $updated = 0;
         $skippedInvalid = 0;
 
         if ($extension === 'xlsx') {
@@ -967,21 +969,40 @@ class ClienteLeadController extends Controller
                     continue;
                 }
 
-                $exists = ClienteLead::where('cliente_id', $cliente->id)
-                    ->where('phone', $phone)
-                    ->exists();
-                if ($exists) {
-                    $skippedDuplicate++;
-                    continue;
-                }
-
                 $customFields = $this->resolveImportedCustomFieldValues($row, $customFieldIndexes);
-                DB::transaction(function () use ($cliente, $phone, $mapName, $row, $tagIds, $customFields) {
+                $name = $mapName !== null ? $this->columnValue($row, $mapName) : null;
+                $wasCreated = DB::transaction(function () use ($cliente, $importBotEnabled, $phone, $name, $tagIds, $customFields) {
+                    $lead = ClienteLead::where('cliente_id', $cliente->id)
+                        ->where('phone', $phone)
+                        ->first();
+
+                    if ($lead) {
+                        $updatePayload = [
+                            'bot_enabled' => $importBotEnabled,
+                        ];
+
+                        if ($name !== null) {
+                            $updatePayload['name'] = $name;
+                        }
+
+                        $lead->update($updatePayload);
+
+                        if (!empty($tagIds)) {
+                            $lead->tags()->syncWithoutDetaching($tagIds);
+                        }
+
+                        if (!empty($customFields)) {
+                            $this->upsertLeadCustomFields($lead, $customFields);
+                        }
+
+                        return false;
+                    }
+
                     $lead = ClienteLead::create([
                         'cliente_id' => $cliente->id,
-                        'bot_enabled' => false,
+                        'bot_enabled' => $importBotEnabled,
                         'phone' => $phone,
-                        'name' => $mapName !== null ? $this->columnValue($row, $mapName) : null,
+                        'name' => $name,
                         'info' => null,
                     ]);
 
@@ -992,9 +1013,15 @@ class ClienteLeadController extends Controller
                     if (!empty($customFields)) {
                         $this->syncLeadCustomFields($lead, $customFields);
                     }
+
+                    return true;
                 });
 
-                $created++;
+                if ($wasCreated) {
+                    $created++;
+                } else {
+                    $updated++;
+                }
             }
         } else {
             $handle = fopen($file->getRealPath(), 'r');
@@ -1040,21 +1067,40 @@ class ClienteLeadController extends Controller
                     continue;
                 }
 
-                $exists = ClienteLead::where('cliente_id', $cliente->id)
-                    ->where('phone', $phone)
-                    ->exists();
-                if ($exists) {
-                    $skippedDuplicate++;
-                    continue;
-                }
-
                 $customFields = $this->resolveImportedCustomFieldValues($row, $customFieldIndexes);
-                DB::transaction(function () use ($cliente, $phone, $mapName, $row, $tagIds, $customFields) {
+                $name = $mapName !== null ? $this->columnValue($row, $mapName) : null;
+                $wasCreated = DB::transaction(function () use ($cliente, $importBotEnabled, $phone, $name, $tagIds, $customFields) {
+                    $lead = ClienteLead::where('cliente_id', $cliente->id)
+                        ->where('phone', $phone)
+                        ->first();
+
+                    if ($lead) {
+                        $updatePayload = [
+                            'bot_enabled' => $importBotEnabled,
+                        ];
+
+                        if ($name !== null) {
+                            $updatePayload['name'] = $name;
+                        }
+
+                        $lead->update($updatePayload);
+
+                        if (!empty($tagIds)) {
+                            $lead->tags()->syncWithoutDetaching($tagIds);
+                        }
+
+                        if (!empty($customFields)) {
+                            $this->upsertLeadCustomFields($lead, $customFields);
+                        }
+
+                        return false;
+                    }
+
                     $lead = ClienteLead::create([
                         'cliente_id' => $cliente->id,
-                        'bot_enabled' => false,
+                        'bot_enabled' => $importBotEnabled,
                         'phone' => $phone,
-                        'name' => $mapName !== null ? $this->columnValue($row, $mapName) : null,
+                        'name' => $name,
                         'info' => null,
                     ]);
 
@@ -1065,30 +1111,38 @@ class ClienteLeadController extends Controller
                     if (!empty($customFields)) {
                         $this->syncLeadCustomFields($lead, $customFields);
                     }
+
+                    return true;
                 });
 
-                $created++;
+                if ($wasCreated) {
+                    $created++;
+                } else {
+                    $updated++;
+                }
             }
 
             fclose($handle);
         }
 
-        $skipped = $skippedDuplicate + $skippedInvalid;
-        $successMessage = "Importação concluída: {$created} registros adicionados.";
+        $successMessage = "Importação concluída: {$created} registro(s) adicionado(s)";
 
-        if ($skipped > 0) {
-            $successMessage .= " {$skipped} ignorados.";
+        if ($updated > 0) {
+            $successMessage .= ", {$updated} atualizado(s)";
+        }
+
+        $successMessage .= '.';
+
+        if ($skippedInvalid > 0) {
+            $successMessage .= " {$skippedInvalid} inválido(s) ignorado(s).";
         }
 
         $response = redirect()
             ->route('agencia.conversas.index')
             ->with('success', $successMessage);
 
-        if ($skippedDuplicate > 0 || $skippedInvalid > 0) {
+        if ($skippedInvalid > 0) {
             $details = [];
-            if ($skippedDuplicate > 0) {
-                $details[] = "{$skippedDuplicate} duplicado(s)";
-            }
             if ($skippedInvalid > 0) {
                 $details[] = "{$skippedInvalid} inválido(s)";
             }
@@ -1325,6 +1379,39 @@ class ClienteLeadController extends Controller
         $lead->customFieldValues()
             ->whereNotIn('whatsapp_cloud_custom_field_id', $fieldIds)
             ->delete();
+
+        $existing = $lead->customFieldValues()
+            ->whereIn('whatsapp_cloud_custom_field_id', $fieldIds)
+            ->get()
+            ->keyBy('whatsapp_cloud_custom_field_id');
+
+        foreach ($customFields as $item) {
+            $fieldId = (int) $item['field_id'];
+            $value = $item['value'];
+            $valueRecord = $existing->get($fieldId);
+
+            if ($valueRecord) {
+                if ((string) ($valueRecord->value ?? '') !== $value) {
+                    $valueRecord->update(['value' => $value]);
+                }
+                continue;
+            }
+
+            $lead->customFieldValues()->create([
+                'whatsapp_cloud_custom_field_id' => $fieldId,
+                'value' => $value,
+            ]);
+        }
+    }
+
+    private function upsertLeadCustomFields(ClienteLead $lead, array $customFields): void
+    {
+        if (empty($customFields)) {
+            return;
+        }
+
+        $fieldIds = array_map(fn (array $item) => (int) $item['field_id'], $customFields);
+        $fieldIds = array_values(array_unique($fieldIds));
 
         $existing = $lead->customFieldValues()
             ->whereIn('whatsapp_cloud_custom_field_id', $fieldIds)

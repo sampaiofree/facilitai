@@ -442,6 +442,19 @@
                             </div>
                         </div>
 
+                        <div class="flex items-center gap-3">
+                            <input type="hidden" name="bot_enabled" value="0">
+                            <input
+                                type="checkbox"
+                                id="clienteLeadImportBot"
+                                name="bot_enabled"
+                                value="1"
+                                checked
+                                class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            >
+                            <label for="clienteLeadImportBot" class="text-sm text-slate-600">Bot habilitado para leads importados</label>
+                        </div>
+
                         <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                             <div class="flex flex-wrap items-center justify-between gap-2">
                                 <div>
