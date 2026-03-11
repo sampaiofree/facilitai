@@ -444,13 +444,13 @@ test('endpoint de grupos da conexao retorna dados normalizados em sucesso', func
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-abc']);
 
-    $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
-        $mock->shouldReceive('listGroups')
-            ->once()
-            ->with('token-abc', false, true)
-            ->andReturn([
-                'data' => [
-                    ['JID' => '120363153742561022@g.us', 'Name' => 'Grupo A'],
+        $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('listGroups')
+                ->once()
+                ->with('token-abc', true, true)
+                ->andReturn([
+                    'data' => [
+                        ['JID' => '120363153742561022@g.us', 'Name' => 'Grupo A'],
                     ['jid' => '120363339858396166@g.us', 'subject' => 'Grupo B'],
                     ['groupjid' => '120363308883996631@g.us', 'name' => 'Grupo C'],
                     ['jid' => 'invalido'],
@@ -476,13 +476,13 @@ test('endpoint de grupos da conexao filtra por search em nome e jid', function (
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-abc']);
 
-    $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
-        $mock->shouldReceive('listGroups')
-            ->once()
-            ->with('token-abc', false, true)
-            ->andReturn([
-                'data' => [
-                    ['JID' => '120363153742561022@g.us', 'Name' => 'FacilitAI Vendas'],
+        $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('listGroups')
+                ->once()
+                ->with('token-abc', true, true)
+                ->andReturn([
+                    'data' => [
+                        ['JID' => '120363153742561022@g.us', 'Name' => 'FacilitAI Vendas'],
                     ['jid' => '120363339858396166@g.us', 'subject' => 'Grupo Suporte'],
                     ['jid' => '120300000000000000@g.us', 'name' => 'Comercial'],
                 ],
@@ -508,13 +508,13 @@ test('endpoint de grupos da conexao retorna erro consistente quando uazapi falha
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-abc']);
 
-    $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
-        $mock->shouldReceive('listGroups')
-            ->once()
-            ->with('token-abc', false, true)
-            ->andReturn([
-                'error' => true,
-                'status' => 500,
+        $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('listGroups')
+                ->once()
+                ->with('token-abc', true, true)
+                ->andReturn([
+                    'error' => true,
+                    'status' => 500,
                 'body' => ['message' => 'Erro remoto'],
             ]);
     });

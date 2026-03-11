@@ -339,7 +339,7 @@ class AgenciaGrupoController extends Controller
         }
 
         $search = trim((string) $request->query('search', ''));
-        $force = $request->boolean('force', false);
+        $force = true;
         $noParticipants = $request->has('no_participants')
             ? $request->boolean('no_participants')
             : true;

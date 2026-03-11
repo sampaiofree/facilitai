@@ -447,10 +447,6 @@
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <p class="text-sm font-semibold text-slate-800">Grupos da conexão</p>
                         <div class="flex flex-wrap items-center gap-2">
-                            <label class="inline-flex items-center gap-2 text-xs text-slate-600">
-                                <input id="forceRefreshGroups" type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                                Atualizar da API (force)
-                            </label>
                             <button
                                 type="button"
                                 id="loadConnectionGroups"
@@ -485,24 +481,26 @@
 
                 <div class="rounded-xl border border-slate-200 p-4">
                     <p class="text-sm font-semibold text-slate-800">Adicionar por link de convite</p>
-                    <div class="mt-3 grid gap-3 md:grid-cols-4">
-                        <div class="md:col-span-3">
-                            <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="inviteGroupLink">Link de convite</label>
-                            <input
-                                id="inviteGroupLink"
-                                type="url"
-                                placeholder="https://chat.whatsapp.com/..."
-                                class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                            >
-                            <p class="mt-1 text-[11px] text-slate-500">Cole o link completo do convite e clique em buscar.</p>
+                    <div class="mt-3">
+                        <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="inviteGroupLink">Link de convite</label>
+                        <div class="mt-1 grid gap-3 md:grid-cols-4">
+                            <div class="md:col-span-3">
+                                <input
+                                    id="inviteGroupLink"
+                                    type="url"
+                                    placeholder="https://chat.whatsapp.com/..."
+                                    class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                >
+                            </div>
+                            <div class="flex items-center">
+                                <button
+                                    type="button"
+                                    id="addInviteGroup"
+                                    class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                >Buscar e adicionar</button>
+                            </div>
                         </div>
-                        <div class="flex items-end">
-                            <button
-                                type="button"
-                                id="addInviteGroup"
-                                class="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                            >Buscar e adicionar</button>
-                        </div>
+                        <p class="mt-1 text-[11px] text-slate-500">Cole o link completo do convite e clique em buscar.</p>
                     </div>
                 </div>
 
@@ -553,7 +551,6 @@
             const nameInput = document.getElementById('grupoName');
             const conexaoSelect = document.getElementById('grupoConexao');
             const loadGroupsButton = document.getElementById('loadConnectionGroups');
-            const forceRefreshCheckbox = document.getElementById('forceRefreshGroups');
             const groupsSearchInput = document.getElementById('groupsSearch');
             const groupsListContainer = document.getElementById('connectionGroupsList');
             const groupsLoadMessage = document.getElementById('groupsLoadMessage');
@@ -798,7 +795,7 @@
                 }
 
                 const url = new URL(connectionGroupsUrlTemplate.replace('__CONEXAO__', conexaoId), window.location.origin);
-                url.searchParams.set('force', forceRefreshCheckbox.checked ? '1' : '0');
+                url.searchParams.set('force', '1');
                 url.searchParams.set('no_participants', '1');
                 url.searchParams.set('search', search);
 
