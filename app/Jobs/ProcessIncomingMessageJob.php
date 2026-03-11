@@ -11,6 +11,7 @@ use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\Tag;
 use App\Models\User;
+use App\Models\WhatsappApi;
 use App\Services\EvolutionAPIOficial;
 use App\Services\IAOrchestratorService;
 use App\Services\ScheduledMessageService;
@@ -27,6 +28,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Carbon;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -271,7 +273,10 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         ]);
     }
 
-    private function handleDebounce(): void
+    /**
+     * Compatibilidade com jobs legados (ProcessDebounceJob) ainda presentes na fila.
+     */
+    public function handleDebounce(): void
     {
         $conexao = $this->loadConexao();
         if (!$conexao) {
@@ -522,13 +527,27 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         }
 
         if (!$lead) {
-            $lead = ClienteLead::create([
-                'cliente_id' => $this->conexao->cliente_id,
-                'phone' => $canonicalPhone,
-                'name' => $leadName,
-                'info' => null,
-                'bot_enabled' => true,
-            ]);
+            try {
+                $lead = ClienteLead::create([
+                    'cliente_id' => $this->conexao->cliente_id,
+                    'phone' => $canonicalPhone,
+                    'name' => $leadName,
+                    'info' => null,
+                    'bot_enabled' => true,
+                ]);
+            } catch (UniqueConstraintViolationException $exception) {
+                if (!$this->isLeadPhoneUniqueViolation($exception)) {
+                    throw $exception;
+                }
+
+                $lead = ClienteLead::where('cliente_id', $this->conexao->cliente_id)
+                    ->whereIn('phone', $phoneCandidates)
+                    ->first();
+
+                if (!$lead) {
+                    throw $exception;
+                }
+            }
 
             return $lead;
         }
@@ -832,7 +851,22 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
     private function resolveWhatsappProviderSlug(): string
     {
         $slug = Str::lower((string) ($this->conexao?->whatsappApi?->slug ?? ''));
-        return $slug !== '' ? $slug : 'uazapi';
+        if ($slug !== '') {
+            return $slug;
+        }
+
+        $apiId = (int) ($this->conexao?->whatsapp_api_id ?? 0);
+        if ($apiId > 0) {
+            $fallbackSlug = WhatsappApi::query()->whereKey($apiId)->value('slug');
+            if (is_string($fallbackSlug)) {
+                $fallbackSlug = Str::lower(trim($fallbackSlug));
+                if ($fallbackSlug !== '') {
+                    return $fallbackSlug;
+                }
+            }
+        }
+
+        return 'uazapi';
     }
 
     private function resolveApiOficialInstanceId(): ?string
@@ -1163,11 +1197,10 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
 
                     $existing = SequenceChat::where('sequence_id', $sequence->id)
                         ->where('cliente_lead_id', $lead->id)
-                        ->whereIn('status', ['em_andamento', 'concluida', 'pausada'])
                         ->first();
 
                     if ($existing) {
-                        return ['output' => 'ℹ️ Este lead já está inscrito ou finalizou esta sequência.'];
+                        return ['output' => 'ℹ️ Este lead já está inscrito nesta sequência.'];
                     }
 
                     $assistantId = isset($payload['assistant_id']) && $payload['assistant_id'] !== ''
@@ -1175,16 +1208,24 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                         : ($conexao?->assistant_id ? (int) $conexao->assistant_id : null);
                     $conexaoId = $conexao?->id ? (int) $conexao->id : null;
 
-                    SequenceChat::create([
-                        'sequence_id' => $sequence->id,
-                        'cliente_lead_id' => $lead->id,
-                        'assistant_id' => $assistantId,
-                        'conexao_id' => $conexaoId,
-                        'status' => 'em_andamento',
-                        'iniciado_em' => now('America/Sao_Paulo'),
-                        'proximo_envio_em' => null,
-                        'criado_por' => 'assistant',
-                    ]);
+                    try {
+                        SequenceChat::create([
+                            'sequence_id' => $sequence->id,
+                            'cliente_lead_id' => $lead->id,
+                            'assistant_id' => $assistantId,
+                            'conexao_id' => $conexaoId,
+                            'status' => 'em_andamento',
+                            'iniciado_em' => now('America/Sao_Paulo'),
+                            'proximo_envio_em' => null,
+                            'criado_por' => 'assistant',
+                        ]);
+                    } catch (UniqueConstraintViolationException $e) {
+                        if ($this->isSequenceLeadUniqueViolation($e)) {
+                            return ['output' => 'ℹ️ Este lead já está inscrito nesta sequência.'];
+                        }
+
+                        throw $e;
+                    }
 
                     return ['output' => '✅ Lead inscrito na sequência com sucesso.'];
                 } catch (\Throwable $e) {
@@ -1196,6 +1237,26 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                 }
             },
         ];
+    }
+
+    private function isSequenceLeadUniqueViolation(\Throwable $exception): bool
+    {
+        $message = Str::lower($exception->getMessage());
+
+        return Str::contains($message, [
+            'sequence_chats_sequence_id_cliente_lead_id_unique',
+            'key (sequence_id, cliente_lead_id)',
+        ]);
+    }
+
+    private function isLeadPhoneUniqueViolation(\Throwable $exception): bool
+    {
+        $message = Str::lower($exception->getMessage());
+
+        return Str::contains($message, [
+            'cliente_lead_cliente_id_phone_unique',
+            'key (cliente_id, phone)',
+        ]);
     }
 
     private function handleAgendarMsg(?ClienteLead $lead, ?Conexao $conexao, array $payload, array $arguments): string

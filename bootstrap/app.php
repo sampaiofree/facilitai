@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             require __DIR__ . '/../app/Schedules/process_sequences.php',
             require __DIR__ . '/../app/Schedules/process_agenda_reminders.php',
             require __DIR__ . '/../app/Schedules/process_scheduled_messages.php',
+            require __DIR__ . '/../app/Schedules/process_grupo_conjunto_mensagens.php',
             require __DIR__ . '/../app/Schedules/prune_scheduled_messages.php',
         ];
     })

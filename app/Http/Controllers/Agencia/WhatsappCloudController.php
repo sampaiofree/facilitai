@@ -1164,7 +1164,7 @@ class WhatsappCloudController extends Controller
         }
 
         $dispatch = DispatchWhatsappCloudCampaignJob::dispatch((int) $campaign->id)
-            ->onQueue('processarconversa');
+            ->onQueue(DispatchWhatsappCloudCampaignJob::QUEUE_NAME);
 
         if ($scheduledForUtc) {
             $dispatch->delay($scheduledForUtc);

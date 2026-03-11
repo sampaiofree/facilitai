@@ -7,6 +7,7 @@ use App\Models\WhatsappCloudCampaignItem;
 use App\Models\WhatsappCloudCustomField;
 use App\Models\ClienteLead;
 use App\Services\WhatsappCloudConversationWindowService;
+use App\Services\WhatsappCloudTemplateContextSyncService;
 use App\Services\WhatsappCloudTemplateSendService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -23,7 +24,8 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 4;
-    public int $timeout = 180;
+    public int $timeout = 900;
+    public string $queue = DispatchWhatsappCloudCampaignJob::QUEUE_NAME;
 
     public function __construct(private readonly int $campaignItemId)
     {
@@ -36,7 +38,8 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
 
     public function handle(
         WhatsappCloudTemplateSendService $templateSendService,
-        WhatsappCloudConversationWindowService $conversationWindowService
+        WhatsappCloudConversationWindowService $conversationWindowService,
+        WhatsappCloudTemplateContextSyncService $templateContextSyncService
     ): void {
         $item = WhatsappCloudCampaignItem::query()
             ->with([
@@ -53,6 +56,7 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
         }
 
         if (in_array($item->status, ['sent', 'failed', 'skipped', 'canceled'], true)) {
+            $this->continueCampaign((int) $item->whatsapp_cloud_campaign_id);
             return;
         }
 
@@ -77,7 +81,7 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
         if (!$conexao || !$template || !$lead || $userId <= 0) {
             $this->markAsFailed($item, 'Contexto inválido de conexão/template/lead.');
             $this->incrementCampaignCounter((int) $campaign->id, 'failed_count');
-            $this->finalizeCampaignIfDone((int) $campaign->id);
+            $this->continueCampaign((int) $campaign->id);
             return;
         }
 
@@ -111,7 +115,7 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
                 ])->save();
 
                 $this->incrementCampaignCounter((int) $campaign->id, 'skipped_count');
-                $this->finalizeCampaignIfDone((int) $campaign->id);
+                $this->continueCampaign((int) $campaign->id);
                 return;
             }
 
@@ -128,7 +132,7 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
             ])->save();
 
             $this->incrementCampaignCounter((int) $campaign->id, 'failed_count');
-            $this->finalizeCampaignIfDone((int) $campaign->id);
+            $this->continueCampaign((int) $campaign->id);
             return;
         }
 
@@ -153,7 +157,6 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
         ])->save();
 
         $this->incrementCampaignCounter((int) $campaign->id, 'sent_count');
-        $this->finalizeCampaignIfDone((int) $campaign->id);
 
         $conversationWindowService->touchOutbound(
             (int) $lead->id,
@@ -162,7 +165,7 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
         );
 
         try {
-            SyncCloudTemplateContextJob::dispatch([
+            $templateContextSyncService->sync([
                 'conexao_id' => (int) $conexao->id,
                 'cliente_lead_id' => (int) $lead->id,
                 'template_id' => (int) $template->id,
@@ -170,9 +173,9 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
                 'assistant_context_instructions' => trim((string) data_get($campaign->settings, 'assistant_context_instructions', '')) ?: null,
                 'meta_message_id' => $metaMessageId !== '' ? $metaMessageId : null,
                 'sent_at' => $nowUtc->toIso8601String(),
-            ])->onQueue('processarconversa');
+            ]);
         } catch (\Throwable $exception) {
-            Log::channel('process_job')->warning('Falha ao enfileirar SyncCloudTemplateContextJob da campanha.', [
+            Log::channel('process_job')->warning('Falha ao sincronizar contexto OpenAI no fluxo sequencial da campanha.', [
                 'campaign_id' => (int) $campaign->id,
                 'campaign_item_id' => (int) $item->id,
                 'lead_id' => (int) $lead->id,
@@ -180,6 +183,8 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
                 'error' => $exception->getMessage(),
             ]);
         }
+
+        $this->continueCampaign((int) $campaign->id);
     }
 
     public function failed(\Throwable $exception): void
@@ -190,12 +195,13 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
         }
 
         if (in_array($item->status, ['sent', 'skipped', 'canceled'], true)) {
+            $this->continueCampaign((int) $item->whatsapp_cloud_campaign_id);
             return;
         }
 
         $this->markAsFailed($item, $exception->getMessage());
         $this->incrementCampaignCounter((int) $item->whatsapp_cloud_campaign_id, 'failed_count');
-        $this->finalizeCampaignIfDone((int) $item->whatsapp_cloud_campaign_id);
+        $this->continueCampaign((int) $item->whatsapp_cloud_campaign_id);
 
         Log::channel('process_job')->error('SendWhatsappCloudCampaignItemJob failed.', [
             'campaign_item_id' => $this->campaignItemId,
@@ -225,7 +231,7 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
 
     private function incrementCampaignCounter(int $campaignId, string $column): void
     {
-        if (!in_array($column, ['sent_count', 'failed_count', 'skipped_count'], true)) {
+        if (!in_array($column, ['queued_count', 'sent_count', 'failed_count', 'skipped_count'], true)) {
             return;
         }
 
@@ -257,6 +263,76 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
             'status' => $newStatus,
             'finished_at' => Carbon::now('UTC'),
         ])->save();
+    }
+
+    private function continueCampaign(int $campaignId): void
+    {
+        if ($campaignId <= 0) {
+            return;
+        }
+
+        $campaign = WhatsappCloudCampaign::query()->find($campaignId);
+        if (!$campaign || in_array($campaign->status, ['canceled', 'completed', 'failed'], true)) {
+            return;
+        }
+
+        $intervalSeconds = max(0, (int) data_get($campaign->settings, 'interval_seconds', 0));
+        $this->queueNextPendingItem($campaignId, $intervalSeconds);
+        $this->finalizeCampaignIfDone($campaignId);
+    }
+
+    private function queueNextPendingItem(int $campaignId, int $intervalSeconds = 0): bool
+    {
+        $hasQueuedItem = WhatsappCloudCampaignItem::query()
+            ->where('whatsapp_cloud_campaign_id', $campaignId)
+            ->where('status', 'queued')
+            ->exists();
+
+        if ($hasQueuedItem) {
+            return true;
+        }
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $pending = WhatsappCloudCampaignItem::query()
+                ->where('whatsapp_cloud_campaign_id', $campaignId)
+                ->where('status', 'pending')
+                ->orderBy('id')
+                ->first(['id']);
+
+            if (!$pending) {
+                return false;
+            }
+
+            $queuedAt = Carbon::now('UTC');
+            $updated = WhatsappCloudCampaignItem::query()
+                ->whereKey((int) $pending->id)
+                ->where('status', 'pending')
+                ->update([
+                    'status' => 'queued',
+                    'queued_at' => $queuedAt,
+                    'updated_at' => $queuedAt,
+                ]);
+
+            if ($updated !== 1) {
+                continue;
+            }
+
+            $delaySeconds = max(0, (int) $intervalSeconds);
+            $job = self::dispatch((int) $pending->id)->onQueue(self::queueName());
+            if ($delaySeconds > 0) {
+                $job->delay($queuedAt->copy()->addSeconds($delaySeconds));
+            }
+
+            $this->incrementCampaignCounter($campaignId, 'queued_count');
+            return true;
+        }
+
+        return false;
+    }
+
+    private static function queueName(): string
+    {
+        return DispatchWhatsappCloudCampaignJob::QUEUE_NAME;
     }
 
     private function buildItemIdempotencyKey(int $campaignId, int $leadId): string

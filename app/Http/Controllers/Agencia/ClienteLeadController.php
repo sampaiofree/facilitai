@@ -26,11 +26,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -503,21 +505,31 @@ class ClienteLeadController extends Controller
             }
         }
 
-        $lead = DB::transaction(function () use ($request, $data, $cliente, $user, $customFields, $normalizedPhone) {
-            $lead = ClienteLead::create([
-                'cliente_id' => $cliente->id,
-                'bot_enabled' => $request->boolean('bot_enabled'),
-                'phone' => $normalizedPhone,
-                'name' => $data['name'] ?? null,
-                'info' => $data['info'] ?? null,
-            ]);
+        try {
+            $lead = DB::transaction(function () use ($request, $data, $cliente, $user, $customFields, $normalizedPhone) {
+                $lead = ClienteLead::create([
+                    'cliente_id' => $cliente->id,
+                    'bot_enabled' => $request->boolean('bot_enabled'),
+                    'phone' => $normalizedPhone,
+                    'name' => $data['name'] ?? null,
+                    'info' => $data['info'] ?? null,
+                ]);
 
-            $lead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $user->id));
-            $this->attachLeadToSequence($lead, $data['sequence_ids'] ?? [], $user->id, $request->has('sequence_ids'));
-            $this->syncLeadCustomFields($lead, $customFields);
+                $lead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $user->id));
+                $this->attachLeadToSequence($lead, $data['sequence_ids'] ?? [], $user->id, $request->has('sequence_ids'));
+                $this->syncLeadCustomFields($lead, $customFields);
 
-            return $lead;
-        });
+                return $lead;
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            if (!$this->isClienteLeadPhoneUniqueViolation($exception)) {
+                throw $exception;
+            }
+
+            return redirect()
+                ->route('agencia.conversas.index')
+                ->with('error', 'Este telefone já está cadastrado para o cliente selecionado.');
+        }
 
         return redirect()
             ->route('agencia.conversas.index')
@@ -574,19 +586,29 @@ class ClienteLeadController extends Controller
             }
         }
 
-        DB::transaction(function () use ($request, $data, $clienteLead, $cliente, $user, $customFields, $normalizedPhone) {
-            $clienteLead->update([
-                'cliente_id' => $cliente->id,
-                'bot_enabled' => $request->boolean('bot_enabled'),
-                'phone' => $normalizedPhone,
-                'name' => $data['name'] ?? null,
-                'info' => $data['info'] ?? null,
-            ]);
+        try {
+            DB::transaction(function () use ($request, $data, $clienteLead, $cliente, $user, $customFields, $normalizedPhone) {
+                $clienteLead->update([
+                    'cliente_id' => $cliente->id,
+                    'bot_enabled' => $request->boolean('bot_enabled'),
+                    'phone' => $normalizedPhone,
+                    'name' => $data['name'] ?? null,
+                    'info' => $data['info'] ?? null,
+                ]);
 
-            $clienteLead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $user->id));
-            $this->attachLeadToSequence($clienteLead, $data['sequence_ids'] ?? [], $user->id, $request->has('sequence_ids'));
-            $this->syncLeadCustomFields($clienteLead, $customFields);
-        });
+                $clienteLead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $user->id));
+                $this->attachLeadToSequence($clienteLead, $data['sequence_ids'] ?? [], $user->id, $request->has('sequence_ids'));
+                $this->syncLeadCustomFields($clienteLead, $customFields);
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            if (!$this->isClienteLeadPhoneUniqueViolation($exception)) {
+                throw $exception;
+            }
+
+            return redirect()
+                ->route('agencia.conversas.index', $request->query())
+                ->with('error', 'Este telefone já está cadastrado para o cliente selecionado.');
+        }
 
         return redirect()
             ->route('agencia.conversas.index', $request->query())
@@ -1311,13 +1333,47 @@ class ClienteLeadController extends Controller
                         return false;
                     }
 
-                    $lead = ClienteLead::create([
-                        'cliente_id' => $cliente->id,
-                        'bot_enabled' => $importBotEnabled,
-                        'phone' => $phone,
-                        'name' => $name,
-                        'info' => null,
-                    ]);
+                    try {
+                        $lead = ClienteLead::create([
+                            'cliente_id' => $cliente->id,
+                            'bot_enabled' => $importBotEnabled,
+                            'phone' => $phone,
+                            'name' => $name,
+                            'info' => null,
+                        ]);
+                    } catch (UniqueConstraintViolationException $exception) {
+                        if (!$this->isClienteLeadPhoneUniqueViolation($exception)) {
+                            throw $exception;
+                        }
+
+                        $lead = ClienteLead::where('cliente_id', $cliente->id)
+                            ->where('phone', $phone)
+                            ->first();
+
+                        if (!$lead) {
+                            throw $exception;
+                        }
+
+                        $updatePayload = [
+                            'bot_enabled' => $importBotEnabled,
+                        ];
+
+                        if ($name !== null) {
+                            $updatePayload['name'] = $name;
+                        }
+
+                        $lead->update($updatePayload);
+
+                        if (!empty($tagIds)) {
+                            $lead->tags()->syncWithoutDetaching($tagIds);
+                        }
+
+                        if (!empty($customFields)) {
+                            $this->upsertLeadCustomFields($lead, $customFields);
+                        }
+
+                        return false;
+                    }
 
                     if (!empty($tagIds)) {
                         $lead->tags()->sync($tagIds);
@@ -1409,13 +1465,47 @@ class ClienteLeadController extends Controller
                         return false;
                     }
 
-                    $lead = ClienteLead::create([
-                        'cliente_id' => $cliente->id,
-                        'bot_enabled' => $importBotEnabled,
-                        'phone' => $phone,
-                        'name' => $name,
-                        'info' => null,
-                    ]);
+                    try {
+                        $lead = ClienteLead::create([
+                            'cliente_id' => $cliente->id,
+                            'bot_enabled' => $importBotEnabled,
+                            'phone' => $phone,
+                            'name' => $name,
+                            'info' => null,
+                        ]);
+                    } catch (UniqueConstraintViolationException $exception) {
+                        if (!$this->isClienteLeadPhoneUniqueViolation($exception)) {
+                            throw $exception;
+                        }
+
+                        $lead = ClienteLead::where('cliente_id', $cliente->id)
+                            ->where('phone', $phone)
+                            ->first();
+
+                        if (!$lead) {
+                            throw $exception;
+                        }
+
+                        $updatePayload = [
+                            'bot_enabled' => $importBotEnabled,
+                        ];
+
+                        if ($name !== null) {
+                            $updatePayload['name'] = $name;
+                        }
+
+                        $lead->update($updatePayload);
+
+                        if (!empty($tagIds)) {
+                            $lead->tags()->syncWithoutDetaching($tagIds);
+                        }
+
+                        if (!empty($customFields)) {
+                            $this->upsertLeadCustomFields($lead, $customFields);
+                        }
+
+                        return false;
+                    }
 
                     if (!empty($tagIds)) {
                         $lead->tags()->sync($tagIds);
@@ -2077,22 +2167,47 @@ class ClienteLeadController extends Controller
         foreach ($sequences as $sequence) {
             $existing = SequenceChat::where('sequence_id', $sequence->id)
                 ->where('cliente_lead_id', $lead->id)
-                ->whereIn('status', ['em_andamento', 'concluida', 'pausada'])
                 ->first();
 
             if ($existing) {
                 continue;
             }
 
-            SequenceChat::create([
-                'sequence_id' => $sequence->id,
-                'cliente_lead_id' => $lead->id,
-                'status' => 'em_andamento',
-                'iniciado_em' => now('America/Sao_Paulo'),
-                'proximo_envio_em' => null,
-                'criado_por' => 'manual',
-            ]);
+            try {
+                SequenceChat::create([
+                    'sequence_id' => $sequence->id,
+                    'cliente_lead_id' => $lead->id,
+                    'status' => 'em_andamento',
+                    'iniciado_em' => now('America/Sao_Paulo'),
+                    'proximo_envio_em' => null,
+                    'criado_por' => 'manual',
+                ]);
+            } catch (UniqueConstraintViolationException $exception) {
+                if (!$this->isSequenceLeadUniqueViolation($exception)) {
+                    throw $exception;
+                }
+            }
         }
+    }
+
+    private function isClienteLeadPhoneUniqueViolation(Throwable $exception): bool
+    {
+        $message = Str::lower($exception->getMessage());
+
+        return Str::contains($message, [
+            'cliente_lead_cliente_id_phone_unique',
+            'key (cliente_id, phone)',
+        ]);
+    }
+
+    private function isSequenceLeadUniqueViolation(Throwable $exception): bool
+    {
+        $message = Str::lower($exception->getMessage());
+
+        return Str::contains($message, [
+            'sequence_chats_sequence_id_cliente_lead_id_unique',
+            'key (sequence_id, cliente_lead_id)',
+        ]);
     }
 
     private function normalizedColumnSql(string $column): string

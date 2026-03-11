@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Agencia;
 
 use App\Http\Controllers\Controller;
 use App\Models\AgencySetting;
+use App\Services\GrupoConjuntoActionTimingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,6 +28,7 @@ class AgenciaSettingsController extends Controller
             'settings' => $settings,
             'timezones' => $this->timezoneOptions(),
             'locales' => $this->localeOptions(),
+            'groupActionTimingOptions' => GrupoConjuntoActionTimingService::presetOptions(),
         ]);
     }
 
@@ -67,6 +69,7 @@ class AgenciaSettingsController extends Controller
             'secondary_color' => ['nullable', 'string', 'max:20', 'regex:/^#([0-9a-fA-F]{3}){1,2}$/'],
             'timezone' => ['nullable', 'string', 'max:100'],
             'locale' => ['nullable', 'string', 'max:20'],
+            'group_action_timing_preset' => ['nullable', 'string', Rule::in(array_keys(GrupoConjuntoActionTimingService::presetOptions()))],
             'logo' => ['nullable', 'image', 'max:2048'],
             'favicon' => ['nullable', 'image', 'max:1024'],
         ], [
@@ -85,6 +88,7 @@ class AgenciaSettingsController extends Controller
             'secondary_color' => $validated['secondary_color'] ?? null,
             'timezone' => $validated['timezone'] ?? null,
             'locale' => $validated['locale'] ?? null,
+            'group_action_timing_preset' => $validated['group_action_timing_preset'] ?? null,
         ];
 
         $settings = AgencySetting::firstOrCreate(['user_id' => $userId]);

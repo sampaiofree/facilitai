@@ -26,6 +26,7 @@ class AgencySetting extends Model
         'secondary_color',
         'timezone',
         'locale',
+        'group_action_timing_preset',
     ];
 
     protected $casts = [

@@ -95,7 +95,7 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="timezone">Timezone</label>
                     <select
@@ -122,6 +122,21 @@
                             <option value="{{ $code }}" @selected(old('locale', $settings->locale) === $code)>{{ $label }}</option>
                         @endforeach
                     </select>
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="group_action_timing_preset">Ritmo de ações em grupos</label>
+                    <select
+                        id="group_action_timing_preset"
+                        name="group_action_timing_preset"
+                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    >
+                        <option value="">Usar padrão global</option>
+                        @foreach ($groupActionTimingOptions as $preset => $label)
+                            <option value="{{ $preset }}" @selected(old('group_action_timing_preset', $settings->group_action_timing_preset) === $preset)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-[11px] text-slate-500">Define o intervalo entre ações em grupos por conexão.</p>
                 </div>
             </div>
 

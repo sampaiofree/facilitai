@@ -13,6 +13,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Symfony\Component\HttpFoundation\Response;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -128,13 +129,23 @@ class ClienteLeadController extends Controller
             }
         }
 
-        $lead = ClienteLead::create([
-            'cliente_id' => $cliente->id,
-            'bot_enabled' => $request->boolean('bot_enabled'),
-            'phone' => $normalizedPhone,
-            'name' => $data['name'] ?? null,
-            'info' => $data['info'] ?? null,
-        ]);
+        try {
+            $lead = ClienteLead::create([
+                'cliente_id' => $cliente->id,
+                'bot_enabled' => $request->boolean('bot_enabled'),
+                'phone' => $normalizedPhone,
+                'name' => $data['name'] ?? null,
+                'info' => $data['info'] ?? null,
+            ]);
+        } catch (UniqueConstraintViolationException $exception) {
+            if (!$this->isClienteLeadPhoneUniqueViolation($exception)) {
+                throw $exception;
+            }
+
+            return redirect()
+                ->route('cliente.conversas.index')
+                ->with('error', 'Este telefone já está cadastrado para o cliente selecionado.');
+        }
 
         $lead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $cliente->user_id, $cliente->id));
 
@@ -178,12 +189,22 @@ class ClienteLeadController extends Controller
             }
         }
 
-        $clienteLead->update([
-            'bot_enabled' => $request->boolean('bot_enabled'),
-            'phone' => $normalizedPhone,
-            'name' => $data['name'] ?? null,
-            'info' => $data['info'] ?? null,
-        ]);
+        try {
+            $clienteLead->update([
+                'bot_enabled' => $request->boolean('bot_enabled'),
+                'phone' => $normalizedPhone,
+                'name' => $data['name'] ?? null,
+                'info' => $data['info'] ?? null,
+            ]);
+        } catch (UniqueConstraintViolationException $exception) {
+            if (!$this->isClienteLeadPhoneUniqueViolation($exception)) {
+                throw $exception;
+            }
+
+            return redirect()
+                ->route('cliente.conversas.index')
+                ->with('error', 'Este telefone já está cadastrado para o cliente selecionado.');
+        }
 
         $clienteLead->tags()->sync($this->filterTags((array) ($data['tags'] ?? []), $cliente->user_id, $cliente->id));
 
@@ -267,13 +288,22 @@ class ClienteLeadController extends Controller
                     continue;
                 }
 
-                $lead = ClienteLead::create([
-                    'cliente_id' => $rowData['cliente_id'],
-                    'bot_enabled' => false,
-                    'phone' => $phone,
-                    'name' => $rowData['name'],
-                    'info' => $rowData['info'],
-                ]);
+                try {
+                    $lead = ClienteLead::create([
+                        'cliente_id' => $rowData['cliente_id'],
+                        'bot_enabled' => false,
+                        'phone' => $phone,
+                        'name' => $rowData['name'],
+                        'info' => $rowData['info'],
+                    ]);
+                } catch (UniqueConstraintViolationException $exception) {
+                    if (!$this->isClienteLeadPhoneUniqueViolation($exception)) {
+                        throw $exception;
+                    }
+
+                    $skippedDuplicate++;
+                    continue;
+                }
 
                 if (!empty($tagIds)) {
                     $lead->tags()->sync($tagIds);
@@ -564,6 +594,16 @@ class ClienteLeadController extends Controller
     private function normalizePhone(?string $phone): ?string
     {
         return $this->phoneNumberNormalizer->normalizeLeadPhone($phone);
+    }
+
+    private function isClienteLeadPhoneUniqueViolation(\Throwable $exception): bool
+    {
+        $message = Str::lower($exception->getMessage());
+
+        return Str::contains($message, [
+            'cliente_lead_cliente_id_phone_unique',
+            'key (cliente_id, phone)',
+        ]);
     }
 
     private function resolveUazapiToken($cliente): ?string

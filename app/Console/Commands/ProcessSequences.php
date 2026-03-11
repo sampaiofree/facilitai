@@ -9,6 +9,7 @@ use App\Models\Conexao;
 use App\Models\SequenceChat;
 use App\Models\SequenceLog;
 use App\Models\SequenceStep;
+use App\Models\WhatsappApi;
 use Illuminate\Support\Carbon;
 
 class ProcessSequences extends Command
@@ -320,8 +321,21 @@ class ProcessSequences extends Command
                 continue;
             }
 
-            if (empty($conexao->whatsapp_api_key)) {
-                $erros[] = $candidato['source'] . '=' . $conexao->id . ' sem whatsapp_api_key';
+            $conexao->loadMissing(['whatsappApi:id,slug', 'whatsappCloudAccount:id,access_token']);
+            $providerSlug = $this->resolveWhatsappProviderSlug($conexao);
+
+            if ($providerSlug === 'uazapi' && empty($conexao->whatsapp_api_key)) {
+                $erros[] = $candidato['source'] . '=' . $conexao->id . ' sem whatsapp_api_key (uazapi)';
+                continue;
+            }
+
+            if ($providerSlug === 'whatsapp_cloud' && !$this->hasValidCloudCredentials($conexao)) {
+                $erros[] = $candidato['source'] . '=' . $conexao->id . ' sem credenciais validas (whatsapp_cloud)';
+                continue;
+            }
+
+            if ($providerSlug === '' && empty($conexao->whatsapp_api_key)) {
+                $erros[] = $candidato['source'] . '=' . $conexao->id . ' sem provedor identificado e sem whatsapp_api_key';
                 continue;
             }
 
@@ -350,6 +364,35 @@ class ProcessSequences extends Command
         $this->reagendarPorConexaoInvalida($inscricao, $step, $agoraLocal, $motivo);
 
         return null;
+    }
+
+    private function resolveWhatsappProviderSlug(Conexao $conexao): string
+    {
+        $slug = strtolower(trim((string) ($conexao->whatsappApi?->slug ?? '')));
+        if ($slug !== '') {
+            return $slug;
+        }
+
+        $apiId = (int) ($conexao->whatsapp_api_id ?? 0);
+        if ($apiId > 0) {
+            $fallbackSlug = WhatsappApi::query()->whereKey($apiId)->value('slug');
+            if (is_string($fallbackSlug)) {
+                $fallbackSlug = strtolower(trim($fallbackSlug));
+                if ($fallbackSlug !== '') {
+                    return $fallbackSlug;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private function hasValidCloudCredentials(Conexao $conexao): bool
+    {
+        $cloudToken = trim((string) ($conexao->whatsappCloudAccount?->access_token ?? ''));
+        $legacyToken = trim((string) ($conexao->whatsapp_api_key ?? ''));
+
+        return $cloudToken !== '' || $legacyToken !== '';
     }
 
     private function reagendarPorConexaoInvalida(SequenceChat $inscricao, ?SequenceStep $step, Carbon $agoraLocal, string $motivo): void

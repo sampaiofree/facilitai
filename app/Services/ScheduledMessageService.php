@@ -6,6 +6,7 @@ use App\Models\AgencySetting;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Models\User;
+use App\Models\WhatsappApi;
 use App\Support\PhoneNumberNormalizer;
 use Illuminate\Support\Carbon;
 
@@ -78,15 +79,14 @@ class ScheduledMessageService
         }
 
         $conexao->loadMissing(['whatsappApi', 'whatsappCloudAccount']);
-        $providerSlug = strtolower((string) ($conexao->whatsappApi?->slug ?? ''));
+        $providerSlug = $this->resolveWhatsappProviderSlug($conexao);
 
         if ($providerSlug === 'whatsapp_cloud') {
-            $cloudToken = trim((string) ($conexao->whatsappCloudAccount?->access_token ?? ''));
-            $legacyToken = trim((string) ($conexao->whatsapp_api_key ?? ''));
-
-            if ($cloudToken === '' && $legacyToken === '') {
+            if (!$this->hasValidCloudCredentials($conexao)) {
                 return ['ok' => false, 'message' => 'Conexao cloud sem credenciais validas.'];
             }
+        } elseif ($providerSlug === 'api_oficial') {
+            // API Oficial usa `instanceId` (conexao->id) no dispatch e não depende de whatsapp_api_key.
         } elseif (trim((string) ($conexao->whatsapp_api_key ?? '')) === '') {
             return ['ok' => false, 'message' => 'Conexao sem whatsapp_api_key valida.'];
         }
@@ -123,5 +123,34 @@ class ScheduledMessageService
         }
 
         return $query->latest('id')->first();
+    }
+
+    private function resolveWhatsappProviderSlug(Conexao $conexao): string
+    {
+        $slug = strtolower(trim((string) ($conexao->whatsappApi?->slug ?? '')));
+        if ($slug !== '') {
+            return $slug;
+        }
+
+        $apiId = (int) ($conexao->whatsapp_api_id ?? 0);
+        if ($apiId > 0) {
+            $fallbackSlug = WhatsappApi::query()->whereKey($apiId)->value('slug');
+            if (is_string($fallbackSlug)) {
+                $fallbackSlug = strtolower(trim($fallbackSlug));
+                if ($fallbackSlug !== '') {
+                    return $fallbackSlug;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private function hasValidCloudCredentials(Conexao $conexao): bool
+    {
+        $cloudToken = trim((string) ($conexao->whatsappCloudAccount?->access_token ?? ''));
+        $legacyToken = trim((string) ($conexao->whatsapp_api_key ?? ''));
+
+        return $cloudToken !== '' || $legacyToken !== '';
     }
 }

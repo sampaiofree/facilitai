@@ -16,8 +16,11 @@ class DispatchWhatsappCloudCampaignJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public const QUEUE_NAME = 'whatsapp-cloud-campaign';
+
     public int $tries = 3;
     public int $timeout = 180;
+    public string $queue = self::QUEUE_NAME;
 
     public function __construct(private readonly int $campaignId)
     {
@@ -35,7 +38,6 @@ class DispatchWhatsappCloudCampaignJob implements ShouldQueue
         }
 
         $nowUtc = Carbon::now('UTC');
-        $intervalSeconds = max(0, (int) data_get($campaign->settings, 'interval_seconds', 0));
 
         if (!$campaign->started_at) {
             $campaign->forceFill([
@@ -47,56 +49,10 @@ class DispatchWhatsappCloudCampaignJob implements ShouldQueue
             $campaign->forceFill(['status' => 'running'])->save();
         }
 
-        $queuedCount = 0;
-        $pendingItems = WhatsappCloudCampaignItem::query()
-            ->where('whatsapp_cloud_campaign_id', $campaign->id)
-            ->where('status', 'pending')
-            ->orderBy('id')
-            ->get(['id']);
-
-        foreach ($pendingItems as $index => $item) {
-            $queuedAt = Carbon::now('UTC');
-            $updated = WhatsappCloudCampaignItem::query()
-                ->whereKey((int) $item->id)
-                ->where('status', 'pending')
-                ->update([
-                    'status' => 'queued',
-                    'queued_at' => $queuedAt,
-                    'updated_at' => $queuedAt,
-                ]);
-
-            if ($updated !== 1) {
-                continue;
-            }
-
-            $delaySeconds = $intervalSeconds > 0 ? ($index * $intervalSeconds) : 0;
-            $job = SendWhatsappCloudCampaignItemJob::dispatch((int) $item->id)
-                ->onQueue('processarconversa');
-
-            if ($delaySeconds > 0) {
-                $job->delay($nowUtc->copy()->addSeconds($delaySeconds));
-            }
-
-            $queuedCount++;
-        }
-
-        if ($queuedCount > 0) {
-            $campaign->increment('queued_count', $queuedCount);
+        if ($this->queueNextPendingItem((int) $campaign->id, 0)) {
             return;
         }
-
-        $remaining = WhatsappCloudCampaignItem::query()
-            ->where('whatsapp_cloud_campaign_id', $campaign->id)
-            ->whereIn('status', ['pending', 'queued'])
-            ->count();
-
-        if ($remaining === 0) {
-            $campaign->refresh();
-            $campaign->forceFill([
-                'status' => $campaign->sent_count > 0 ? 'completed' : 'failed',
-                'finished_at' => Carbon::now('UTC'),
-            ])->save();
-        }
+        $this->finalizeCampaignIfDone((int) $campaign->id);
     }
 
     public function failed(\Throwable $exception): void
@@ -116,5 +72,88 @@ class DispatchWhatsappCloudCampaignJob implements ShouldQueue
             'campaign_id' => $this->campaignId,
             'error' => $exception->getMessage(),
         ]);
+    }
+
+    private function queueNextPendingItem(int $campaignId, int $intervalSeconds = 0): bool
+    {
+        if ($campaignId <= 0) {
+            return false;
+        }
+
+        $campaign = WhatsappCloudCampaign::query()->find($campaignId);
+        if (!$campaign || in_array($campaign->status, ['canceled', 'completed', 'failed'], true)) {
+            return false;
+        }
+
+        $hasQueuedItem = WhatsappCloudCampaignItem::query()
+            ->where('whatsapp_cloud_campaign_id', $campaignId)
+            ->where('status', 'queued')
+            ->exists();
+
+        if ($hasQueuedItem) {
+            return true;
+        }
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $pending = WhatsappCloudCampaignItem::query()
+                ->where('whatsapp_cloud_campaign_id', $campaignId)
+                ->where('status', 'pending')
+                ->orderBy('id')
+                ->first(['id']);
+
+            if (!$pending) {
+                return false;
+            }
+
+            $queuedAt = Carbon::now('UTC');
+            $updated = WhatsappCloudCampaignItem::query()
+                ->whereKey((int) $pending->id)
+                ->where('status', 'pending')
+                ->update([
+                    'status' => 'queued',
+                    'queued_at' => $queuedAt,
+                    'updated_at' => $queuedAt,
+                ]);
+
+            if ($updated !== 1) {
+                continue;
+            }
+
+            $delaySeconds = max(0, (int) $intervalSeconds);
+            $job = SendWhatsappCloudCampaignItemJob::dispatch((int) $pending->id)
+                ->onQueue(self::QUEUE_NAME);
+
+            if ($delaySeconds > 0) {
+                $job->delay($queuedAt->copy()->addSeconds($delaySeconds));
+            }
+
+            $campaign->increment('queued_count');
+            return true;
+        }
+
+        return false;
+    }
+
+    private function finalizeCampaignIfDone(int $campaignId): void
+    {
+        $remaining = WhatsappCloudCampaignItem::query()
+            ->where('whatsapp_cloud_campaign_id', $campaignId)
+            ->whereIn('status', ['pending', 'queued'])
+            ->count();
+
+        if ($remaining > 0) {
+            return;
+        }
+
+        $campaign = WhatsappCloudCampaign::query()->find($campaignId);
+        if (!$campaign || in_array($campaign->status, ['canceled', 'completed', 'failed'], true)) {
+            return;
+        }
+
+        $campaign->refresh();
+        $campaign->forceFill([
+            'status' => $campaign->sent_count > 0 ? 'completed' : 'failed',
+            'finished_at' => Carbon::now('UTC'),
+        ])->save();
     }
 }

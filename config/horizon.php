@@ -99,6 +99,7 @@ return [
     'waits' => [
         'redis:webhook' => 30,
         'redis:processarconversa' => 90,
+        'redis:whatsapp-cloud-campaign' => 120,
         'redis:processosinternos' => 90,
         'redis:default' => 60,
     ],
@@ -237,6 +238,14 @@ return [
                 'balanceMaxShift' => 2,
                 'balanceCooldown' => 3,
             ],
+            'campaign-supervisor' => [
+                'connection' => 'redis',
+                'queue' => ['whatsapp-cloud-campaign'],
+                'balance' => 'simple',
+                'maxProcesses' => 1,
+                'tries' => 4,
+                'timeout' => 900,
+            ],
             'internal-supervisor' => [
                 'connection' => 'redis',
                 'queue' => ['processosinternos', 'default'],
@@ -265,6 +274,14 @@ return [
                 'maxProcesses' => 3,
                 'tries' => 1,
                 'timeout' => 360,
+            ],
+            'campaign-supervisor' => [
+                'connection' => 'redis',
+                'queue' => ['whatsapp-cloud-campaign'],
+                'balance' => 'simple',
+                'maxProcesses' => 1,
+                'tries' => 4,
+                'timeout' => 900,
             ],
             'internal-supervisor' => [
                 'connection' => 'redis',
