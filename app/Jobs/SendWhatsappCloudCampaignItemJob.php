@@ -25,7 +25,6 @@ class SendWhatsappCloudCampaignItemJob implements ShouldQueue
 
     public int $tries = 4;
     public int $timeout = 900;
-    public string $queue = DispatchWhatsappCloudCampaignJob::QUEUE_NAME;
 
     public function __construct(private readonly int $campaignItemId)
     {
