@@ -70,8 +70,7 @@ class OpenAIOrchestratorService
             return IAResult::error('OpenAI input vazio.', 'openai');
         }
 
-        $contactName = $payload['contact_name'] ?? null;
-        $input = $this->prependSystemContext($input, is_string($contactName) ? $contactName : null);
+        $input = $this->prependSystemContext($input, $lead);
 
         $model = (string) ($payload['assistant_model'] ?? 'gpt-4.1-mini');
         $requestPayload = [
@@ -596,19 +595,48 @@ class OpenAIOrchestratorService
         return base64_encode($binary);
     }
 
-    private function prependSystemContext(array $input, ?string $contactName = null, ?string $timezone = null): array
+    private function prependSystemContext(array $input, ClienteLead $lead, ?string $timezone = null): array
     {
         $timezone = $timezone ?: config('app.timezone', 'America/Sao_Paulo');
         $now = now($timezone);
         $dayName = $now->locale('pt_BR')->isoFormat('dddd');
         $date = $now->format('Y-m-d');
         $time = $now->format('H:i');
-        //$contactInfo = $contactName ? "nome do cliente/contato: {$contactName}" : '';
+
+        $lead->loadMissing('customFieldValues.customField');
+
+        $leadInfo = trim((string) ($lead->info ?? ''));
+        $leadCustomFields = $lead->customFieldValues
+            ->filter(function ($fieldValue) {
+                $value = trim((string) ($fieldValue->value ?? ''));
+                return $value !== '' && $fieldValue->customField;
+            })
+            ->map(function ($fieldValue) {
+                $field = $fieldValue->customField;
+                $name = trim((string) ($field->name ?? ''));
+                $label = trim((string) ($field->label ?: $name));
+                $value = trim((string) ($fieldValue->value ?? ''));
+
+                if ($label !== '' && $name !== '' && $label !== $name) {
+                    return "- {$label} ({$name}): {$value}";
+                }
+
+                return "- {$label}: {$value}";
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        $contextParts = array_filter([
+            "Agora: {$now->toIso8601String()} ({$dayName}, {$date} as {$time}, tz: {$timezone}).",
+            $leadInfo !== '' ? "Info do lead: {$leadInfo}" : null,
+            !empty($leadCustomFields) ? "Campos personalizados do lead:\n" . implode("\n", $leadCustomFields) : null,
+        ]);
 
         return array_merge([
             [
                 'role' => 'system',
-                'content' => "Agora: {$now->toIso8601String()} ({$dayName}, {$date} as {$time}, tz: {$timezone}).",
+                'content' => implode("\n\n", $contextParts),
             ],
         ], $input);
     }
