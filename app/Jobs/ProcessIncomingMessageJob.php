@@ -12,6 +12,7 @@ use App\Models\SequenceChat;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\WhatsappApi;
+use App\Models\WhatsappCloudCustomField;
 use App\Services\EvolutionAPIOficial;
 use App\Services\IAOrchestratorService;
 use App\Services\ScheduledMessageService;
@@ -1109,6 +1110,9 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             'registrar_info_chat' => function (array $arguments, array $context) use ($lead) {
                 return $this->handleRegistrarInfoLead($lead, $arguments);
             },
+            'registrar_campo_personalizado' => function (array $arguments, array $context) use ($lead) {
+                return $this->handleRegistrarCampoPersonalizado($lead, $arguments);
+            },
             'enviar_post' => function (array $arguments, array $context) use ($payload, $conexao) {
                 return $this->handleEnviarPost($arguments, $payload, $conexao);
             },
@@ -1843,6 +1847,180 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         ]);
 
         return 'Informações registradas com sucesso.';
+    }
+
+    private function handleRegistrarCampoPersonalizado(?ClienteLead $lead, array $arguments): string
+    {
+        try {
+            if (!$lead) {
+                return 'Lead nao encontrado para registrar campo personalizado.';
+            }
+
+            $allowedFields = $this->resolveAllowedLeadCustomFields($lead);
+            if (empty($allowedFields)) {
+                return 'Nenhum campo personalizado valido disponivel para este lead.';
+            }
+
+            $rows = $arguments['campos'] ?? null;
+            if (!is_array($rows) || empty($rows)) {
+                return 'Nenhum campo informado para registro.';
+            }
+
+            $pending = [];
+            $saved = [];
+            $ignoredEmpty = [];
+            $invalid = [];
+            $seen = [];
+
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    $invalid[] = 'item_invalido';
+                    continue;
+                }
+
+                $fieldName = Str::lower(trim((string) ($row['campo'] ?? '')));
+                $value = trim((string) ($row['valor'] ?? ''));
+
+                if ($fieldName === '') {
+                    $invalid[] = 'item_sem_campo';
+                    continue;
+                }
+
+                if (isset($seen[$fieldName])) {
+                    $invalid[] = $fieldName;
+                    continue;
+                }
+
+                $seen[$fieldName] = true;
+
+                if ($value === '') {
+                    $ignoredEmpty[] = $fieldName;
+                    continue;
+                }
+
+                $field = $allowedFields[$fieldName] ?? null;
+                if (!$field instanceof WhatsappCloudCustomField) {
+                    $invalid[] = $fieldName;
+                    continue;
+                }
+
+                $pending[$fieldName] = [
+                    'field' => $field,
+                    'value' => $value,
+                ];
+            }
+
+            if (!empty($pending)) {
+                $fieldIds = array_map(
+                    fn (array $item): int => (int) $item['field']->id,
+                    array_values($pending)
+                );
+
+                $existing = $lead->customFieldValues()
+                    ->whereIn('whatsapp_cloud_custom_field_id', $fieldIds)
+                    ->get()
+                    ->keyBy('whatsapp_cloud_custom_field_id');
+
+                foreach ($pending as $fieldName => $item) {
+                    /** @var WhatsappCloudCustomField $field */
+                    $field = $item['field'];
+                    $value = $item['value'];
+                    $current = $existing->get((int) $field->id);
+
+                    if ($current) {
+                        if (trim((string) ($current->value ?? '')) !== $value) {
+                            $current->update(['value' => $value]);
+                        }
+                    } else {
+                        $lead->customFieldValues()->create([
+                            'whatsapp_cloud_custom_field_id' => $field->id,
+                            'value' => $value,
+                        ]);
+                    }
+
+                    $saved[] = $fieldName;
+                }
+            }
+
+            return $this->buildRegistrarCampoPersonalizadoSummary($saved, $ignoredEmpty, $invalid);
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->error('Falha ao registrar campo personalizado via tool.', $this->logContext([
+                'args' => $arguments,
+                'lead_id' => $lead?->id,
+                'error' => $exception->getMessage(),
+            ]));
+
+            return 'Nao foi possivel registrar os campos personalizados.';
+        }
+    }
+
+    /**
+     * @return array<string, WhatsappCloudCustomField>
+     */
+    private function resolveAllowedLeadCustomFields(?ClienteLead $lead): array
+    {
+        if (!$lead) {
+            return [];
+        }
+
+        $lead->loadMissing('cliente');
+
+        $userId = (int) ($lead->cliente?->user_id ?? 0);
+        $clienteId = (int) ($lead->cliente_id ?? 0);
+        if ($userId <= 0 || $clienteId <= 0) {
+            return [];
+        }
+
+        return WhatsappCloudCustomField::query()
+            ->where('user_id', $userId)
+            ->where(function ($query) use ($clienteId) {
+                $query->whereNull('cliente_id')
+                    ->orWhere('cliente_id', $clienteId);
+            })
+            ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(function (WhatsappCloudCustomField $field) {
+                $name = Str::lower(trim((string) $field->name));
+                return $name !== '' ? [$name => $field] : [];
+            })
+            ->all();
+    }
+
+    private function buildRegistrarCampoPersonalizadoSummary(array $saved, array $ignoredEmpty, array $invalid): string
+    {
+        $parts = [];
+
+        $saved = array_values(array_unique(array_filter(array_map(
+            fn ($value) => trim((string) $value),
+            $saved
+        ))));
+        $ignoredEmpty = array_values(array_unique(array_filter(array_map(
+            fn ($value) => trim((string) $value),
+            $ignoredEmpty
+        ))));
+        $invalid = array_values(array_unique(array_filter(array_map(
+            fn ($value) => trim((string) $value),
+            $invalid
+        ))));
+
+        if (!empty($saved)) {
+            $parts[] = 'Campos salvos: ' . implode(', ', $saved) . '.';
+        }
+
+        if (!empty($ignoredEmpty)) {
+            $parts[] = 'Ignorados por valor vazio: ' . implode(', ', $ignoredEmpty) . '.';
+        }
+
+        if (!empty($invalid)) {
+            $parts[] = 'Invalidos: ' . implode(', ', $invalid) . '.';
+        }
+
+        if (empty($parts)) {
+            return 'Nenhum campo valido informado.';
+        }
+
+        return implode(' ', $parts);
     }
 
     private function handleEnviarPost(array $arguments, array $payload, ?Conexao $conexao): string

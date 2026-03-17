@@ -6,6 +6,7 @@ use App\Models\ClienteLead;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\User;
+use App\Models\WhatsappCloudCustomField;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -40,6 +41,18 @@ function agenciaConversasMakeLead(Cliente $cliente, array $attributes = []): Cli
         'phone' => '55' . fake()->numerify('119#######'),
         'name' => 'Lead ' . fake()->numerify('###'),
         'info' => 'Info de teste',
+    ], $attributes));
+}
+
+function agenciaConversasMakeCustomField(User $user, ?Cliente $cliente = null, array $attributes = []): WhatsappCloudCustomField
+{
+    return WhatsappCloudCustomField::create(array_merge([
+        'user_id' => $user->id,
+        'cliente_id' => $cliente?->id,
+        'name' => 'campo_' . fake()->unique()->numerify('###'),
+        'label' => 'Campo ' . fake()->numerify('###'),
+        'sample_value' => null,
+        'description' => null,
     ], $attributes));
 }
 
@@ -154,4 +167,81 @@ test('tool inscrever sequencia nao duplica quando par ja existe em qualquer stat
                 ->count()
         )->toBe(1);
     }
+});
+
+test('tool registrar_campo_personalizado faz upsert, ignora vazios e rejeita campo fora do escopo', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaConversasMakeCliente($user);
+    $outroCliente = agenciaConversasMakeCliente($user, [
+        'email' => fake()->unique()->safeEmail(),
+        'nome' => 'Outro cliente',
+    ]);
+    $lead = agenciaConversasMakeLead($cliente);
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    $empresaField = agenciaConversasMakeCustomField($user, null, [
+        'name' => 'empresa',
+        'label' => 'Empresa',
+    ]);
+    $cargoField = agenciaConversasMakeCustomField($user, $cliente, [
+        'name' => 'cargo',
+        'label' => 'Cargo',
+    ]);
+    agenciaConversasMakeCustomField($user, $cliente, [
+        'name' => 'observacao',
+        'label' => 'Observacao',
+    ]);
+    agenciaConversasMakeCustomField($user, $outroCliente, [
+        'name' => 'segmento',
+        'label' => 'Segmento',
+    ]);
+
+    $lead->customFieldValues()->create([
+        'whatsapp_cloud_custom_field_id' => $empresaField->id,
+        'value' => 'Valor antigo',
+    ]);
+
+    $handlers = (fn (array $payload, $conexao, $currentLead) => $this->buildToolHandlers($payload, $conexao, $currentLead))
+        ->call($job, [], null, $lead);
+
+    $result = $handlers['registrar_campo_personalizado']([
+        'campos' => [
+            ['campo' => 'empresa', 'valor' => 'ACME LTDA'],
+            ['campo' => 'cargo', 'valor' => 'Comprador'],
+            ['campo' => 'observacao', 'valor' => ''],
+            ['campo' => 'segmento', 'valor' => 'Financeiro'],
+        ],
+    ], []);
+
+    expect($result)->toBe('Campos salvos: empresa, cargo. Ignorados por valor vazio: observacao. Invalidos: segmento.');
+
+    $this->assertDatabaseHas('cliente_lead_custom_fields', [
+        'cliente_lead_id' => $lead->id,
+        'whatsapp_cloud_custom_field_id' => $empresaField->id,
+        'value' => 'ACME LTDA',
+    ]);
+
+    $this->assertDatabaseHas('cliente_lead_custom_fields', [
+        'cliente_lead_id' => $lead->id,
+        'whatsapp_cloud_custom_field_id' => $cargoField->id,
+        'value' => 'Comprador',
+    ]);
+
+    expect(
+        $lead->customFieldValues()
+            ->where('whatsapp_cloud_custom_field_id', $empresaField->id)
+            ->count()
+    )->toBe(1);
+
+    expect(
+        $lead->customFieldValues()
+            ->whereHas('customField', fn ($query) => $query->where('name', 'observacao'))
+            ->count()
+    )->toBe(0);
+
+    expect(
+        $lead->customFieldValues()
+            ->whereHas('customField', fn ($query) => $query->where('name', 'segmento'))
+            ->count()
+    )->toBe(0);
 });

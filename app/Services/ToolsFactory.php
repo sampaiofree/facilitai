@@ -4,7 +4,7 @@ namespace App\Services;
 
 class ToolsFactory
 {
-    public static function fromSystemPrompt(?string $systemPrompt): array
+    public static function fromSystemPrompt(?string $systemPrompt, array $context = []): array
     {
         $systemPrompt = (string) ($systemPrompt ?? '');
         if ($systemPrompt === '') {
@@ -145,6 +145,16 @@ TXT,
                 ],
                 'strict' => true,
             ];
+        }
+
+        if (str_contains($systemPrompt, 'registrar_campo_personalizado')) {
+            $customFieldTool = self::buildRegistrarCampoPersonalizadoTool(
+                is_array($context['lead_custom_fields'] ?? null) ? $context['lead_custom_fields'] : []
+            );
+
+            if ($customFieldTool !== null) {
+                $tools[] = $customFieldTool;
+            }
         }
 
         if (str_contains($systemPrompt, 'aplicar_tags')) {
@@ -289,5 +299,81 @@ TXT,
         }
 
         return $tools;
+    }
+
+    private static function buildRegistrarCampoPersonalizadoTool(array $leadCustomFields): ?array
+    {
+        $fieldMap = [];
+
+        foreach ($leadCustomFields as $field) {
+            if (!is_array($field)) {
+                continue;
+            }
+
+            $name = trim((string) ($field['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $fieldMap[$name] = [
+                'name' => $name,
+                'label' => trim((string) ($field['label'] ?? '')),
+            ];
+        }
+
+        if (empty($fieldMap)) {
+            return null;
+        }
+
+        $fieldNames = array_keys($fieldMap);
+        sort($fieldNames);
+
+        $fieldDescriptions = [];
+        foreach ($fieldNames as $fieldName) {
+            $label = $fieldMap[$fieldName]['label'];
+            $fieldDescriptions[] = $label !== '' && $label !== $fieldName
+                ? "{$fieldName} ({$label})"
+                : $fieldName;
+        }
+
+        $fieldList = implode(', ', $fieldDescriptions);
+
+        return [
+            'type' => 'function',
+            'name' => 'registrar_campo_personalizado',
+            'description' => <<<TXT
+Cria ou atualiza valores de campos personalizados ja existentes para o lead atual.
+Use apenas informacoes explicitamente fornecidas pelo usuario ou presentes no historico desta conversa.
+Campos disponiveis nesta conversa: {$fieldList}.
+TXT,
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'campos' => [
+                        'type' => 'array',
+                        'description' => 'Lista de campos personalizados a registrar no lead atual.',
+                        'items' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'campo' => [
+                                    'type' => 'string',
+                                    'enum' => $fieldNames,
+                                    'description' => 'Nome tecnico do campo personalizado a registrar.',
+                                ],
+                                'valor' => [
+                                    'type' => 'string',
+                                    'description' => 'Valor a salvar para o campo personalizado.',
+                                ],
+                            ],
+                            'required' => ['campo', 'valor'],
+                            'additionalProperties' => false,
+                        ],
+                    ],
+                ],
+                'required' => ['campos'],
+                'additionalProperties' => false,
+            ],
+            'strict' => true,
+        ];
     }
 }

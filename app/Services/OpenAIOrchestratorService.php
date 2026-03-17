@@ -8,6 +8,7 @@ use App\Models\AssistantLead;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Models\SystemErrorLog;
+use App\Models\WhatsappCloudCustomField;
 use App\Support\LogContext;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Log;
@@ -80,7 +81,9 @@ class OpenAIOrchestratorService
             'truncation'=> 'auto'
         ];
 
-        $tools = ToolsFactory::fromSystemPrompt($systemPrompt);
+        $tools = ToolsFactory::fromSystemPrompt($systemPrompt, [
+            'lead_custom_fields' => $this->resolveLeadCustomFieldsForTools($lead),
+        ]);
         if (!empty($tools)) {
             $requestPayload['tools'] = $tools;
         }
@@ -639,6 +642,37 @@ class OpenAIOrchestratorService
                 'content' => implode("\n\n", $contextParts),
             ],
         ], $input);
+    }
+
+    private function resolveLeadCustomFieldsForTools(ClienteLead $lead): array
+    {
+        $lead->loadMissing('cliente');
+
+        $userId = (int) ($lead->cliente?->user_id ?? 0);
+        $clienteId = (int) ($lead->cliente_id ?? 0);
+        if ($userId <= 0 || $clienteId <= 0) {
+            return [];
+        }
+
+        return WhatsappCloudCustomField::query()
+            ->where('user_id', $userId)
+            ->where(function ($query) use ($clienteId) {
+                $query->whereNull('cliente_id')
+                    ->orWhere('cliente_id', $clienteId);
+            })
+            ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('name')
+            ->get(['name', 'label'])
+            ->map(function (WhatsappCloudCustomField $field) {
+                return [
+                    'name' => trim((string) $field->name),
+                    'label' => trim((string) ($field->label ?? '')),
+                ];
+            })
+            ->filter(fn (array $field) => $field['name'] !== '')
+            ->unique('name')
+            ->values()
+            ->all();
     }
 
     private function extractAssistantMessage(array $apiResponse): ?string
