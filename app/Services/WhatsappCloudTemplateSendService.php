@@ -8,6 +8,7 @@ use App\Models\WhatsappCloudCustomField;
 use App\Models\WhatsappCloudTemplate;
 use App\Support\PhoneNumberNormalizer;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class WhatsappCloudTemplateSendService
 {
@@ -182,6 +183,191 @@ class WhatsappCloudTemplateSendService
         ];
     }
 
+    /**
+     * @return array<string,array{label:string,sample_value:string}>
+     */
+    public function builtinTemplateVariables(): array
+    {
+        return [
+            'name' => [
+                'label' => 'Nome do lead',
+                'sample_value' => 'Nome do cliente',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    public function normalizeTemplateVariableBindings(
+        WhatsappCloudTemplate $template,
+        array $rawBindings,
+        int $userId,
+        int $clienteId
+    ): array {
+        $templateVariables = collect((array) ($template->variables ?? []))
+            ->map(fn ($value) => Str::lower(trim((string) $value)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $requiredVariables = array_values(array_filter(
+            $templateVariables,
+            fn (string $variable): bool => (bool) preg_match('/^var_\d+$/', $variable)
+        ));
+
+        if (empty($requiredVariables)) {
+            return [];
+        }
+
+        $normalizedBindings = [];
+        foreach ($rawBindings as $variable => $fieldName) {
+            $variableName = Str::lower(trim((string) $variable));
+            $mappedField = Str::lower(trim((string) $fieldName));
+            if ($variableName === '' || $mappedField === '') {
+                continue;
+            }
+
+            $normalizedBindings[$variableName] = $mappedField;
+        }
+
+        $missingVariables = array_values(array_filter(
+            $requiredVariables,
+            fn (string $variable): bool => !isset($normalizedBindings[$variable])
+        ));
+        if (!empty($missingVariables)) {
+            throw ValidationException::withMessages([
+                'template_variable_bindings' => [
+                    'Associe todos os placeholders do modelo: ' . implode(', ', $missingVariables) . '.',
+                ],
+            ]);
+        }
+
+        $allowedFieldNames = array_keys($this->builtinTemplateVariables());
+        $customFieldNames = WhatsappCloudCustomField::query()
+            ->where('user_id', $userId)
+            ->where(function ($query) use ($clienteId): void {
+                $query->whereNull('cliente_id')
+                    ->orWhere('cliente_id', $clienteId);
+            })
+            ->pluck('name')
+            ->map(fn ($name) => Str::lower(trim((string) $name)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $allowedFieldMap = [];
+        foreach (array_merge($allowedFieldNames, $customFieldNames) as $name) {
+            $allowedFieldMap[Str::lower(trim((string) $name))] = true;
+        }
+
+        $resolved = [];
+        foreach ($requiredVariables as $variable) {
+            $mappedField = $normalizedBindings[$variable] ?? '';
+            if ($mappedField === '' || !isset($allowedFieldMap[$mappedField])) {
+                throw ValidationException::withMessages([
+                    'template_variable_bindings' => [
+                        "O campo associado para {$variable} é inválido para este cliente.",
+                    ],
+                ]);
+            }
+
+            $resolved[$variable] = $mappedField;
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @param array<string,mixed> $rawBindings
+     * @return array{0: array<string,string>, 1: array<int,string>}
+     */
+    public function resolveBoundTemplateVariablesForLead(
+        WhatsappCloudTemplate $template,
+        ClienteLead $clienteLead,
+        int $userId,
+        array $rawBindings,
+        bool $allowEmptyVariables = false,
+        string $emptyVariableFallback = ''
+    ): array {
+        $normalizedBindings = [];
+        foreach ($rawBindings as $variable => $fieldName) {
+            $variableName = Str::lower(trim((string) $variable));
+            $mappedField = Str::lower(trim((string) $fieldName));
+            if ($variableName === '' || $mappedField === '') {
+                continue;
+            }
+
+            $normalizedBindings[$variableName] = $mappedField;
+        }
+
+        if (empty($normalizedBindings)) {
+            return [[], []];
+        }
+
+        $mappedFields = array_values(array_unique(array_values($normalizedBindings)));
+        $fields = WhatsappCloudCustomField::query()
+            ->where('user_id', $userId)
+            ->whereIn('name', $mappedFields)
+            ->where(function ($query) use ($clienteLead): void {
+                $query->whereNull('cliente_id')
+                    ->orWhere('cliente_id', $clienteLead->cliente_id);
+            })
+            ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('name')
+            ->get(['id', 'name', 'sample_value']);
+
+        $fieldByName = [];
+        foreach ($fields as $field) {
+            $fieldName = Str::lower(trim((string) $field->name));
+            if ($fieldName !== '' && !isset($fieldByName[$fieldName])) {
+                $fieldByName[$fieldName] = $field;
+            }
+        }
+
+        $leadValuesByFieldId = $clienteLead->customFieldValues()
+            ->whereIn('whatsapp_cloud_custom_field_id', $fields->pluck('id')->all())
+            ->get(['whatsapp_cloud_custom_field_id', 'value'])
+            ->mapWithKeys(fn ($row) => [
+                (int) $row->whatsapp_cloud_custom_field_id => trim((string) ($row->value ?? '')),
+            ])
+            ->all();
+
+        $leadFallbacks = $this->buildLeadFallbacks($clienteLead);
+
+        $resolved = [];
+        $missing = [];
+
+        foreach ($normalizedBindings as $variableName => $mappedField) {
+            $value = trim((string) ($leadFallbacks[$mappedField] ?? ''));
+
+            if ($value === '') {
+                $field = $fieldByName[$mappedField] ?? null;
+                if ($field) {
+                    $leadValue = trim((string) ($leadValuesByFieldId[(int) $field->id] ?? ''));
+                    $sampleValue = trim((string) ($field->sample_value ?? ''));
+                    $value = $leadValue !== '' ? $leadValue : $sampleValue;
+                }
+            }
+
+            if ($value === '') {
+                if ($allowEmptyVariables) {
+                    $resolved[$variableName] = $emptyVariableFallback;
+                    continue;
+                }
+
+                $missing[] = $variableName;
+                continue;
+            }
+
+            $resolved[$variableName] = $value;
+        }
+
+        return [$resolved, $missing];
+    }
+
     private function error(string $errorCode, string $message): array
     {
         return [
@@ -334,16 +520,7 @@ class WhatsappCloudTemplateSendService
             }
         }
 
-        $leadFallbacks = [
-            'name' => trim((string) ($clienteLead->name ?? '')),
-            'nome' => trim((string) ($clienteLead->name ?? '')),
-            'nome_cliente' => trim((string) ($clienteLead->name ?? '')),
-            'phone' => trim((string) ($clienteLead->phone ?? '')),
-            'telefone' => trim((string) ($clienteLead->phone ?? '')),
-            'whatsapp' => trim((string) ($clienteLead->phone ?? '')),
-            'info' => trim((string) ($clienteLead->info ?? '')),
-            'informacoes' => trim((string) ($clienteLead->info ?? '')),
-        ];
+        $leadFallbacks = $this->buildLeadFallbacks($clienteLead);
 
         $resolved = [];
         $missing = [];
@@ -368,6 +545,23 @@ class WhatsappCloudTemplateSendService
         }
 
         return [$resolved, $missing];
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function buildLeadFallbacks(ClienteLead $clienteLead): array
+    {
+        return [
+            'name' => trim((string) ($clienteLead->name ?? '')),
+            'nome' => trim((string) ($clienteLead->name ?? '')),
+            'nome_cliente' => trim((string) ($clienteLead->name ?? '')),
+            'phone' => trim((string) ($clienteLead->phone ?? '')),
+            'telefone' => trim((string) ($clienteLead->phone ?? '')),
+            'whatsapp' => trim((string) ($clienteLead->phone ?? '')),
+            'info' => trim((string) ($clienteLead->info ?? '')),
+            'informacoes' => trim((string) ($clienteLead->info ?? '')),
+        ];
     }
 
     private function buildTemplateSendComponents(WhatsappCloudTemplate $template, array $variableValues): array

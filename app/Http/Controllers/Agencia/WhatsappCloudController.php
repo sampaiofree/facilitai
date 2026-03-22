@@ -20,6 +20,7 @@ use App\Models\WhatsappCloudCustomField;
 use App\Models\WhatsappCloudTemplate;
 use App\Services\ScheduledMessageService;
 use App\Services\WhatsappCloudApiService;
+use App\Services\WhatsappCloudTemplateSendService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -2455,78 +2456,7 @@ class WhatsappCloudController extends Controller
         int $userId,
         int $clienteId
     ): array {
-        $templateVariables = collect((array) ($template->variables ?? []))
-            ->map(fn ($value) => Str::lower(trim((string) $value)))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-
-        $requiredVariables = array_values(array_filter(
-            $templateVariables,
-            fn (string $variable): bool => (bool) preg_match('/^var_\d+$/', $variable)
-        ));
-
-        if (empty($requiredVariables)) {
-            return [];
-        }
-
-        $normalizedBindings = [];
-        foreach ($rawBindings as $variable => $fieldName) {
-            $variableName = Str::lower(trim((string) $variable));
-            $mappedField = Str::lower(trim((string) $fieldName));
-            if ($variableName === '' || $mappedField === '') {
-                continue;
-            }
-
-            $normalizedBindings[$variableName] = $mappedField;
-        }
-
-        $missingVariables = array_values(array_filter(
-            $requiredVariables,
-            fn (string $variable): bool => !isset($normalizedBindings[$variable])
-        ));
-        if (!empty($missingVariables)) {
-            throw ValidationException::withMessages([
-                'template_variable_bindings' => [
-                    'Associe todos os placeholders do modelo: ' . implode(', ', $missingVariables) . '.',
-                ],
-            ]);
-        }
-
-        $allowedFieldNames = array_keys($this->builtinTemplateVariables());
-        $customFieldNames = WhatsappCloudCustomField::query()
-            ->where('user_id', $userId)
-            ->where(function ($query) use ($clienteId): void {
-                $query->whereNull('cliente_id')
-                    ->orWhere('cliente_id', $clienteId);
-            })
-            ->pluck('name')
-            ->map(fn ($name) => Str::lower(trim((string) $name)))
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
-
-        $allowedFieldMap = [];
-        foreach (array_merge($allowedFieldNames, $customFieldNames) as $name) {
-            $allowedFieldMap[Str::lower(trim((string) $name))] = true;
-        }
-
-        $resolved = [];
-        foreach ($requiredVariables as $variable) {
-            $mappedField = $normalizedBindings[$variable] ?? '';
-            if ($mappedField === '' || !isset($allowedFieldMap[$mappedField])) {
-                throw ValidationException::withMessages([
-                    'template_variable_bindings' => [
-                        "O campo associado para {$variable} é inválido para este cliente.",
-                    ],
-                ]);
-            }
-
-            $resolved[$variable] = $mappedField;
-        }
-
-        return $resolved;
+        return app(WhatsappCloudTemplateSendService::class)
+            ->normalizeTemplateVariableBindings($template, $rawBindings, $userId, $clienteId);
     }
 }
