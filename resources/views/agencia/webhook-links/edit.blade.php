@@ -793,7 +793,7 @@
                             </div>
                             <div class="mt-4 flex flex-wrap items-end gap-2">
                                 <div class="min-w-[240px] flex-1">
-                                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Inserir token do payload</label>
+                                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Inserir Campo do payload</label>
                                     <select class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" data-prompt-insert-select>
                                         <option value="">Selecione um caminho para inserir</option>
                                     </select>
@@ -842,7 +842,7 @@
                         </div>
                         <div class="mt-4 flex flex-wrap items-end gap-2">
                             <div class="min-w-[240px] flex-1">
-                                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Inserir token do payload</label>
+                                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Inserir Campo do payload</label>
                                 <select class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" data-prompt-insert-select>
                                     <option value="">Selecione um caminho para inserir</option>
                                 </select>
