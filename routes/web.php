@@ -27,6 +27,7 @@ use App\Http\Controllers\Admin\InstanceReportController;
 use App\Http\Controllers\Admin\SystemErrorLogController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\AssistantLeadController;
+use App\Http\Controllers\Admin\AssistantController as AdminAssistantController;
 use App\Http\Controllers\UazapiController;
 use App\Http\Controllers\Admin\PlanController;
 use App\Http\Controllers\Admin\PromptHelpController;
@@ -163,6 +164,8 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::get('users/{user}/asaas-subscription-details', [UserController::class, 'getAsaasSubscriptionDetails'])->name('users.asaas-subscription-details');
     Route::post('users/{user}/asaas-subscription-payments/sync', [UserController::class, 'syncAsaasSubscriptionPayments'])->name('users.asaas-subscription-payments.sync');
     Route::delete('users/{user}/asaas-webhooks/{webhook}', [UserController::class, 'destroyAsaasWebhook'])->name('users.asaas-webhooks.destroy');
+    Route::get('assistants', [AdminAssistantController::class, 'index'])->name('assistants.index');
+    Route::get('assistants/{assistant}', [AdminAssistantController::class, 'show'])->name('assistants.show');
     Route::get('assistant-lead', [AssistantLeadController::class, 'index'])->name('assistant-lead.index');
     Route::delete('assistant-lead/{assistantLead}', [AssistantLeadController::class, 'destroy'])->name('assistant-lead.destroy');
     Route::get('openai/conv_id', [App\Http\Controllers\Admin\OpenAIController::class, 'convId'])->name('openai.conv_id');
