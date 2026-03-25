@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Assistant;
+use App\Models\PromptHelpTipo;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class AssistantController extends Controller
@@ -16,8 +18,21 @@ class AssistantController extends Controller
             ->latest('updated_at')
             ->paginate(25);
 
+        $promptHelpTipos = PromptHelpTipo::with([
+            'sections' => function ($query) {
+                $query->orderBy('name')->with([
+                    'prompts' => function ($promptQuery) {
+                        $promptQuery->orderBy('name');
+                    },
+                ]);
+            },
+        ])
+            ->orderBy('name')
+            ->get();
+
         return view('admin.assistants.index', [
             'assistants' => $assistants,
+            'promptHelpTipos' => $promptHelpTipos,
         ]);
     }
 
@@ -25,7 +40,33 @@ class AssistantController extends Controller
     {
         $assistant->loadMissing(['user:id,name', 'cliente:id,nome']);
 
+        return response()->json($this->buildAssistantPayload($assistant));
+    }
+
+    public function update(Request $request, Assistant $assistant): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'instructions' => ['required', 'string'],
+            'delay' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $assistant->name = $data['name'];
+        $assistant->instructions = $data['instructions'];
+        $assistant->delay = $data['delay'] ?? null;
+        $assistant->version = ((int) ($assistant->version ?? 0)) + 1;
+        $assistant->save();
+        $assistant->loadMissing(['user:id,name', 'cliente:id,nome']);
+
         return response()->json([
+            'message' => 'Assistente atualizado com sucesso.',
+            ...$this->buildAssistantPayload($assistant),
+        ]);
+    }
+
+    private function buildAssistantPayload(Assistant $assistant): array
+    {
+        return [
             'summary' => [
                 'id' => $assistant->id,
                 'name' => $assistant->name,
@@ -50,6 +91,6 @@ class AssistantController extends Controller
                 'prompt_aplicar_tags' => $assistant->prompt_aplicar_tags,
                 'prompt_sequencia' => $assistant->prompt_sequencia,
             ],
-        ]);
+        ];
     }
 }
