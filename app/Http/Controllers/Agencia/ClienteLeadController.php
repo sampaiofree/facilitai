@@ -128,7 +128,7 @@ class ClienteLeadController extends Controller
         $clienteLead->delete();
 
         return redirect()
-            ->route('agencia.conversas.index')
+            ->route('agencia.conversas.index', $request->query())
             ->with('success', 'Lead removido com sucesso.');
     }
 

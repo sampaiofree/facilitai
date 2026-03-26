@@ -273,23 +273,42 @@
                                                         @endif
                                                     </td>
                                                     <td class="px-3 py-2">
-                                                        <button
-                                                            type="button"
-                                                            class="rounded-lg bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white hover:bg-slate-800"
-                                                            data-action="edit-step"
-                                                            data-sequence="{{ $selectedSequence->id }}"
-                                                            data-step="{{ json_encode([
-                                                                'id' => $step->id,
-                                                                'title' => $step->title,
-                                                                'atraso_valor' => $step->atraso_valor,
-                                                                'atraso_tipo' => $step->atraso_tipo,
-                                                                'janela_inicio' => $step->janela_inicio,
-                                                                'janela_fim' => $step->janela_fim,
-                                                                'dias_semana' => $step->dias_semana ?? [],
-                                                                'prompt' => $step->prompt,
-                                                                'active' => $step->active,
-                                                            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
-                                                        >Editar</button>
+                                                        <div class="flex flex-wrap items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                class="rounded-lg bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white hover:bg-slate-800"
+                                                                data-action="edit-step"
+                                                                data-sequence="{{ $selectedSequence->id }}"
+                                                                data-step="{{ json_encode([
+                                                                    'id' => $step->id,
+                                                                    'title' => $step->title,
+                                                                    'atraso_valor' => $step->atraso_valor,
+                                                                    'atraso_tipo' => $step->atraso_tipo,
+                                                                    'janela_inicio' => $step->janela_inicio,
+                                                                    'janela_fim' => $step->janela_fim,
+                                                                    'dias_semana' => $step->dias_semana ?? [],
+                                                                    'prompt' => $step->prompt,
+                                                                    'active' => $step->active,
+                                                                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
+                                                            >Editar</button>
+                                                            <form
+                                                                method="POST"
+                                                                action="{{ route('agencia.sequences.steps.destroy', ['sequence' => $selectedSequence->id, 'step' => $step->id]) }}"
+                                                                data-show-loader-on-submit
+                                                                onsubmit="return confirm('Deseja excluir esta etapa?');"
+                                                            >
+                                                                @csrf
+                                                                @method('DELETE')
+                                                                @foreach($selectedClientIds as $filterClientId)
+                                                                    <input type="hidden" name="filter_cliente_ids[]" value="{{ $filterClientId }}">
+                                                                @endforeach
+                                                                <input type="hidden" name="current_sequence_id" value="{{ $selectedSequence->id }}">
+                                                                <button
+                                                                    type="submit"
+                                                                    class="rounded-lg bg-rose-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-rose-600"
+                                                                >Excluir</button>
+                                                            </form>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             @endforeach

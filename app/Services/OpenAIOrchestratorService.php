@@ -151,13 +151,13 @@ class OpenAIOrchestratorService
             return IAResult::error('OpenAI error.', 'openai', $response->json());
         }
 
-        $assistantText = $this->extractAssistantMessage($response->json() ?? []);
-        if (!$assistantText) {
+        $assistantResult = $this->resolveAssistantResult($response->json() ?? []);
+        if (!$assistantResult->ok) {
             Log::channel('ia_orchestrator')->warning('OpenAIService sem mensagem do assistente.', $this->logContext($payload, $conexao, $logContext));
-            return IAResult::error('OpenAI sem mensagem do assistente.', 'openai', $response->json());
+            return $assistantResult;
         }
 
-        return IAResult::success($assistantText, 'openai', $response->json());
+        return $assistantResult;
     }
 
     private function ensureConversation(AssistantLead $assistantLead, Assistant $assistant, OpenAIService $openAiService, string $systemPrompt, array $logContext): ?AssistantLead
@@ -705,6 +705,41 @@ class OpenAIOrchestratorService
         }
 
         return null;
+    }
+
+    private function resolveAssistantResult(array $apiResponse): IAResult
+    {
+        $output = $apiResponse['output'] ?? [];
+        if (!is_array($output) || empty($output)) {
+            return IAResult::error('OpenAI sem mensagem do assistente.', 'openai', $apiResponse);
+        }
+
+        $assistantText = $this->extractAssistantMessage($apiResponse);
+        if (is_string($assistantText) && trim($assistantText) !== '') {
+            return IAResult::success($assistantText, 'openai', $apiResponse);
+        }
+
+        if ($this->hasPendingFunctionCall($apiResponse)) {
+            return IAResult::error('OpenAI sem mensagem do assistente.', 'openai', $apiResponse);
+        }
+
+        return IAResult::success('', 'openai', $apiResponse);
+    }
+
+    private function hasPendingFunctionCall(array $apiResponse): bool
+    {
+        $output = $apiResponse['output'] ?? [];
+        if (!is_array($output) || empty($output)) {
+            return false;
+        }
+
+        foreach ($output as $item) {
+            if (is_array($item) && ($item['type'] ?? null) === 'function_call') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function processToolCalls(Response $response, OpenAIService $openAI, array $context, array $handlers, array $options = []): ?Response

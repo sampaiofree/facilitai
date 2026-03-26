@@ -665,7 +665,17 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         $result = $orchestrator->handleMessage($this->conexao, $assistant, $lead, $assistantLead, $payload, $handlers);
         $this->persistAssistantLeadResponse($assistantLead, $result);
 
-        if (!$result->ok || !is_string($result->text) || trim($result->text) === '') {
+        $responseMode = $this->resolveIAResponseMode($result);
+
+        if ($responseMode === 'silent') {
+            $this->logSilentReturn('assistant_silent_success', array_merge($logContext, [
+                'assistant_lead_id' => $assistantLead->id,
+                'provider' => $result->provider,
+            ]));
+            return;
+        }
+
+        if ($responseMode === 'error') {
             Log::channel('process_job')->warning('IAOrchestratorService sem resposta final.', $this->logContext(array_merge($logContext, [
                 'provider' => $result->provider,
                 'error' => $result->error,
@@ -677,6 +687,19 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         }
 
         $this->sendText($token, $phone, $result->text, $logContext);
+    }
+
+    private function resolveIAResponseMode(IAResult $result): string
+    {
+        if (!$result->ok) {
+            return 'error';
+        }
+
+        if (!is_string($result->text) || trim($result->text) === '') {
+            return 'silent';
+        }
+
+        return 'reply';
     }
 
     private function persistAssistantLeadWebhookPayload(AssistantLead $assistantLead): void
@@ -1109,6 +1132,9 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             },
             'registrar_info_chat' => function (array $arguments, array $context) use ($lead) {
                 return $this->handleRegistrarInfoLead($lead, $arguments);
+            },
+            'desativar_bot' => function (array $arguments, array $context) use ($lead) {
+                return $this->handleDesativarBot($lead);
             },
             'registrar_campo_personalizado' => function (array $arguments, array $context) use ($lead) {
                 return $this->handleRegistrarCampoPersonalizado($lead, $arguments);
@@ -2021,6 +2047,31 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         }
 
         return implode(' ', $parts);
+    }
+
+    private function handleDesativarBot(?ClienteLead $lead): string
+    {
+        try {
+            if (!$lead) {
+                return '⚠️ Lead não encontrado.';
+            }
+
+            if (!$lead->bot_enabled) {
+                return 'ℹ️ Bot já estava desativado para este lead.';
+            }
+
+            $lead->bot_enabled = false;
+            $lead->save();
+
+            return '✅ Bot desativado para este lead.';
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->error('Falha ao desativar bot via tool.', $this->logContext([
+                'lead_id' => $lead?->id,
+                'error' => $exception->getMessage(),
+            ]));
+
+            return '❌ Não foi possível desativar o bot.';
+        }
     }
 
     private function handleEnviarPost(array $arguments, array $payload, ?Conexao $conexao): string

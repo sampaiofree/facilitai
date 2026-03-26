@@ -83,3 +83,39 @@ test('resolve campos validos para tools inclui apenas globais e do mesmo cliente
 
     expect(collect($fields)->pluck('name')->all())->toBe(['cargo', 'empresa']);
 });
+
+test('resolve resultado do assistant trata ausencia de texto sem function_call pendente como silencio legitimo', function () {
+    $service = new OpenAIOrchestratorService();
+
+    $result = (fn (array $payload) => $this->resolveAssistantResult($payload))
+        ->call($service, [
+            'output' => [
+                ['type' => 'reasoning', 'id' => 'rs_123'],
+            ],
+        ]);
+
+    expect($result->ok)->toBeTrue();
+    expect($result->text)->toBe('');
+    expect($result->error)->toBeNull();
+});
+
+test('resolve resultado do assistant mantem erro quando existe function_call pendente sem texto final', function () {
+    $service = new OpenAIOrchestratorService();
+
+    $result = (fn (array $payload) => $this->resolveAssistantResult($payload))
+        ->call($service, [
+            'output' => [
+                [
+                    'type' => 'function_call',
+                    'id' => 'fc_123',
+                    'call_id' => 'call_123',
+                    'name' => 'desativar_bot',
+                    'arguments' => '{}',
+                ],
+            ],
+        ]);
+
+    expect($result->ok)->toBeFalse();
+    expect($result->text)->toBeNull();
+    expect($result->error)->toBe('OpenAI sem mensagem do assistente.');
+});

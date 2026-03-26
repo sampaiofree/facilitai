@@ -81,6 +81,10 @@
         <tbody class="divide-y divide-slate-100">
             @forelse($leads as $lead)
                 @php
+                    $destroyUrl = route('agencia.conversas.destroy', array_merge(
+                        ['clienteLead' => $lead],
+                        request()->query()
+                    ));
                     $sequenceNames = $lead->sequenceChats
                         ->map(fn ($sequenceChat) => $sequenceChat->sequence?->name)
                         ->filter()
@@ -170,7 +174,7 @@
                                 data-open-lead-form
                                 data-lead='@json($viewData, JSON_UNESCAPED_UNICODE)'
                             >Editar</button>
-                            <form method="POST" action="{{ route('agencia.conversas.destroy', $lead) }}" onsubmit="return confirm('Deseja excluir este lead?');">
+                            <form method="POST" action="{{ $destroyUrl }}" onsubmit="return confirm('Deseja excluir este lead?');">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="rounded-full bg-rose-100 px-4 py-1 text-[12px] font-semibold text-rose-700 hover:bg-rose-200">Excluir</button>

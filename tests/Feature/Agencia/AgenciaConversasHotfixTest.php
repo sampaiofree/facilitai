@@ -1,5 +1,6 @@
 <?php
 
+use App\DTOs\IAResult;
 use App\Jobs\ProcessIncomingMessageJob;
 use App\Models\Cliente;
 use App\Models\ClienteLead;
@@ -244,4 +245,105 @@ test('tool registrar_campo_personalizado faz upsert, ignora vazios e rejeita cam
             ->whereHas('customField', fn ($query) => $query->where('name', 'segmento'))
             ->count()
     )->toBe(0);
+});
+
+test('tool desativar_bot desliga o bot do lead atual e persiste no banco', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaConversasMakeCliente($user);
+    $lead = agenciaConversasMakeLead($cliente, [
+        'bot_enabled' => true,
+    ]);
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    $handlers = (fn (array $payload, $conexao, $currentLead) => $this->buildToolHandlers($payload, $conexao, $currentLead))
+        ->call($job, [], null, $lead);
+
+    $result = $handlers['desativar_bot']([], []);
+
+    expect($result)->toContain('Bot desativado para este lead');
+    expect($lead->fresh()->bot_enabled)->toBeFalse();
+});
+
+test('tool desativar_bot e idempotente quando o bot ja esta desativado', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaConversasMakeCliente($user);
+    $lead = agenciaConversasMakeLead($cliente, [
+        'bot_enabled' => false,
+    ]);
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    $handlers = (fn (array $payload, $conexao, $currentLead) => $this->buildToolHandlers($payload, $conexao, $currentLead))
+        ->call($job, [], null, $lead);
+
+    $result = $handlers['desativar_bot']([], []);
+
+    expect($result)->toContain('Bot já estava desativado para este lead');
+    expect($lead->fresh()->bot_enabled)->toBeFalse();
+});
+
+test('tool desativar_bot responde quando nao existe lead atual', function () {
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    $handlers = (fn (array $payload, $conexao, $currentLead) => $this->buildToolHandlers($payload, $conexao, $currentLead))
+        ->call($job, [], null, null);
+
+    $result = $handlers['desativar_bot']([], []);
+
+    expect($result)->toContain('Lead não encontrado');
+});
+
+test('destroy de lead preserva filtros ordenacao e pagina no redirect', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaConversasMakeCliente($user);
+    $lead = agenciaConversasMakeLead($cliente);
+
+    $query = [
+        'client_add_filter' => (string) $cliente->id,
+        'assistant_add_filter' => '7',
+        'tag_add_filter' => '3',
+        'date_start' => '2026-03-01',
+        'date_end' => '2026-03-20',
+        'last_message_start' => '2026-03-10',
+        'last_message_end' => '2026-03-21',
+        'sort_by' => 'updated_at',
+        'sort_dir' => 'asc',
+        'page' => '3',
+    ];
+
+    $response = $this->actingAs($user)->delete(route('agencia.conversas.destroy', array_merge([
+        'clienteLead' => $lead,
+    ], $query)));
+
+    $response->assertRedirect(route('agencia.conversas.index', $query));
+    $response->assertSessionHas('success', 'Lead removido com sucesso.');
+    $this->assertDatabaseMissing('cliente_lead', [
+        'id' => $lead->id,
+    ]);
+});
+
+test('job classifica resposta concluida sem texto como silent', function () {
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    $mode = (fn (IAResult $result) => $this->resolveIAResponseMode($result))
+        ->call($job, IAResult::success('', 'openai'));
+
+    expect($mode)->toBe('silent');
+});
+
+test('job classifica resposta com erro como error', function () {
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    $mode = (fn (IAResult $result) => $this->resolveIAResponseMode($result))
+        ->call($job, IAResult::error('OpenAI error.', 'openai'));
+
+    expect($mode)->toBe('error');
+});
+
+test('job classifica resposta com texto final como reply', function () {
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    $mode = (fn (IAResult $result) => $this->resolveIAResponseMode($result))
+        ->call($job, IAResult::success('Resposta final', 'openai'));
+
+    expect($mode)->toBe('reply');
 });

@@ -147,6 +147,23 @@ TXT,
             ];
         }
 
+        if (str_contains($systemPrompt, 'desativar_bot')) {
+            $tools[] = [
+                'type' => 'function',
+                'name' => 'desativar_bot',
+                'description' => <<<TXT
+Desativa o bot do lead atual para os próximos atendimentos automáticos.
+TXT,
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [],
+                    'required' => [],
+                    'additionalProperties' => false,
+                ],
+                'strict' => true,
+            ];
+        }
+
         if (str_contains($systemPrompt, 'registrar_campo_personalizado')) {
             $customFieldTool = self::buildRegistrarCampoPersonalizadoTool(
                 is_array($context['lead_custom_fields'] ?? null) ? $context['lead_custom_fields'] : []
