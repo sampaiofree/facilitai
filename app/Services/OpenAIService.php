@@ -173,7 +173,8 @@ class OpenAIService
                     return $response;
                 }
 
-                $this->sleepWithBackoff($attempt, $baseDelayMs, $maxDelayMs);
+                [$retryBaseDelayMs, $retryMaxDelayMs] = $this->retryDelayProfile($response, $baseDelayMs, $maxDelayMs);
+                $this->sleepWithBackoff($attempt, $retryBaseDelayMs, $retryMaxDelayMs);
             } catch (\Throwable $e) {
                 if ($attempt > $maxRetries) {
                     Log::channel('openai')->error('OpenAIService request exception', array_merge($logContext, [
@@ -201,6 +202,33 @@ class OpenAIService
         }
 
         $errorCode = $response->json('error.code');
+        return in_array($errorCode, ['conversation_locked', 'rate_limit_exceeded'], true);
+    }
+
+    protected function retryDelayProfile(?Response $response, int $baseDelayMs, int $maxDelayMs): array
+    {
+        if (!$this->shouldUseSlowRetryProfile($response)) {
+            return [$baseDelayMs, $maxDelayMs];
+        }
+
+        return [
+            max($baseDelayMs, 5000),
+            max($maxDelayMs, 30000),
+        ];
+    }
+
+    protected function shouldUseSlowRetryProfile(?Response $response): bool
+    {
+        if (!$response) {
+            return false;
+        }
+
+        if ($response->status() === 429) {
+            return true;
+        }
+
+        $errorCode = $response->json('error.code');
+
         return in_array($errorCode, ['conversation_locked', 'rate_limit_exceeded'], true);
     }
 
