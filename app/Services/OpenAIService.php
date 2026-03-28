@@ -212,8 +212,8 @@ class OpenAIService
         }
 
         return [
-            max($baseDelayMs, 5000),
-            max($maxDelayMs, 30000),
+            max($baseDelayMs, 15000),
+            max($maxDelayMs, 60000),
         ];
     }
 

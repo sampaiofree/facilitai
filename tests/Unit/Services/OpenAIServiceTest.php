@@ -56,11 +56,11 @@ test('perfil lento de retry nao e usado para 500 503 408 e resposta nula', funct
     expect($check(null))->toBeFalse();
 });
 
-test('perfil lento eleva delays para 5s e 30s', function () {
+test('perfil lento eleva delays para 15s e 60s', function () {
     $service = new OpenAIService('test-key');
 
     $profile = (fn (?Response $response, int $baseDelayMs, int $maxDelayMs) => $this->retryDelayProfile($response, $baseDelayMs, $maxDelayMs))
         ->call($service, openAiServiceMakeResponse(429), 1000, 8000);
 
-    expect($profile)->toBe([5000, 30000]);
+    expect($profile)->toBe([15000, 60000]);
 });
