@@ -53,10 +53,12 @@ test('desativar_bot tool possui schema vazio e strict', function () {
     $tools = ToolsFactory::fromSystemPrompt('desativar_bot');
 
     $tool = collect($tools)->firstWhere('name', 'desativar_bot');
+    $parametersJson = json_encode(data_get($tool, 'parameters'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
     expect(data_get($tool, 'parameters.type'))->toBe('object');
-    expect(data_get($tool, 'parameters.properties'))->toBe([]);
+    expect(data_get($tool, 'parameters.properties'))->toBeInstanceOf(\stdClass::class);
     expect(data_get($tool, 'parameters.required'))->toBe([]);
     expect(data_get($tool, 'parameters.additionalProperties'))->toBeFalse();
+    expect($parametersJson)->toContain('"properties":{}');
     expect(data_get($tool, 'strict'))->toBeTrue();
 });

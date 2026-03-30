@@ -156,7 +156,7 @@ Desativa o bot do lead atual para os próximos atendimentos automáticos.
 TXT,
                 'parameters' => [
                     'type' => 'object',
-                    'properties' => [],
+                    'properties' => new \stdClass(),
                     'required' => [],
                     'additionalProperties' => false,
                 ],
