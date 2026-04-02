@@ -28,7 +28,7 @@ class ClienteTagController extends Controller
             'tag_id' => ['nullable', 'integer'],
             'name' => ['required', 'string', 'max:50'],
             'color' => ['nullable', 'string', 'max:50'],
-            'description' => ['nullable', 'string'],
+            'description' => ['nullable', 'string', 'max:255'],
         ]);
 
         $payload = [

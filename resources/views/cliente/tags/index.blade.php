@@ -62,16 +62,22 @@
             </div>
             <form id="tagForm" method="POST" action="{{ route('cliente.tags.store') }}" class="mt-5 space-y-4">
                 @csrf
-                <input type="hidden" name="tag_id" id="tagId" value="">
+                <input type="hidden" name="tag_id" id="tagId" value="{{ old('tag_id') }}">
 
                 <div>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="tagName">Nome</label>
-                    <input id="tagName" name="name" type="text" maxlength="50" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                    <input id="tagName" name="name" type="text" maxlength="50" required value="{{ old('name') }}" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                    @error('name')
+                        <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
+                    @enderror
                 </div>
 
                 <div>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="tagDescription">Descrição</label>
-                    <textarea id="tagDescription" name="description" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"></textarea>
+                    <textarea id="tagDescription" name="description" rows="3" maxlength="255" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">{{ old('description') }}</textarea>
+                    @error('description')
+                        <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
+                    @enderror
                 </div>
 
                 <div class="flex items-center justify-end gap-3 pt-2">
@@ -131,6 +137,14 @@
                     openModal();
                 });
             });
+
+            @if (old('tag_id'))
+                title.textContent = 'Editar tag';
+            @endif
+
+            @if ($errors->has('name') || $errors->has('description'))
+                openModal();
+            @endif
         })();
     </script>
 @endsection
