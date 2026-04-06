@@ -201,7 +201,7 @@ test('prepend system context inclui telefone do lead e preserva blocos existente
     expect($result[0]['role'])->toBe('system');
     expect($result[0]['content'])
         ->toContain('Agora:')
-        ->toContain('Telefone do lead: 5511999999999')
+        ->toContain('WhatsApp do Lead: 5511999999999')
         ->toContain('Info do lead: Perfil premium')
         ->toContain("Campos personalizados do lead:\n- Empresa (empresa): Acme");
     expect($result[1])->toBe($input[0]);
@@ -229,7 +229,7 @@ test('prepend system context busca telefone no banco quando o model chega sem a 
         ->call($service, [], $partialLead);
 
     expect($result[0]['content'])
-        ->toContain('Telefone do lead: 551188887777')
+        ->toContain('WhatsApp do Lead: 551188887777')
         ->toContain('Info do lead: Lead carregado sem coluna phone');
 });
 
@@ -244,7 +244,7 @@ test('prepend system context usa payload phone quando model e banco nao possuem 
         ->call($service, [], $lead, '551177776666');
 
     expect($result[0]['content'])
-        ->toContain('Telefone do lead: 551177776666')
+        ->toContain('WhatsApp do Lead: 551177776666')
         ->toContain('Info do lead: Telefone vindo do payload');
 });
 
@@ -268,7 +268,7 @@ test('prepend system context omite linha de telefone quando phone no banco esta 
     expect($result[0]['content'])
         ->toContain('Agora:')
         ->toContain('Info do lead: Info sem telefone no contexto')
-        ->not->toContain('Telefone do lead:');
+        ->not->toContain('WhatsApp do Lead:');
 });
 
 test('prepend system context omite linha de telefone quando o lead ainda nao tem id e phone esta null', function () {
@@ -284,7 +284,7 @@ test('prepend system context omite linha de telefone quando o lead ainda nao tem
     expect($result[0]['content'])
         ->toContain('Agora:')
         ->toContain('Info do lead: Info sem telefone no contexto')
-        ->not->toContain('Telefone do lead:');
+        ->not->toContain('WhatsApp do Lead:');
 });
 
 test('resolve resultado do assistant trata ausencia de texto sem function_call pendente como silencio legitimo', function () {

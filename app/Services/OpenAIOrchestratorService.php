@@ -637,7 +637,7 @@ class OpenAIOrchestratorService
 
         $contextParts = array_filter([
             "Agora: {$now->toIso8601String()} ({$dayName}, {$date} as {$time}, tz: {$timezone}).",
-            $leadPhone !== '' ? "Telefone do lead: {$leadPhone}" : null,
+            $leadPhone !== '' ? "WhatsApp do Lead: {$leadPhone}" : null,
             $leadInfo !== '' ? "Info do lead: {$leadInfo}" : null,
             !empty($leadCustomFields) ? "Campos personalizados do lead:\n" . implode("\n", $leadCustomFields) : null,
         ]);
