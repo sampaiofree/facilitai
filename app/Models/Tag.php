@@ -37,4 +37,9 @@ class Tag extends Model
     {
         return $this->belongsToMany(ClienteLead::class, 'cliente_lead_tag')->withTimestamps();
     }
+
+    public function crmPipelineColumn()
+    {
+        return $this->hasOne(ClienteCrmPipelineColumn::class);
+    }
 }

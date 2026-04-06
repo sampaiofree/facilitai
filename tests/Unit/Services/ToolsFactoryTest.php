@@ -62,3 +62,38 @@ test('desativar_bot tool possui schema vazio e strict', function () {
     expect($parametersJson)->toContain('"properties":{}');
     expect(data_get($tool, 'strict'))->toBeTrue();
 });
+
+test('enviar_lead_kommo tool nao aparece sem keyword no prompt', function () {
+    $tools = ToolsFactory::fromSystemPrompt('Use outras ferramentas.', [
+        'kommo_accounts' => [
+            ['name' => 'kommo-vendas'],
+        ],
+    ]);
+
+    expect(collect($tools)->pluck('name')->all())->not->toContain('enviar_lead_kommo');
+});
+
+test('enviar_lead_kommo tool nao aparece sem integracoes disponiveis', function () {
+    $tools = ToolsFactory::fromSystemPrompt('Use enviar_lead_kommo quando necessario.', [
+        'kommo_accounts' => [],
+    ]);
+
+    expect(collect($tools)->pluck('name')->all())->not->toContain('enviar_lead_kommo');
+});
+
+test('enviar_lead_kommo tool aparece com enum das integracoes kommo do cliente', function () {
+    $tools = ToolsFactory::fromSystemPrompt('Use enviar_lead_kommo quando necessario.', [
+        'kommo_accounts' => [
+            ['name' => 'kommo-pos-venda'],
+            ['name' => 'kommo-vendas'],
+            ['name' => 'kommo-vendas'],
+        ],
+    ]);
+
+    $tool = collect($tools)->firstWhere('name', 'enviar_lead_kommo');
+
+    expect($tool)->not->toBeNull();
+    expect(data_get($tool, 'parameters.properties.kommo_account_name.enum'))
+        ->toBe(['kommo-pos-venda', 'kommo-vendas']);
+    expect(data_get($tool, 'strict'))->toBeTrue();
+});

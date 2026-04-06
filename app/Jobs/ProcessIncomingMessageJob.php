@@ -6,6 +6,7 @@ use App\Models\Assistant;
 use App\Models\AssistantLead;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
+use App\Models\KommoAccount;
 use App\Models\ScheduledMessage;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
@@ -15,6 +16,7 @@ use App\Models\WhatsappApi;
 use App\Models\WhatsappCloudCustomField;
 use App\Services\EvolutionAPIOficial;
 use App\Services\IAOrchestratorService;
+use App\Services\KommoService;
 use App\Services\ScheduledMessageService;
 use App\Services\UazapiService;
 use App\Services\WhatsappCloudApiService;
@@ -1139,6 +1141,9 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             'registrar_campo_personalizado' => function (array $arguments, array $context) use ($lead) {
                 return $this->handleRegistrarCampoPersonalizado($lead, $arguments);
             },
+            'enviar_lead_kommo' => function (array $arguments, array $context) use ($lead) {
+                return $this->handleEnviarLeadKommo($lead, $arguments);
+            },
             'enviar_post' => function (array $arguments, array $context) use ($payload, $conexao) {
                 return $this->handleEnviarPost($arguments, $payload, $conexao);
             },
@@ -1978,6 +1983,116 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
 
             return 'Nao foi possivel registrar os campos personalizados.';
         }
+    }
+
+    private function handleEnviarLeadKommo(?ClienteLead $lead, array $arguments): array|string
+    {
+        try {
+            if (!$lead) {
+                return $this->buildKommoToolFailureResponse(
+                    'Falha ao enviar o lead ao Kommo: lead atual indisponível. Informe isso ao usuário sem tentar novamente automaticamente.',
+                    'Não consegui enviar o lead ao Kommo porque o lead atual não está disponível.'
+                );
+            }
+
+            $kommoAccountName = trim((string) ($arguments['kommo_account_name'] ?? ''));
+            if ($kommoAccountName === '') {
+                return $this->buildKommoToolFailureResponse(
+                    'Falha ao enviar o lead ao Kommo: o nome técnico da integração Kommo não foi informado. Informe isso ao usuário.',
+                    'Não consegui enviar o lead ao Kommo porque a integração informada é inválida.'
+                );
+            }
+
+            $lead->loadMissing('cliente');
+
+            $clienteId = (int) ($lead->cliente_id ?? 0);
+            $userId = (int) ($lead->cliente?->user_id ?? 0);
+            if ($clienteId <= 0 || $userId <= 0) {
+                return $this->buildKommoToolFailureResponse(
+                    'Falha ao enviar o lead ao Kommo: o lead atual não está vinculado a um cliente válido. Informe isso ao usuário.',
+                    'Não consegui enviar o lead ao Kommo porque o lead atual não está vinculado a um cliente válido.'
+                );
+            }
+
+            $account = KommoAccount::query()
+                ->where('cliente_id', $clienteId)
+                ->where('user_id', $userId)
+                ->where('name', $kommoAccountName)
+                ->first();
+
+            if (!$account) {
+                return $this->buildKommoToolFailureResponse(
+                    'Falha ao enviar o lead ao Kommo: a integração selecionada não foi encontrada para este cliente. Informe isso ao usuário.',
+                    'Não consegui enviar o lead ao Kommo porque a integração selecionada não foi encontrada para este cliente.'
+                );
+            }
+
+            $phone = trim((string) ($lead->phone ?? ''));
+            if ($phone === '') {
+                return $this->buildKommoToolFailureResponse(
+                    'Falha ao enviar o lead ao Kommo: o lead atual não possui telefone válido para envio. Informe isso ao usuário.',
+                    'Não consegui enviar o lead ao Kommo porque o lead atual não possui telefone válido.'
+                );
+            }
+
+            /** @var KommoService $kommoService */
+            $kommoService = app(KommoService::class);
+            $result = $kommoService->sendLeadToAccount($account, $lead);
+
+            if (!($result['ok'] ?? false)) {
+                Log::channel('process_job')->warning('Falha ao enviar lead via tool enviar_lead_kommo.', $this->logContext([
+                    'lead_id' => $lead->id,
+                    'kommo_account_id' => $account->id,
+                    'kommo_account_name' => $account->name,
+                    'status' => $result['status'] ?? null,
+                    'message' => $result['message'] ?? null,
+                ]));
+
+                $failureMessage = trim((string) ($result['message'] ?? 'Não foi possível enviar o lead ao Kommo.'));
+
+                return $this->buildKommoToolFailureResponse(
+                    "Falha ao enviar o lead ao Kommo: {$failureMessage} Informe ao usuário que o envio não foi concluído.",
+                    "Não consegui enviar o lead ao Kommo. {$failureMessage}"
+                );
+            }
+
+            Log::channel('process_job')->info('Lead enviado ao Kommo via tool enviar_lead_kommo.', $this->logContext([
+                'lead_id' => $lead->id,
+                'kommo_account_id' => $account->id,
+                'kommo_account_name' => $account->name,
+                'kommo_lead_id' => $result['lead_id'] ?? null,
+                'kommo_contact_id' => $result['contact_id'] ?? null,
+            ]));
+
+            $targetAccount = trim((string) ($account->kommo_account_name ?: $account->name));
+            $kommoLeadId = isset($result['lead_id']) && $result['lead_id'] !== null
+                ? ' (lead ID ' . $result['lead_id'] . ')'
+                : '';
+
+            return "✅ Lead enviado para a integração Kommo {$account->name} na conta {$targetAccount}{$kommoLeadId}.";
+        } catch (\Throwable $exception) {
+            Log::channel('process_job')->error('Erro ao enviar lead via tool enviar_lead_kommo.', $this->logContext([
+                'lead_id' => $lead?->id,
+                'args' => $arguments,
+                'error' => $exception->getMessage(),
+            ]));
+
+            return $this->buildKommoToolFailureResponse(
+                'Falha ao enviar o lead ao Kommo por um erro interno inesperado. Informe isso ao usuário.',
+                'Não consegui enviar o lead ao Kommo por um erro interno inesperado.'
+            );
+        }
+    }
+
+    /**
+     * @return array{output: string, fallback_text: string}
+     */
+    private function buildKommoToolFailureResponse(string $output, string $fallbackText): array
+    {
+        return [
+            'output' => trim($output),
+            'fallback_text' => trim($fallbackText),
+        ];
     }
 
     /**

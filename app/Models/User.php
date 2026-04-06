@@ -102,6 +102,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(\App\Models\Credential::class);
     }
 
+    public function kommoAccounts()
+    {
+        return $this->hasMany(\App\Models\KommoAccount::class);
+    }
+
     public function payments()
     {
         return $this->hasMany(Payment::class);

@@ -4,11 +4,13 @@ use App\DTOs\IAResult;
 use App\Jobs\ProcessIncomingMessageJob;
 use App\Models\Cliente;
 use App\Models\ClienteLead;
+use App\Models\KommoAccount;
 use App\Models\Sequence;
 use App\Models\SequenceChat;
 use App\Models\User;
 use App\Models\WhatsappCloudCustomField;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 
 uses(RefreshDatabase::class);
 
@@ -54,6 +56,25 @@ function agenciaConversasMakeCustomField(User $user, ?Cliente $cliente = null, a
         'label' => 'Campo ' . fake()->numerify('###'),
         'sample_value' => null,
         'description' => null,
+    ], $attributes));
+}
+
+function agenciaConversasMakeKommoAccount(User $user, Cliente $cliente, array $attributes = []): KommoAccount
+{
+    return KommoAccount::create(array_merge([
+        'user_id' => $user->id,
+        'cliente_id' => $cliente->id,
+        'name' => 'kommo-vendas',
+        'subdomain' => 'conta-kommo',
+        'access_token' => 'token-kommo',
+        'kommo_account_id' => '123456',
+        'kommo_account_name' => 'Conta Kommo',
+        'pipeline_id' => '10',
+        'pipeline_name' => 'Pipeline A',
+        'status_id' => '100',
+        'status_name' => 'Novo Lead',
+        'last_verified_at' => now(),
+        'last_verification_error' => null,
     ], $attributes));
 }
 
@@ -290,6 +311,122 @@ test('tool desativar_bot responde quando nao existe lead atual', function () {
     $result = $handlers['desativar_bot']([], []);
 
     expect($result)->toContain('Lead não encontrado');
+});
+
+test('tool enviar_lead_kommo envia o lead atual usando a integracao selecionada', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaConversasMakeCliente($user);
+    $lead = agenciaConversasMakeLead($cliente, [
+        'phone' => '5511999999999',
+        'name' => 'Lead Kommo',
+    ]);
+    agenciaConversasMakeKommoAccount($user, $cliente, [
+        'name' => 'kommo-vendas',
+        'subdomain' => 'conta-kommo',
+    ]);
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    Http::fake([
+        'https://conta-kommo.kommo.com/api/v4/leads/complex' => Http::response([
+            '_embedded' => [
+                'leads' => [[
+                    'id' => 777,
+                    '_embedded' => [
+                        'contacts' => [[
+                            'id' => 888,
+                        ]],
+                    ],
+                ]],
+            ],
+        ], 200),
+    ]);
+
+    $handlers = (fn (array $payload, $conexao, $currentLead) => $this->buildToolHandlers($payload, $conexao, $currentLead))
+        ->call($job, [], null, $lead);
+
+    $result = $handlers['enviar_lead_kommo']([
+        'kommo_account_name' => 'kommo-vendas',
+    ], []);
+
+    expect($result)->toContain('Lead enviado para a integração Kommo kommo-vendas');
+    expect($result)->toContain('lead ID 777');
+});
+
+test('tool enviar_lead_kommo falha quando integracao nao pertence ao cliente do lead', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaConversasMakeCliente($user);
+    $otherCliente = agenciaConversasMakeCliente($user, ['email' => fake()->unique()->safeEmail()]);
+    $lead = agenciaConversasMakeLead($cliente, [
+        'phone' => '5511999999999',
+    ]);
+    agenciaConversasMakeKommoAccount($user, $otherCliente, [
+        'name' => 'kommo-vendas',
+    ]);
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    $handlers = (fn (array $payload, $conexao, $currentLead) => $this->buildToolHandlers($payload, $conexao, $currentLead))
+        ->call($job, [], null, $lead);
+
+    $result = $handlers['enviar_lead_kommo']([
+        'kommo_account_name' => 'kommo-vendas',
+    ], []);
+
+    expect($result)->toBeArray();
+    expect((string) ($result['output'] ?? ''))->toContain('integração selecionada não foi encontrada');
+    expect((string) ($result['fallback_text'] ?? ''))->toContain('integração selecionada não foi encontrada');
+});
+
+test('tool enviar_lead_kommo falha quando o lead atual nao possui telefone', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaConversasMakeCliente($user);
+    $lead = agenciaConversasMakeLead($cliente, [
+        'phone' => '',
+    ]);
+    agenciaConversasMakeKommoAccount($user, $cliente, [
+        'name' => 'kommo-vendas',
+    ]);
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    $handlers = (fn (array $payload, $conexao, $currentLead) => $this->buildToolHandlers($payload, $conexao, $currentLead))
+        ->call($job, [], null, $lead);
+
+    $result = $handlers['enviar_lead_kommo']([
+        'kommo_account_name' => 'kommo-vendas',
+    ], []);
+
+    expect($result)->toBeArray();
+    expect((string) ($result['output'] ?? ''))->toContain('não possui telefone válido');
+    expect((string) ($result['fallback_text'] ?? ''))->toContain('não possui telefone válido');
+});
+
+test('tool enviar_lead_kommo retorna falha amigavel quando kommo rejeita o envio', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaConversasMakeCliente($user);
+    $lead = agenciaConversasMakeLead($cliente, [
+        'phone' => '5511999999999',
+    ]);
+    agenciaConversasMakeKommoAccount($user, $cliente, [
+        'name' => 'kommo-vendas',
+        'subdomain' => 'conta-kommo',
+    ]);
+    $job = new ProcessIncomingMessageJob(1, null, []);
+
+    Http::fake([
+        'https://conta-kommo.kommo.com/api/v4/leads/complex' => Http::response([
+            'detail' => 'Invalid pipeline',
+        ], 400),
+    ]);
+
+    $handlers = (fn (array $payload, $conexao, $currentLead) => $this->buildToolHandlers($payload, $conexao, $currentLead))
+        ->call($job, [], null, $lead);
+
+    $result = $handlers['enviar_lead_kommo']([
+        'kommo_account_name' => 'kommo-vendas',
+    ], []);
+
+    expect($result)->toBeArray();
+    expect((string) ($result['output'] ?? ''))->toContain('Invalid pipeline');
+    expect((string) ($result['fallback_text'] ?? ''))->toContain('Invalid pipeline');
 });
 
 test('destroy de lead preserva filtros ordenacao e pagina no redirect', function () {

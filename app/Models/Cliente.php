@@ -50,4 +50,14 @@ class Cliente extends Authenticatable
     {
         return $this->hasMany(WhatsappCloudCampaign::class, 'cliente_id');
     }
+
+    public function crmPipelines()
+    {
+        return $this->hasMany(ClienteCrmPipeline::class, 'cliente_id');
+    }
+
+    public function kommoAccounts()
+    {
+        return $this->hasMany(KommoAccount::class, 'cliente_id');
+    }
 }

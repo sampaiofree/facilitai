@@ -52,6 +52,7 @@
                     request()->routeIs('agencia.mensagens-agendadas.*') ||
                     request()->routeIs('agencia.images.*') ||
                     request()->routeIs('agencia.tags.*') ||
+                    request()->routeIs('agencia.kommo.*') ||
                     request()->routeIs('agencia.webhook-links.*') ||
                     request()->routeIs('agencia.grupos.*') ||
                     request()->routeIs('agencia.campos-personalizados.*') ||
@@ -120,6 +121,7 @@
                         </svg>
                     </button>
                     <div data-tools-dropdown-menu class="absolute left-0 right-0 z-10 mt-1 hidden space-y-1 rounded-lg border border-slate-800 bg-slate-900/90 p-2 shadow-lg backdrop-blur">
+                        <a href="{{ route('agencia.kommo.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.kommo.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Kommo</a>
                         <a href="{{ route('agencia.sequences.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.sequences.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Sequências</a>
                         <a href="{{ route('agencia.mensagens-agendadas.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.mensagens-agendadas.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Mensagens agendadas</a>
                         <a href="{{ route('agencia.images.index') }}" class="block rounded-lg px-4 py-2 text-sm font-semibold transition {{ request()->routeIs('agencia.images.*') ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white' }}">Mídias</a>

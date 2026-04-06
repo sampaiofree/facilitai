@@ -2,6 +2,7 @@
 
 use App\Models\Cliente;
 use App\Models\ClienteLead;
+use App\Models\KommoAccount;
 use App\Models\User;
 use App\Models\WhatsappCloudCustomField;
 use App\Services\OpenAIOrchestratorService;
@@ -84,6 +85,154 @@ test('resolve campos validos para tools inclui apenas globais e do mesmo cliente
     expect(collect($fields)->pluck('name')->all())->toBe(['cargo', 'empresa']);
 });
 
+test('resolve integracoes kommo para tools inclui apenas as validas do mesmo cliente do lead', function () {
+    $user = User::create([
+        'name' => 'Owner User',
+        'email' => 'owner-kommo@example.com',
+        'password' => 'password',
+    ]);
+    $otherUser = User::create([
+        'name' => 'Other User',
+        'email' => 'other-kommo@example.com',
+        'password' => 'password',
+    ]);
+    $cliente = openAiOrchestratorMakeCliente($user, ['nome' => 'Cliente Kommo']);
+    $otherCliente = openAiOrchestratorMakeCliente($user, ['nome' => 'Outro cliente', 'email' => fake()->unique()->safeEmail()]);
+    $lead = openAiOrchestratorMakeLead($cliente);
+
+    $validAccount = KommoAccount::create([
+        'user_id' => $user->id,
+        'cliente_id' => $cliente->id,
+        'name' => 'kommo-vendas',
+        'subdomain' => 'conta-a',
+        'access_token' => 'token-a',
+        'pipeline_id' => '10',
+        'pipeline_name' => 'Pipeline A',
+        'status_id' => '100',
+        'status_name' => 'Novo Lead',
+    ]);
+
+    KommoAccount::create([
+        'user_id' => $user->id,
+        'cliente_id' => $cliente->id,
+        'name' => 'kommo-incompleta',
+        'subdomain' => 'conta-b',
+        'access_token' => 'token-b',
+        'pipeline_id' => null,
+        'pipeline_name' => null,
+        'status_id' => null,
+        'status_name' => null,
+    ]);
+
+    KommoAccount::create([
+        'user_id' => $user->id,
+        'cliente_id' => $otherCliente->id,
+        'name' => 'kommo-outro-cliente',
+        'subdomain' => 'conta-c',
+        'access_token' => 'token-c',
+        'pipeline_id' => '20',
+        'pipeline_name' => 'Pipeline C',
+        'status_id' => '200',
+        'status_name' => 'Contato',
+    ]);
+
+    KommoAccount::create([
+        'user_id' => $otherUser->id,
+        'cliente_id' => $cliente->id,
+        'name' => 'kommo-outro-usuario',
+        'subdomain' => 'conta-d',
+        'access_token' => 'token-d',
+        'pipeline_id' => '30',
+        'pipeline_name' => 'Pipeline D',
+        'status_id' => '300',
+        'status_name' => 'Qualificado',
+    ]);
+
+    $service = new OpenAIOrchestratorService();
+
+    $accounts = (fn (ClienteLead $currentLead) => $this->resolveKommoAccountsForTools($currentLead))
+        ->call($service, $lead);
+
+    expect($accounts)->toBe([
+        [
+            'id' => $validAccount->id,
+            'name' => 'kommo-vendas',
+            'pipeline_id' => '10',
+            'status_id' => '100',
+        ],
+    ]);
+});
+
+test('prepend system context inclui telefone do lead e preserva blocos existentes', function () {
+    $user = User::create([
+        'name' => 'Owner User',
+        'email' => 'owner-context@example.com',
+        'password' => 'password',
+    ]);
+    $cliente = openAiOrchestratorMakeCliente($user, ['nome' => 'Cliente contexto']);
+    $lead = openAiOrchestratorMakeLead($cliente, [
+        'phone' => '5511999999999',
+        'info' => 'Perfil premium',
+    ]);
+
+    $field = WhatsappCloudCustomField::create([
+        'user_id' => $user->id,
+        'cliente_id' => $cliente->id,
+        'name' => 'empresa',
+        'label' => 'Empresa',
+    ]);
+
+    $lead->customFieldValues()->create([
+        'whatsapp_cloud_custom_field_id' => $field->id,
+        'value' => 'Acme',
+    ]);
+
+    $service = new OpenAIOrchestratorService();
+    $input = [
+        [
+            'role' => 'user',
+            'content' => 'Oi',
+        ],
+    ];
+
+    $result = (fn (array $currentInput, ClienteLead $currentLead) => $this->prependSystemContext($currentInput, $currentLead))
+        ->call($service, $input, $lead->fresh());
+
+    expect($result[0]['role'])->toBe('system');
+    expect($result[0]['content'])
+        ->toContain('Agora:')
+        ->toContain('Telefone do lead: 5511999999999')
+        ->toContain('Info do lead: Perfil premium')
+        ->toContain("Campos personalizados do lead:\n- Empresa (empresa): Acme");
+    expect($result[1])->toBe($input[0]);
+});
+
+test('prepend system context omite linha de telefone quando phone esta vazio ou null', function (?string $phone) {
+    $user = User::create([
+        'name' => 'Owner User',
+        'email' => fake()->unique()->safeEmail(),
+        'password' => 'password',
+    ]);
+    $cliente = openAiOrchestratorMakeCliente($user);
+    $lead = openAiOrchestratorMakeLead($cliente, [
+        'info' => 'Info sem telefone no contexto',
+    ]);
+    $lead->phone = $phone;
+
+    $service = new OpenAIOrchestratorService();
+
+    $result = (fn (array $currentInput, ClienteLead $currentLead) => $this->prependSystemContext($currentInput, $currentLead))
+        ->call($service, [], $lead);
+
+    expect($result[0]['content'])
+        ->toContain('Agora:')
+        ->toContain('Info do lead: Info sem telefone no contexto')
+        ->not->toContain('Telefone do lead:');
+})->with([
+    'empty string' => [''],
+    'null' => [null],
+]);
+
 test('resolve resultado do assistant trata ausencia de texto sem function_call pendente como silencio legitimo', function () {
     $service = new OpenAIOrchestratorService();
 
@@ -118,4 +267,22 @@ test('resolve resultado do assistant mantem erro quando existe function_call pen
     expect($result->ok)->toBeFalse();
     expect($result->text)->toBeNull();
     expect($result->error)->toBe('OpenAI sem mensagem do assistente.');
+});
+
+test('resolve resultado do assistant usa fallback da tool quando nao ha texto final apos erro controlado', function () {
+    $service = new OpenAIOrchestratorService();
+
+    (fn () => $this->lastToolFallbackMessage = 'Não consegui enviar o lead ao Kommo porque a integração selecionada não foi encontrada para este cliente.')
+        ->call($service);
+
+    $result = (fn (array $payload) => $this->resolveAssistantResult($payload))
+        ->call($service, [
+            'output' => [
+                ['type' => 'reasoning', 'id' => 'rs_kommo_123'],
+            ],
+        ]);
+
+    expect($result->ok)->toBeTrue();
+    expect($result->text)->toBe('Não consegui enviar o lead ao Kommo porque a integração selecionada não foi encontrada para este cliente.');
+    expect($result->error)->toBeNull();
 });

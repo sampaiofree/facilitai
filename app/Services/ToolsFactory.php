@@ -32,7 +32,7 @@ TXT,
                         ],
                         'mensagem' => [
                             'type' => 'string',
-                            'description' => 'A mensagem a ser enviada para os administradores.',
+                            'description' => 'A mensagem a ser enviada para os administradores, inclusa o nome e telefone do usuário.',
                         ],
                     ],
                     'required' => ['numeros_telefone', 'mensagem'],
@@ -171,6 +171,16 @@ TXT,
 
             if ($customFieldTool !== null) {
                 $tools[] = $customFieldTool;
+            }
+        }
+
+        if (str_contains($systemPrompt, 'enviar_lead_kommo')) {
+            $kommoTool = self::buildEnviarLeadKommoTool(
+                is_array($context['kommo_accounts'] ?? null) ? $context['kommo_accounts'] : []
+            );
+
+            if ($kommoTool !== null) {
+                $tools[] = $kommoTool;
             }
         }
 
@@ -388,6 +398,47 @@ TXT,
                     ],
                 ],
                 'required' => ['campos'],
+                'additionalProperties' => false,
+            ],
+            'strict' => true,
+        ];
+    }
+
+    private static function buildEnviarLeadKommoTool(array $kommoAccounts): ?array
+    {
+        $accountNames = collect($kommoAccounts)
+            ->filter(fn ($account) => is_array($account))
+            ->map(fn (array $account) => trim((string) ($account['name'] ?? '')))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        if (empty($accountNames)) {
+            return null;
+        }
+
+        $accountList = implode(', ', $accountNames);
+
+        return [
+            'type' => 'function',
+            'name' => 'enviar_lead_kommo',
+            'description' => <<<TXT
+Envia o lead atual para uma integração Kommo já cadastrada para este cliente.
+Use apenas quando a conversa indicar claramente que este lead deve ser enviado ao Kommo.
+Não invente o nome técnico da integração. Use somente uma destas integrações disponíveis: {$accountList}.
+TXT,
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'kommo_account_name' => [
+                        'type' => 'string',
+                        'enum' => $accountNames,
+                        'description' => 'Nome técnico da integração Kommo que receberá o lead atual.',
+                    ],
+                ],
+                'required' => ['kommo_account_name'],
                 'additionalProperties' => false,
             ],
             'strict' => true,

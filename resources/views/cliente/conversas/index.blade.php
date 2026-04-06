@@ -226,8 +226,9 @@
                     ></textarea>
                 </div>
 
-                <div data-chip-select="lead-tags" data-input-name="tags[]" class="hidden">
+                <div data-chip-select="lead-tags" data-input-name="tags[]" class="space-y-2">
                     <span class="text-[11px] uppercase tracking-wide text-slate-400">Tags</span>
+                    <p class="text-[11px] text-slate-400">Selecione uma ou mais tags para classificar o lead.</p>
                     <div class="mt-2 flex flex-wrap gap-2" data-chip-list></div>
                     <div class="relative mt-2">
                         <input
@@ -254,7 +255,7 @@
                         </div>
                     </div>
                     <div class="hidden" data-chip-inputs></div>
-                    </div>
+                </div>
                 <div class="flex justify-end gap-3">
                     <button type="button" data-form-close class="rounded-2xl border border-slate-200 px-4 py-1 text-[12px] font-semibold text-slate-600 hover:border-slate-400">Cancelar</button>
                     <button type="submit" id="clienteLeadFormSubmit" class="rounded-2xl bg-blue-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-blue-700">Salvar</button>

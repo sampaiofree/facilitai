@@ -7,6 +7,7 @@ use App\Models\Assistant;
 use App\Models\AssistantLead;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
+use App\Models\KommoAccount;
 use App\Models\SystemErrorLog;
 use App\Models\WhatsappCloudCustomField;
 use App\Support\LogContext;
@@ -19,6 +20,7 @@ class OpenAIOrchestratorService
 {
     protected int $maxIterations;
     private ?array $conversationResolutionFailure = null;
+    private ?string $lastToolFallbackMessage = null;
 
     public function __construct(int $maxIterations = 5)
     {
@@ -28,6 +30,7 @@ class OpenAIOrchestratorService
     public function handle(Conexao $conexao, Assistant $assistant, ClienteLead $lead, AssistantLead $assistantLead, array $payload, array $handlers = []): IAResult
     {
         $this->conversationResolutionFailure = null;
+        $this->lastToolFallbackMessage = null;
 
         $token = $conexao->credential?->token;
         if (!$token || $token === '******') {
@@ -83,6 +86,7 @@ class OpenAIOrchestratorService
 
         $tools = ToolsFactory::fromSystemPrompt($systemPrompt, [
             'lead_custom_fields' => $this->resolveLeadCustomFieldsForTools($lead),
+            'kommo_accounts' => $this->resolveKommoAccountsForTools($lead),
         ]);
         if (!empty($tools)) {
             $requestPayload['tools'] = $tools;
@@ -608,6 +612,7 @@ class OpenAIOrchestratorService
 
         $lead->loadMissing('customFieldValues.customField');
 
+        $leadPhone = trim((string) ($lead->phone ?? ''));
         $leadInfo = trim((string) ($lead->info ?? ''));
         $leadCustomFields = $lead->customFieldValues
             ->filter(function ($fieldValue) {
@@ -632,6 +637,7 @@ class OpenAIOrchestratorService
 
         $contextParts = array_filter([
             "Agora: {$now->toIso8601String()} ({$dayName}, {$date} as {$time}, tz: {$timezone}).",
+            $leadPhone !== '' ? "Telefone do lead: {$leadPhone}" : null,
             $leadInfo !== '' ? "Info do lead: {$leadInfo}" : null,
             !empty($leadCustomFields) ? "Campos personalizados do lead:\n" . implode("\n", $leadCustomFields) : null,
         ]);
@@ -675,6 +681,34 @@ class OpenAIOrchestratorService
             ->all();
     }
 
+    private function resolveKommoAccountsForTools(ClienteLead $lead): array
+    {
+        $lead->loadMissing('cliente');
+
+        $clienteId = (int) ($lead->cliente_id ?? 0);
+        $userId = (int) ($lead->cliente?->user_id ?? 0);
+        if ($clienteId <= 0 || $userId <= 0) {
+            return [];
+        }
+
+        return KommoAccount::query()
+            ->where('cliente_id', $clienteId)
+            ->where('user_id', $userId)
+            ->whereNotNull('pipeline_id')
+            ->where('pipeline_id', '!=', '')
+            ->whereNotNull('status_id')
+            ->where('status_id', '!=', '')
+            ->orderBy('name')
+            ->get(['id', 'name', 'pipeline_id', 'status_id'])
+            ->map(fn (KommoAccount $account) => [
+                'id' => (int) $account->id,
+                'name' => (string) $account->name,
+                'pipeline_id' => (string) $account->pipeline_id,
+                'status_id' => (string) $account->status_id,
+            ])
+            ->all();
+    }
+
     private function extractAssistantMessage(array $apiResponse): ?string
     {
         $output = $apiResponse['output'] ?? [];
@@ -711,6 +745,10 @@ class OpenAIOrchestratorService
     {
         $output = $apiResponse['output'] ?? [];
         if (!is_array($output) || empty($output)) {
+            if (is_string($this->lastToolFallbackMessage) && trim($this->lastToolFallbackMessage) !== '') {
+                return IAResult::success($this->lastToolFallbackMessage, 'openai', $apiResponse);
+            }
+
             return IAResult::error('OpenAI sem mensagem do assistente.', 'openai', $apiResponse);
         }
 
@@ -721,6 +759,10 @@ class OpenAIOrchestratorService
 
         if ($this->hasPendingFunctionCall($apiResponse)) {
             return IAResult::error('OpenAI sem mensagem do assistente.', 'openai', $apiResponse);
+        }
+
+        if (is_string($this->lastToolFallbackMessage) && trim($this->lastToolFallbackMessage) !== '') {
+            return IAResult::success($this->lastToolFallbackMessage, 'openai', $apiResponse);
         }
 
         return IAResult::success('', 'openai', $apiResponse);
@@ -797,6 +839,7 @@ class OpenAIOrchestratorService
     private function buildToolOutputs(array $output, array $handlers, array $context): array
     {
         $toolOutputs = [];
+        $this->lastToolFallbackMessage = null;
 
         foreach ($output as $item) {
             if (($item['type'] ?? null) !== 'function_call') {
@@ -839,8 +882,18 @@ class OpenAIOrchestratorService
                 $result = 'Erro ao executar a função.';
             }
 
-            if (is_array($result) && array_key_exists('output', $result)) {
-                $result = $result['output'];
+            if (is_array($result)) {
+                if (
+                    array_key_exists('fallback_text', $result)
+                    && is_string($result['fallback_text'])
+                    && trim($result['fallback_text']) !== ''
+                ) {
+                    $this->lastToolFallbackMessage = trim($result['fallback_text']);
+                }
+
+                if (array_key_exists('output', $result)) {
+                    $result = $result['output'];
+                }
             }
 
             if ($result === null) {

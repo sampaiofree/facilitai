@@ -19,6 +19,7 @@
         "vite": "^6.2.4"
     },
     "dependencies": {
-        "@alpinejs/mask": "^3.15.0"
+        "@alpinejs/mask": "^3.15.0",
+        "sortablejs": "^1.15.7"
     }
 }
