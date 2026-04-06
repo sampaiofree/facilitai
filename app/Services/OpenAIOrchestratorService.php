@@ -74,7 +74,7 @@ class OpenAIOrchestratorService
             return IAResult::error('OpenAI input vazio.', 'openai');
         }
 
-        $input = $this->prependSystemContext($input, $lead);
+        $input = $this->prependSystemContext($input, $lead, $payload['phone'] ?? null);
 
         $model = (string) ($payload['assistant_model'] ?? 'gpt-4.1-mini');
         $requestPayload = [
@@ -602,7 +602,7 @@ class OpenAIOrchestratorService
         return base64_encode($binary);
     }
 
-    private function prependSystemContext(array $input, ClienteLead $lead, ?string $timezone = null): array
+    private function prependSystemContext(array $input, ClienteLead $lead, ?string $payloadPhone = null, ?string $timezone = null): array
     {
         $timezone = $timezone ?: config('app.timezone', 'America/Sao_Paulo');
         $now = now($timezone);
@@ -612,7 +612,7 @@ class OpenAIOrchestratorService
 
         $lead->loadMissing('customFieldValues.customField');
 
-        $leadPhone = $this->resolveLeadPhoneForContext($lead);
+        $leadPhone = $this->resolveLeadPhoneForContext($lead, $payloadPhone);
         $leadInfo = trim((string) ($lead->info ?? ''));
         $leadCustomFields = $lead->customFieldValues
             ->filter(function ($fieldValue) {
@@ -650,7 +650,7 @@ class OpenAIOrchestratorService
         ], $input);
     }
 
-    private function resolveLeadPhoneForContext(ClienteLead $lead): string
+    private function resolveLeadPhoneForContext(ClienteLead $lead, ?string $payloadPhone = null): string
     {
         $leadPhone = trim((string) ($lead->phone ?? ''));
         if ($leadPhone !== '') {
@@ -658,13 +658,16 @@ class OpenAIOrchestratorService
         }
 
         $leadId = (int) ($lead->id ?? 0);
-        if ($leadId <= 0) {
-            return '';
+        if ($leadId > 0) {
+            $persistedPhone = trim((string) ClienteLead::query()
+                ->whereKey($leadId)
+                ->value('phone'));
+            if ($persistedPhone !== '') {
+                return $persistedPhone;
+            }
         }
 
-        return trim((string) ClienteLead::query()
-            ->whereKey($leadId)
-            ->value('phone'));
+        return trim((string) $payloadPhone);
     }
 
     private function resolveLeadCustomFieldsForTools(ClienteLead $lead): array

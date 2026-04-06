@@ -233,6 +233,21 @@ test('prepend system context busca telefone no banco quando o model chega sem a 
         ->toContain('Info do lead: Lead carregado sem coluna phone');
 });
 
+test('prepend system context usa payload phone quando model e banco nao possuem telefone', function () {
+    $lead = new ClienteLead([
+        'info' => 'Telefone vindo do payload',
+    ]);
+
+    $service = new OpenAIOrchestratorService();
+
+    $result = (fn (array $currentInput, ClienteLead $currentLead, ?string $currentPayloadPhone) => $this->prependSystemContext($currentInput, $currentLead, $currentPayloadPhone))
+        ->call($service, [], $lead, '551177776666');
+
+    expect($result[0]['content'])
+        ->toContain('Telefone do lead: 551177776666')
+        ->toContain('Info do lead: Telefone vindo do payload');
+});
+
 test('prepend system context omite linha de telefone quando phone no banco esta vazio', function () {
     $user = User::create([
         'name' => 'Owner User',
