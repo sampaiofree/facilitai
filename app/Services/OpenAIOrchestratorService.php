@@ -612,7 +612,7 @@ class OpenAIOrchestratorService
 
         $lead->loadMissing('customFieldValues.customField');
 
-        $leadPhone = trim((string) ($lead->phone ?? ''));
+        $leadPhone = $this->resolveLeadPhoneForContext($lead);
         $leadInfo = trim((string) ($lead->info ?? ''));
         $leadCustomFields = $lead->customFieldValues
             ->filter(function ($fieldValue) {
@@ -637,7 +637,7 @@ class OpenAIOrchestratorService
 
         $contextParts = array_filter([
             "Agora: {$now->toIso8601String()} ({$dayName}, {$date} as {$time}, tz: {$timezone}).",
-            $leadPhone !== '' ? "Telefone do lead: {$leadPhone}" : 'Telefone do Lead',
+            $leadPhone !== '' ? "Telefone do lead: {$leadPhone}" : null,
             $leadInfo !== '' ? "Info do lead: {$leadInfo}" : null,
             !empty($leadCustomFields) ? "Campos personalizados do lead:\n" . implode("\n", $leadCustomFields) : null,
         ]);
@@ -648,6 +648,23 @@ class OpenAIOrchestratorService
                 'content' => implode("\n\n", $contextParts),
             ],
         ], $input);
+    }
+
+    private function resolveLeadPhoneForContext(ClienteLead $lead): string
+    {
+        $leadPhone = trim((string) ($lead->phone ?? ''));
+        if ($leadPhone !== '') {
+            return $leadPhone;
+        }
+
+        $leadId = (int) ($lead->id ?? 0);
+        if ($leadId <= 0) {
+            return '';
+        }
+
+        return trim((string) ClienteLead::query()
+            ->whereKey($leadId)
+            ->value('phone'));
     }
 
     private function resolveLeadCustomFieldsForTools(ClienteLead $lead): array

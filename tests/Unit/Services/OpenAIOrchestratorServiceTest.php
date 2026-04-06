@@ -207,7 +207,33 @@ test('prepend system context inclui telefone do lead e preserva blocos existente
     expect($result[1])->toBe($input[0]);
 });
 
-test('prepend system context omite linha de telefone quando phone esta vazio ou null', function (?string $phone) {
+test('prepend system context busca telefone no banco quando o model chega sem a coluna phone carregada', function () {
+    $user = User::create([
+        'name' => 'Owner User',
+        'email' => 'owner-context-missing-phone@example.com',
+        'password' => 'password',
+    ]);
+    $cliente = openAiOrchestratorMakeCliente($user, ['nome' => 'Cliente contexto parcial']);
+    $lead = openAiOrchestratorMakeLead($cliente, [
+        'phone' => '551188887777',
+        'info' => 'Lead carregado sem coluna phone',
+    ]);
+
+    $partialLead = ClienteLead::query()
+        ->select(['id', 'cliente_id', 'name', 'info'])
+        ->findOrFail($lead->id);
+
+    $service = new OpenAIOrchestratorService();
+
+    $result = (fn (array $currentInput, ClienteLead $currentLead) => $this->prependSystemContext($currentInput, $currentLead))
+        ->call($service, [], $partialLead);
+
+    expect($result[0]['content'])
+        ->toContain('Telefone do lead: 551188887777')
+        ->toContain('Info do lead: Lead carregado sem coluna phone');
+});
+
+test('prepend system context omite linha de telefone quando phone no banco esta vazio', function () {
     $user = User::create([
         'name' => 'Owner User',
         'email' => fake()->unique()->safeEmail(),
@@ -217,7 +243,23 @@ test('prepend system context omite linha de telefone quando phone esta vazio ou 
     $lead = openAiOrchestratorMakeLead($cliente, [
         'info' => 'Info sem telefone no contexto',
     ]);
-    $lead->phone = $phone;
+    $lead->forceFill(['phone' => ''])->save();
+
+    $service = new OpenAIOrchestratorService();
+
+    $result = (fn (array $currentInput, ClienteLead $currentLead) => $this->prependSystemContext($currentInput, $currentLead))
+        ->call($service, [], $lead->fresh());
+
+    expect($result[0]['content'])
+        ->toContain('Agora:')
+        ->toContain('Info do lead: Info sem telefone no contexto')
+        ->not->toContain('Telefone do lead:');
+});
+
+test('prepend system context omite linha de telefone quando o lead ainda nao tem id e phone esta null', function () {
+    $lead = new ClienteLead([
+        'info' => 'Info sem telefone no contexto',
+    ]);
 
     $service = new OpenAIOrchestratorService();
 
@@ -228,10 +270,7 @@ test('prepend system context omite linha de telefone quando phone esta vazio ou 
         ->toContain('Agora:')
         ->toContain('Info do lead: Info sem telefone no contexto')
         ->not->toContain('Telefone do lead:');
-})->with([
-    'empty string' => [''],
-    'null' => [null],
-]);
+});
 
 test('resolve resultado do assistant trata ausencia de texto sem function_call pendente como silencio legitimo', function () {
     $service = new OpenAIOrchestratorService();
