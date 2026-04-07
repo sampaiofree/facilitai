@@ -3,21 +3,27 @@
 namespace App\Http\Controllers\Agencia;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cliente;
 use App\Models\Credential;
 use App\Models\Iaplataforma;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AgenciaCredentialController extends Controller
 {
     public function index(Request $request)
     {
         $credentials = Credential::where('user_id', $request->user()->id)
-            ->with('iaplataforma')
+            ->with(['iaplataforma', 'cliente'])
             ->latest()
             ->get();
 
         return view('agencia.credentials.index', [
             'credentials' => $credentials,
+            'clientes' => Cliente::query()
+                ->where('user_id', $request->user()->id)
+                ->orderBy('nome')
+                ->get(),
             'iaplataformas' => Iaplataforma::orderBy('nome')->get(),
         ]);
     }
@@ -28,6 +34,10 @@ class AgenciaCredentialController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'token' => ['required', 'string'],
             'iaplataforma_id' => ['required', 'exists:iaplataformas,id'],
+            'cliente_id' => [
+                'nullable',
+                Rule::exists('clientes', 'id')->where('user_id', $request->user()->id),
+            ],
         ]);
 
         $credential = new Credential();
@@ -35,6 +45,7 @@ class AgenciaCredentialController extends Controller
         $credential->name = $data['name'];
         $credential->label = $data['name'];
         $credential->iaplataforma_id = $data['iaplataforma_id'];
+        $credential->cliente_id = $data['cliente_id'] ?? null;
         $credential->token = $data['token'];
         $credential->save();
 
@@ -51,11 +62,16 @@ class AgenciaCredentialController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'token' => ['nullable', 'string'],
             'iaplataforma_id' => ['required', 'exists:iaplataformas,id'],
+            'cliente_id' => [
+                'nullable',
+                Rule::exists('clientes', 'id')->where('user_id', $request->user()->id),
+            ],
         ]);
 
         $credential->name = $data['name'];
         $credential->label = $data['name'];
         $credential->iaplataforma_id = $data['iaplataforma_id'];
+        $credential->cliente_id = $data['cliente_id'] ?? null;
 
         if (!empty($data['token'])) {
             $credential->token = $data['token'];

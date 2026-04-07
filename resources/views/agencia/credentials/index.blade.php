@@ -17,6 +17,7 @@
                 <tr>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Name</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Label</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Cliente</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Plataforma</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Token</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Criado em</th>
@@ -28,6 +29,7 @@
                     <tr class="hover:bg-slate-50">
                         <td class="px-5 py-4 font-medium text-slate-800">{{ $credential->name }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $credential->label }}</td>
+                        <td class="px-5 py-4 text-slate-600">{{ optional($credential->cliente)->nome ?? 'Global' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ optional($credential->iaplataforma)->nome ?? '-' }}</td>
                         <td class="px-5 py-4 text-slate-600 font-mono">{{ substr($credential->token, 0, 8) }}•••••</td>
                         <td class="px-5 py-4 text-slate-600">{{ $credential->created_at->format('d/m/Y H:i') }}</td>
@@ -41,6 +43,7 @@
                                     data-name="{{ $credential->name }}"
                                     data-name="{{ $credential->name }}"
                                     data-iaplataforma-id="{{ $credential->iaplataforma_id }}"
+                                    data-cliente-id="{{ $credential->cliente_id }}"
                                 >Editar</button>
                                 <form method="POST" action="{{ route('agencia.credentials.destroy', $credential) }}" onsubmit="return confirm('Deseja excluir esta credencial?');">
                                     @csrf
@@ -52,7 +55,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-6 text-center text-slate-500">Nenhuma credencial cadastrada.</td>
+                        <td colspan="7" class="px-5 py-6 text-center text-slate-500">Nenhuma credencial cadastrada.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -95,6 +98,16 @@
                 </div>
 
                 <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="credentialCliente">Cliente</label>
+                    <select id="credentialCliente" name="cliente_id" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="">Sem cliente / Global</option>
+                        @foreach ($clientes as $cliente)
+                            <option value="{{ $cliente->id }}" @selected(old('cliente_id') == $cliente->id)>{{ $cliente->nome }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="credentialToken">Token</label>
                     <textarea id="credentialToken" name="token" rows="3" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Cole o token aqui">{{ old('token') }}</textarea>
                 </div>
@@ -118,6 +131,7 @@
 
             const name = document.getElementById('credentialName');
             const plataforma = document.getElementById('credentialIaplataforma');
+            const cliente = document.getElementById('credentialCliente');
             const token = document.getElementById('credentialToken');
 
             const openModal = () => {
@@ -135,6 +149,7 @@
                 title.textContent = 'Nova credencial';
                 name.value = '';
                 plataforma.value = '';
+                cliente.value = '';
                 token.value = '';
                 token.required = true;
             };
@@ -160,6 +175,7 @@
                     title.textContent = 'Editar credencial';
                     name.value = button.dataset.name || '';
                     plataforma.value = button.dataset.iaplataformaId || '';
+                    cliente.value = button.dataset.clienteId || '';
                     token.value = '';
                     token.required = false;
                     openModal();
@@ -173,5 +189,4 @@
         })();
     </script>
 @endsection
-
 

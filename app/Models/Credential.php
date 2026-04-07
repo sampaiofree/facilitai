@@ -18,6 +18,7 @@ class Credential extends Model
         'label',
         'token',
         'iaplataforma_id',
+        'cliente_id',
     ];
 
     /**
@@ -43,5 +44,10 @@ class Credential extends Model
     public function iaplataforma()
     {
         return $this->belongsTo(Iaplataforma::class);
+    }
+
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class);
     }
 }

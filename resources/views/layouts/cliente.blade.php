@@ -30,9 +30,11 @@
             : null;
         $hasLibraryEntries = false;
         $hasAssistants = false;
+        $hasCredentials = false;
         if (auth('client')->check()) {
             $hasLibraryEntries = \App\Models\LibraryEntry::where('cliente_id', auth('client')->id())->exists();
             $hasAssistants = \App\Models\Assistant::where('cliente_id', auth('client')->id())->exists();
+            $hasCredentials = \App\Models\Credential::where('cliente_id', auth('client')->id())->exists();
         }
     @endphp
     <div class="min-h-screen">
@@ -55,6 +57,11 @@
                         <a href="{{ route('cliente.crm.index') }}" class="{{ request()->routeIs('cliente.crm.*') ? 'text-white' : 'hover:text-white' }}">
                             CRM
                         </a>
+                        @if($hasCredentials)
+                            <a href="{{ route('cliente.credentials.index') }}" class="{{ request()->routeIs('cliente.credentials.*') ? 'text-white' : 'hover:text-white' }}">
+                                Credenciais
+                            </a>
+                        @endif
                         @if($hasAssistants)
                             <a href="{{ route('cliente.sequences.index') }}" class="{{ request()->routeIs('cliente.sequences.*') ? 'text-white' : 'hover:text-white' }}">
                                 Sequencias

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Conexao;
+use App\Models\Credential;
 
 class Cliente extends Authenticatable
 {
@@ -44,6 +45,11 @@ class Cliente extends Authenticatable
     public function conexoes()
     {
         return $this->hasMany(Conexao::class, 'cliente_id');
+    }
+
+    public function credentials()
+    {
+        return $this->hasMany(Credential::class, 'cliente_id');
     }
 
     public function whatsappCloudCampaigns()

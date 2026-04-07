@@ -52,6 +52,7 @@ use App\Http\Controllers\Agencia\LibraryEntryController as AgenciaLibraryEntryCo
 use App\Http\Controllers\Agencia\OpenAIController as AgenciaOpenAIController;
 use App\Http\Controllers\Cliente\ClienteAuthController;
 use App\Http\Controllers\Cliente\ClienteDashboardController;
+use App\Http\Controllers\Cliente\ClienteCredentialController;
 use App\Http\Controllers\Cliente\ClienteCrmController;
 use App\Http\Controllers\Cliente\ClienteLeadController as ClienteClienteLeadController;
 use App\Http\Controllers\Cliente\ConexaoClienteController;
@@ -473,6 +474,8 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::post('logout', [ClienteAuthController::class, 'destroy'])->name('logout');
         Route::get('assistant', [ClienteAssistantController::class, 'index'])->name('assistant.index');
         Route::patch('assistant/{assistant}', [ClienteAssistantController::class, 'update'])->name('assistant.update');
+        Route::get('credenciais', [ClienteCredentialController::class, 'index'])->name('credentials.index');
+        Route::patch('credenciais/{credential}', [ClienteCredentialController::class, 'update'])->name('credentials.update');
         Route::get('conexoes', [ConexaoClienteController::class, 'index'])->name('conexoes.index');
         Route::get('conexoes/{conexao}/status', [ConexaoClienteController::class, 'status'])->name('conexoes.status');
         Route::post('conexoes/{conexao}/connect', [ConexaoClienteController::class, 'connect'])->name('conexoes.connect');
