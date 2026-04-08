@@ -28,6 +28,10 @@
         $logoUrl = $agencySettings?->logo_path
             ? Storage::disk('public')->url($agencySettings->logo_path)
             : null;
+        $clienteAuth = auth('client')->user();
+        $clientName = $clienteAuth?->nome ?: 'Cliente';
+        $clientInitial = trim($clientName) !== '' ? mb_strtoupper(mb_substr(trim($clientName), 0, 1)) : 'C';
+        $accountActive = request()->routeIs('cliente.password.*');
         $hasLibraryEntries = false;
         $hasAssistants = false;
         $hasCredentials = false;
@@ -82,14 +86,48 @@
                             </a>
                         @endif
                     </div>
-                    <div class="flex items-center gap-3 text-sm text-white/80">
-                        <span>{{ auth('client')->user()->nome ?? 'Cliente' }}</span>
-                        <form method="POST" action="{{ route('cliente.logout') }}">
-                            @csrf
-                            <button type="submit" class="rounded-lg border border-white/20 px-3 py-1 font-semibold text-white hover:bg-white/10">
-                                Sair
-                            </button>
-                        </form>
+                    <div class="flex items-center text-sm text-white/80">
+                        <x-dropdown align="right" width="w-64" contentClasses="overflow-hidden rounded-xl bg-white py-2">
+                            <x-slot name="trigger">
+                                <button
+                                    type="button"
+                                    data-client-account-trigger
+                                    class="group inline-flex max-w-[16rem] items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm font-medium transition {{ $accountActive ? 'bg-white/12 text-white' : 'text-white/85 hover:bg-white/8 hover:text-white' }}"
+                                >
+                                    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white/95">
+                                        {{ $clientInitial }}
+                                    </span>
+                                    <span class="min-w-0 truncate">{{ $clientName }}</span>
+                                    <svg class="h-3.5 w-3.5 shrink-0 text-white/55 transition group-hover:text-white/80" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 8l4 4 4-4"/>
+                                    </svg>
+                                </button>
+                            </x-slot>
+
+                            <x-slot name="content">
+                                <div data-client-account-menu>
+                                    <div class="px-4 pb-2 pt-1">
+                                        <p class="truncate text-sm font-semibold text-slate-900">{{ $clientName }}</p>
+                                        <p class="text-xs text-slate-500">Ações da conta</p>
+                                    </div>
+                                    <div class="my-1 border-t border-slate-100"></div>
+
+                                    <x-dropdown-link
+                                        :href="route('cliente.password.edit')"
+                                        class="{{ $accountActive ? 'bg-slate-50 font-semibold text-slate-900' : 'text-slate-700' }}"
+                                    >
+                                        Senha
+                                    </x-dropdown-link>
+
+                                    <form method="POST" action="{{ route('cliente.logout') }}">
+                                        @csrf
+                                        <button type="submit" class="block w-full px-4 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50">
+                                            Sair
+                                        </button>
+                                    </form>
+                                </div>
+                            </x-slot>
+                        </x-dropdown>
                     </div>
                 </div>
             </header>
