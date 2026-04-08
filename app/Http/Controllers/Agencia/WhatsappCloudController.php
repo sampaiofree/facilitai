@@ -85,6 +85,7 @@ class WhatsappCloudController extends Controller
             ->get(['id', 'cliente_id', 'name', 'label', 'sample_value']);
 
         $campaignTags = Tag::query()
+            ->with('cliente:id,nome')
             ->where('user_id', $user->id)
             ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 0 ELSE 1 END')
             ->orderBy('name')

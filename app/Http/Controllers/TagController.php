@@ -8,74 +8,53 @@ use Illuminate\Support\Facades\Auth;
 
 class TagController extends Controller
 {
+    private const LEGACY_READ_ONLY_MESSAGE = 'Tags globais legadas estão em modo somente leitura. Crie e gerencie tags vinculadas a um cliente.';
+
     public function index()
     {
-        $tags = Auth::user()->tags()->latest()->get();
+        $tags = Auth::user()
+            ->tags()
+            ->whereNull('cliente_id')
+            ->latest()
+            ->get();
 
         return view('tags.index', compact('tags'));
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:50'],
-            'color' => ['nullable', 'string', 'max:20'],
-            'description' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $tag = Tag::updateOrCreate(
-            ['user_id' => Auth::id(), 'name' => $validated['name']],
-            [
-                'color' => $validated['color'] ?? null,
-                'description' => $validated['description'] ?? null,
-            ]
-        );
-
-        if ($request->expectsJson()) {
-            return response()->json($tag);
-        }
-
-        return redirect()->route('tags.index')->with('success', 'Tag salva com sucesso.');
+        return $this->rejectLegacyWrite($request);
     }
 
     public function update(Request $request, Tag $tag)
     {
         $this->authorizeTag($tag);
-
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:50'],
-            'color' => ['nullable', 'string', 'max:20'],
-            'description' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        // Garantir unicidade por usuário/nome
-        $exists = Tag::where('user_id', Auth::id())
-            ->where('name', $validated['name'])
-            ->where('id', '!=', $tag->id)
-            ->exists();
-
-        if ($exists) {
-            return redirect()->back()->with('warning', 'Já existe uma tag com esse nome.');
-        }
-
-        $tag->update($validated);
-
-        return redirect()->route('tags.index')->with('success', 'Tag atualizada.');
+        return $this->rejectLegacyWrite($request);
     }
 
-    public function destroy(Tag $tag)
+    public function destroy(Request $request, Tag $tag)
     {
         $this->authorizeTag($tag);
-
-        $tag->delete();
-
-        return redirect()->route('tags.index')->with('success', 'Tag removida.');
+        return $this->rejectLegacyWrite($request);
     }
 
     private function authorizeTag(Tag $tag): void
     {
-        if ($tag->user_id !== Auth::id()) {
+        if ($tag->user_id !== Auth::id() || $tag->cliente_id !== null) {
             abort(403);
         }
+    }
+
+    private function rejectLegacyWrite(Request $request)
+    {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => self::LEGACY_READ_ONLY_MESSAGE,
+            ], 403);
+        }
+
+        return redirect()
+            ->route('tags.index')
+            ->with('warning', self::LEGACY_READ_ONLY_MESSAGE);
     }
 }

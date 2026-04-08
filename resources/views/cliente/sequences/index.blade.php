@@ -320,11 +320,12 @@
                 <input type="hidden" name="sequence_id" id="sequenceId" value="">
 
                 <div>
+                    @php($loggedClient = $clients->first())
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="sequenceClient">Cliente</label>
-                    <select id="sequenceClient" name="cliente_id" required class="mt-1 w-full rounded-lg border border-slate-200 px-4 py-2 text-sm">
-                        <option value="">Selecione um cliente</option>
+                    <input type="hidden" name="cliente_id" id="sequenceClientId" value="{{ $loggedClient?->id }}">
+                    <select id="sequenceClient" disabled class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-2 text-sm text-slate-600">
                         @foreach($clients as $cliente)
-                            <option value="{{ $cliente->id }}">{{ $cliente->nome }}</option>
+                            <option value="{{ $cliente->id }}" @selected($loggedClient && (int) $loggedClient->id === (int) $cliente->id)>{{ $cliente->nome }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -353,19 +354,25 @@
 
                 <div>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tags a incluir</label>
-                    <div id="sequenceTagsIncluirContainer" class="relative mt-2 rounded-lg border border-slate-200 bg-white p-2" data-input-name="tags_incluir[]" data-tags="{{ json_encode($tags->pluck('name')) }}">
-                        <div class="flex flex-wrap gap-2" data-selected></div>
-                        <input type="text" placeholder="Selecione tags..." class="mt-1 w-full border-none bg-transparent px-1 text-sm focus:outline-none" data-search>
-                        <ul class="absolute left-0 right-0 z-10 mt-1 max-h-52 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg hidden" data-list></ul>
+                    <p class="mt-1 text-xs text-slate-500">O lead precisa ter todas essas tags para entrar e continuar na sequência.</p>
+                    <div id="sequenceTagsIncluirContainer" class="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3" data-input-name="tags_incluir[]" data-tags='@json($tags->pluck("name")->values())'>
+                        <div class="max-h-36 overflow-y-auto pr-1">
+                            <div class="flex flex-wrap gap-2" data-chip-group></div>
+                            <p class="hidden text-sm text-slate-400" data-empty-state>Nenhuma tag cadastrada.</p>
+                        </div>
+                        <div class="hidden" data-inputs></div>
                     </div>
                 </div>
 
                 <div>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tags a excluir</label>
-                    <div id="sequenceTagsExcluirContainer" class="relative mt-2 rounded-lg border border-slate-200 bg-white p-2" data-input-name="tags_excluir[]" data-tags="{{ json_encode($tags->pluck('name')) }}">
-                        <div class="flex flex-wrap gap-2" data-selected></div>
-                        <input type="text" placeholder="Selecione tags..." class="mt-1 w-full border-none bg-transparent px-1 text-sm focus:outline-none" data-search>
-                        <ul class="absolute left-0 right-0 z-10 mt-1 max-h-52 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg hidden" data-list></ul>
+                    <p class="mt-1 text-xs text-slate-500">Se o lead tiver qualquer uma dessas tags, a sequência será cancelada para ele.</p>
+                    <div id="sequenceTagsExcluirContainer" class="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3" data-input-name="tags_excluir[]" data-tags='@json($tags->pluck("name")->values())'>
+                        <div class="max-h-36 overflow-y-auto pr-1">
+                            <div class="flex flex-wrap gap-2" data-chip-group></div>
+                            <p class="hidden text-sm text-slate-400" data-empty-state>Nenhuma tag cadastrada.</p>
+                        </div>
+                        <div class="hidden" data-inputs></div>
                     </div>
                 </div>
 
@@ -517,6 +524,7 @@
             const openBtn = document.getElementById('openSequenceModal');
             const closeBtns = modal.querySelectorAll('[data-close-modal]');
             const clientSelect = document.getElementById('sequenceClient');
+            const clientIdInput = document.getElementById('sequenceClientId');
             const connectionSelect = document.getElementById('sequenceConexao');
             const form = document.getElementById('sequenceForm');
             const title = document.getElementById('sequenceModalTitle');
@@ -526,98 +534,140 @@
             const activeInput = document.getElementById('sequenceActive');
             const tagsIncluirContainer = document.getElementById('sequenceTagsIncluirContainer');
             const tagsExcluirContainer = document.getElementById('sequenceTagsExcluirContainer');
+            const defaultClientId = @json($clients->first()?->id);
 
             const connectionsUrlTemplate = "{{ route('cliente.sequences.cliente.conexoes', ['cliente' => '__CLIENT__']) }}";
 
-            class MultiTagSelect {
+            class TagChipSelect {
                 constructor(root) {
                     this.root = root;
                     this.name = root.dataset.inputName;
-                    this.options = JSON.parse(root.dataset.tags || '[]');
+                    this.baseOptions = this.normalizeValues(JSON.parse(root.dataset.tags || '[]'));
+                    this.options = [...this.baseOptions];
                     this.selectedValues = new Set();
-                    this.selectedContainer = root.querySelector('[data-selected]');
-                    this.searchInput = root.querySelector('[data-search]');
-                    this.list = root.querySelector('[data-list]');
+                    this.chipGroup = root.querySelector('[data-chip-group]');
+                    this.emptyState = root.querySelector('[data-empty-state]');
+                    this.inputsWrap = root.querySelector('[data-inputs]');
                     this.bind();
-                    this.renderList();
+                    this.render();
                 }
 
                 bind() {
-                    this.searchInput.addEventListener('input', () => this.renderList(this.searchInput.value));
-                    this.searchInput.addEventListener('focus', () => this.renderList(this.searchInput.value));
-                    this.list.addEventListener('click', (event) => {
-                        const value = event.target.dataset.value;
-                        if (value) {
-                            this.addValue(value);
-                            this.searchInput.value = '';
-                            this.renderList();
+                    this.chipGroup?.addEventListener('click', (event) => {
+                        const button = event.target.closest('[data-tag-value]');
+                        if (!button) {
+                            return;
                         }
-                    });
-                    document.addEventListener('click', (event) => {
-                        if (!this.root.contains(event.target)) {
-                            this.list.classList.add('hidden');
-                        }
+
+                        this.toggleValue(button.dataset.tagValue);
                     });
                 }
 
-                renderList(filter = '') {
-                    const term = filter.toLowerCase();
-                    const matches = this.options.filter(tag => {
-                        const normalized = String(tag).toLowerCase();
-                        return !this.selectedValues.has(tag) && (term === '' || normalized.includes(term));
-                    });
-                    if (matches.length === 0) {
-                        this.list.innerHTML = '';
-                        this.list.classList.add('hidden');
+                normalizeValues(values) {
+                    return [...new Set((values ?? [])
+                        .map(value => String(value).trim())
+                        .filter(value => value !== ''))];
+                }
+
+                toggleValue(value) {
+                    if (!value) {
                         return;
                     }
-                    this.list.innerHTML = matches.map(tag => `<li class="cursor-pointer px-3 py-2 hover:bg-slate-100" data-value="${tag}">${tag}</li>`).join('');
-                    this.list.classList.remove('hidden');
+
+                    if (this.selectedValues.has(value)) {
+                        this.selectedValues.delete(value);
+                    } else {
+                        this.selectedValues.add(value);
+                    }
+
+                    this.syncButtons();
+                    this.renderInputs();
                 }
 
-                addValue(value) {
-                    const normalized = String(value).trim();
-                    if (normalized === '' || this.selectedValues.has(normalized)) {
+                ensureOption(value) {
+                    if (!value || this.options.includes(value)) {
                         return;
                     }
-                    this.selectedValues.add(normalized);
-                    const chip = document.createElement('span');
-                    chip.className = 'flex items-center gap-1 rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-800';
-                    chip.textContent = normalized;
-                    const removeBtn = document.createElement('button');
-                    removeBtn.type = 'button';
-                    removeBtn.className = 'text-slate-500 hover:text-slate-700';
-                    removeBtn.innerHTML = '&times;';
-                    removeBtn.addEventListener('click', () => this.removeValue(normalized, chip));
-                    chip.appendChild(removeBtn);
-                    const hiddenInput = document.createElement('input');
-                    hiddenInput.type = 'hidden';
-                    hiddenInput.name = this.name;
-                    hiddenInput.value = normalized;
-                    chip.dataset.value = normalized;
-                    chip.appendChild(hiddenInput);
-                    this.selectedContainer.appendChild(chip);
+
+                    this.options.push(value);
                 }
 
-                removeValue(value, chipElement) {
-                    this.selectedValues.delete(value);
-                    this.selectedContainer.removeChild(chipElement);
-                    this.renderList(this.searchInput.value);
+                render() {
+                    if (!this.chipGroup) {
+                        return;
+                    }
+
+                    this.chipGroup.innerHTML = '';
+
+                    if (!this.options.length) {
+                        this.emptyState?.classList.remove('hidden');
+                        this.renderInputs();
+                        return;
+                    }
+
+                    this.emptyState?.classList.add('hidden');
+
+                    this.options.forEach(tag => {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.dataset.tagValue = tag;
+                        button.textContent = tag;
+                        button.className = 'inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition focus:outline-none focus:ring-2 focus:ring-blue-200';
+                        this.chipGroup.appendChild(button);
+                    });
+
+                    this.syncButtons();
+                    this.renderInputs();
+                }
+
+                syncButtons() {
+                    this.chipGroup?.querySelectorAll('[data-tag-value]').forEach(button => {
+                        const selected = this.selectedValues.has(button.dataset.tagValue);
+                        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+                        button.classList.toggle('border-blue-600', selected);
+                        button.classList.toggle('bg-blue-600', selected);
+                        button.classList.toggle('text-white', selected);
+                        button.classList.toggle('shadow-sm', selected);
+                        button.classList.toggle('border-slate-200', !selected);
+                        button.classList.toggle('bg-white', !selected);
+                        button.classList.toggle('text-slate-600', !selected);
+                        button.classList.toggle('hover:border-slate-300', !selected);
+                        button.classList.toggle('hover:bg-slate-100', !selected);
+                    });
+                }
+
+                renderInputs() {
+                    if (!this.inputsWrap) {
+                        return;
+                    }
+
+                    this.inputsWrap.innerHTML = '';
+                    this.selectedValues.forEach(value => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = this.name;
+                        input.value = value;
+                        this.inputsWrap.appendChild(input);
+                    });
                 }
 
                 clear() {
                     this.selectedValues.clear();
-                    this.selectedContainer.innerHTML = '';
+                    this.options = [...this.baseOptions];
+                    this.render();
                 }
 
                 setValues(values) {
-                    this.clear();
-                    (values ?? []).forEach(value => this.addValue(value));
+                    const normalized = this.normalizeValues(values);
+                    this.selectedValues = new Set(normalized);
+                    this.options = [...this.baseOptions];
+                    normalized.forEach(value => this.ensureOption(value));
+                    this.render();
                 }
             }
 
-            const incluirSelect = new MultiTagSelect(tagsIncluirContainer);
-            const excluirSelect = new MultiTagSelect(tagsExcluirContainer);
+            const incluirSelect = new TagChipSelect(tagsIncluirContainer);
+            const excluirSelect = new TagChipSelect(tagsExcluirContainer);
 
             const openModal = () => {
                 modal.classList.remove('hidden');
@@ -629,13 +679,22 @@
                 modal.classList.remove('flex');
             };
 
-            const resetForm = () => {
+            const syncClientSelection = async (selectedConnectionId = null) => {
+                const clienteId = defaultClientId ? String(defaultClientId) : '';
+
+                clientSelect.value = clienteId;
+                clientIdInput.value = clienteId;
+
+                await populateConnections(clienteId, selectedConnectionId);
+            };
+
+            const resetForm = async () => {
                 hiddenId.value = '';
                 form.reset();
-                connectionSelect.innerHTML = '<option value="">Escolha o cliente primeiro</option>';
                 title.textContent = 'Nova sequência';
                 incluirSelect.clear();
                 excluirSelect.clear();
+                await syncClientSelection();
             };
 
             const populateConnections = async (clienteId, selected = null) => {
@@ -662,10 +721,8 @@
                 }
             };
 
-            clientSelect.addEventListener('change', () => populateConnections(clientSelect.value));
-
-            openBtn.addEventListener('click', () => {
-                resetForm();
+            openBtn.addEventListener('click', async () => {
+                await resetForm();
                 openModal();
             });
 
@@ -676,13 +733,6 @@
                 }
             });
 
-            const setSelectOptions = (select, values) => {
-                const normalized = values.map(v => String(v).trim()).filter(v => v !== '');
-                [...select.options].forEach(option => {
-                    option.selected = normalized.includes(option.value);
-                });
-            };
-
             document.querySelectorAll('[data-action="edit-sequence"]').forEach(button => {
                 button.addEventListener('click', async () => {
                     const data = JSON.parse(button.dataset.payload);
@@ -690,8 +740,7 @@
                     nameInput.value = data.name ?? '';
                     descriptionInput.value = data.description ?? '';
                     activeInput.checked = data.active ?? true;
-                    clientSelect.value = data.cliente_id ?? '';
-                    await populateConnections(data.cliente_id, data.conexao_id);
+                    await syncClientSelection(data.conexao_id);
                     incluirSelect.setValues(data.tags_incluir ?? []);
                     excluirSelect.setValues(data.tags_excluir ?? []);
                     title.textContent = 'Editar sequência';

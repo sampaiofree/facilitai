@@ -165,10 +165,10 @@
                                         <div
                                             data-tag-option
                                             data-value="{{ $tag->id }}"
-                                            data-label="{{ $tag->name }}"
+                                            data-label="{{ $tag->display_label }}"
                                             class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
                                         >
-                                            <span class="truncate">{{ $tag->name }}</span>
+                                            <span class="truncate">{{ $tag->display_label }}</span>
                                             <div class="flex items-center gap-1">
                                                 <button
                                                     type="button"
@@ -184,7 +184,9 @@
                                                 >
                                                     Remover
                                                 </button>
-                                                <span data-tag-option-status class="text-[10px] text-slate-400">Tag</span>
+                                                <span data-tag-option-status class="text-[10px] text-slate-400">
+                                                    {{ $tag->cliente_id ? 'Cliente: ' . ($tag->cliente?->nome ?? ('#' . $tag->cliente_id)) : 'Global legado' }}
+                                                </span>
                                             </div>
                                         </div>
                                     @empty
@@ -512,11 +514,11 @@
                                             type="button"
                                             data-chip-option
                                             data-value="{{ $tag->id }}"
-                                            data-label="{{ $tag->name }}"
+                                            data-label="{{ $tag->display_label }}"
                                             class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
                                         >
-                                            <span>{{ $tag->name }}</span>
-                                            <span class="text-[10px] text-slate-400">Tag</span>
+                                            <span>{{ $tag->display_label }}</span>
+                                            <span class="text-[10px] text-slate-400">{{ $tag->cliente_id ? 'Cliente' : 'Global legado' }}</span>
                                         </button>
                                     @empty
                                         <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
@@ -609,11 +611,11 @@
                                                 type="button"
                                                 data-chip-option
                                                 data-value="{{ $tag->id }}"
-                                                data-label="{{ $tag->name }}"
+                                                data-label="{{ $tag->display_label }}"
                                                 class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
                                             >
-                                                <span>{{ $tag->name }}</span>
-                                                <span class="text-[10px] text-slate-400">Tag</span>
+                                                <span>{{ $tag->display_label }}</span>
+                                                <span class="text-[10px] text-slate-400">{{ $tag->cliente_id ? 'Cliente' : 'Global legado' }}</span>
                                             </button>
                                         @empty
                                             <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>
@@ -947,11 +949,11 @@
                                 type="button"
                                 data-chip-option
                                 data-value="{{ $tag->id }}"
-                                data-label="{{ $tag->name }}"
+                                data-label="{{ $tag->display_label }}"
                                 class="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
                             >
-                                <span>{{ $tag->name }}</span>
-                                <span class="text-[10px] text-slate-400">Tag</span>
+                                <span>{{ $tag->display_label }}</span>
+                                <span class="text-[10px] text-slate-400">{{ $tag->cliente_id ? 'Cliente' : 'Global legado' }}</span>
                             </button>
                         @empty
                             <div class="px-3 py-2 text-xs text-slate-400">Nenhuma tag cadastrada.</div>

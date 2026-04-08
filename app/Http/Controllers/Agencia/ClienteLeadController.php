@@ -51,7 +51,11 @@ class ClienteLeadController extends Controller
         $user = $request->user();
         $clients = Cliente::where('user_id', $user->id)->orderBy('nome')->get();
         $assistants = Assistant::where('user_id', $user->id)->orderBy('name')->get();
-        $tags = Tag::where('user_id', $user->id)->orderBy('name')->get();
+        $tags = Tag::with('cliente:id,nome')
+            ->where('user_id', $user->id)
+            ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 0 ELSE 1 END')
+            ->orderBy('name')
+            ->get();
         $sequences = Sequence::query()
             ->where('user_id', $user->id)
             ->with(['cliente:id,nome'])

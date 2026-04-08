@@ -1,13 +1,44 @@
 @extends('layouts.agencia')
 
 @section('content')
+    @if(session('success'))
+        <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    @if(session('warning'))
+        <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {{ session('warning') }}
+        </div>
+    @endif
+
+    @if($errors->any())
+        <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            {{ $errors->first() }}
+        </div>
+    @endif
+
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Tags</h2>
-            <p class="text-sm text-slate-500">Gerencie as tags do seu usuário.</p>
+            <p class="text-sm text-slate-500">Gerencie as tags vinculadas aos seus clientes. Tags globais legadas ficam apenas na tela de diagnóstico.</p>
         </div>
-        <button id="openTagModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Nova tag</button>
+        <button
+            id="openTagModal"
+            type="button"
+            @disabled($clientes->isEmpty())
+            class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-blue-600"
+        >
+            Nova tag
+        </button>
     </div>
+
+    @if($clientes->isEmpty())
+        <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Cadastre ao menos um cliente antes de criar tags.
+        </div>
+    @endif
 
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <table class="min-w-full text-sm">
@@ -23,7 +54,7 @@
                 @forelse($tags as $tag)
                     <tr class="hover:bg-slate-50">
                         <td class="px-5 py-4 font-medium text-slate-800">{{ $tag->name }}</td>
-                        <td class="px-5 py-4 text-slate-600">{{ $tag->cliente?->nome ?? '—' }}</td>
+                        <td class="px-5 py-4 text-slate-600">{{ $tag->cliente?->nome ?? ('Cliente #' . $tag->cliente_id) }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $tag->description ?? '—' }}</td>
                         <td class="px-5 py-4">
                             <div class="flex items-center gap-2">
@@ -72,8 +103,8 @@
 
                 <div>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="tagCliente">Cliente</label>
-                    <select id="tagCliente" name="cliente_id" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                        <option value="">Nenhum cliente</option>
+                    <select id="tagCliente" name="cliente_id" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                        <option value="" disabled selected>Selecione um cliente</option>
                         @foreach($clientes as $cliente)
                             <option value="{{ $cliente->id }}">{{ $cliente->nome }}</option>
                         @endforeach

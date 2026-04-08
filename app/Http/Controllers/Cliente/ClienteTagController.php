@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Cliente;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tag;
+use App\Support\TagScope;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class ClienteTagController extends Controller
 {
@@ -33,21 +33,20 @@ class ClienteTagController extends Controller
                 ->findOrFail((int) $request->input('tag_id'));
         }
 
-        $nameRule = Rule::unique('tags', 'name')
-            ->where(fn ($query) => $query->where('user_id', $cliente->user_id));
-
-        if ($existingTag) {
-            $nameRule = $nameRule->ignore($existingTag->id);
-        }
-
         $data = $request->validate([
             'tag_id' => ['nullable', 'integer'],
-            'name' => ['required', 'string', 'max:50', $nameRule],
+            'name' => ['required', 'string', 'max:50'],
             'color' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string', 'max:255'],
-        ], [
-            'name.unique' => 'Já existe uma tag com esse nome na sua conta.',
         ]);
+
+        $duplicateMessage = TagScope::duplicateMessage($cliente->id);
+
+        if (TagScope::hasConflict($cliente->user_id, $data['name'], $cliente->id, $existingTag?->id)) {
+            return back()
+                ->withErrors(['name' => $duplicateMessage])
+                ->withInput();
+        }
 
         $payload = [
             'user_id' => $cliente->user_id,
@@ -67,7 +66,7 @@ class ClienteTagController extends Controller
             }
         } catch (UniqueConstraintViolationException) {
             return back()
-                ->withErrors(['name' => 'Já existe uma tag com esse nome na sua conta.'])
+                ->withErrors(['name' => $duplicateMessage])
                 ->withInput();
         }
 

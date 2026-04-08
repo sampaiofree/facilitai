@@ -16,7 +16,7 @@ function clienteTagMakeCliente(User $user, array $attributes = []): Cliente
     ], $attributes));
 }
 
-test('cliente recebe erro amigavel ao tentar criar tag com nome duplicado na conta', function () {
+test('cliente pode criar tag com mesmo nome usado por outro cliente da mesma conta', function () {
     $user = User::factory()->create();
     $clienteA = clienteTagMakeCliente($user);
     $clienteB = clienteTagMakeCliente($user);
@@ -33,7 +33,39 @@ test('cliente recebe erro amigavel ao tentar criar tag com nome duplicado na con
         ->from(route('cliente.tags.index'))
         ->post(route('cliente.tags.store'), [
             'name' => 'Aguardando',
-            'description' => 'Tag duplicada',
+            'description' => 'Mesmo nome em outro cliente',
+        ]);
+
+    $response
+        ->assertRedirect(route('cliente.tags.index'))
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success', 'Tag criada com sucesso.');
+
+    expect(
+        Tag::query()
+            ->where('user_id', $user->id)
+            ->where('name', 'Aguardando')
+            ->count()
+    )->toBe(2);
+});
+
+test('cliente recebe erro amigavel ao tentar criar tag com nome de tag global da conta', function () {
+    $user = User::factory()->create();
+    $cliente = clienteTagMakeCliente($user);
+
+    Tag::create([
+        'user_id' => $user->id,
+        'cliente_id' => null,
+        'name' => 'Aguardando',
+        'color' => null,
+        'description' => null,
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')
+        ->from(route('cliente.tags.index'))
+        ->post(route('cliente.tags.store'), [
+            'name' => 'Aguardando',
+            'description' => 'Conflito com tag global',
         ]);
 
     $response

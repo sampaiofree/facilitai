@@ -8,6 +8,7 @@
         $tagOptions = $tags->map(fn ($tag) => [
             'id' => $tag->id,
             'name' => $tag->name,
+            'display_label' => $tag->display_label,
             'cliente_id' => $tag->cliente_id,
         ])->values();
         $fieldOptions = $customFields->map(fn ($field) => [
@@ -709,7 +710,7 @@
                             <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tag fixa</label>
                             <select class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" data-tag-id>
                                 <option value="">Selecione uma tag</option>
-                                ${availableTags.map((tag) => `<option value="${tag.id}">${tag.name}${tag.cliente_id ? '' : ' (global)'}</option>`).join('')}
+                                ${availableTags.map((tag) => `<option value="${tag.id}">${tag.display_label ?? tag.name}</option>`).join('')}
                             </select>
                         </div>
                     `;

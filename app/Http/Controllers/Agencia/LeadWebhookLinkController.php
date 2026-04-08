@@ -282,6 +282,7 @@ class LeadWebhookLinkController extends Controller
     private function availableTags(LeadWebhookLink $link)
     {
         return Tag::query()
+            ->with('cliente:id,nome')
             ->where('user_id', $link->user_id)
             ->where(function ($query) use ($link) {
                 $query->whereNull('cliente_id')

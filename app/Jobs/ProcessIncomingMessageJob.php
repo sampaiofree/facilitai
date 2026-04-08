@@ -23,6 +23,7 @@ use App\Services\WhatsappCloudApiService;
 use App\DTOs\IAResult;
 use App\Support\LogContext;
 use App\Support\PhoneNumberNormalizer;
+use App\Support\TagScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
@@ -1174,25 +1175,43 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                         return '⚠️ Nenhuma tag informada.';
                     }
 
-                    $existing = Tag::where('user_id', $userId)
-                        ->whereIn('name', $tags)
-                        ->get();
+                    $resolved = TagScope::resolveForLead((int) $userId, (int) $lead->cliente_id, $tags);
+                    $existing = $resolved['matched'];
+                    $missing = $resolved['missing'];
+                    $conflicts = $resolved['conflicts'];
 
-                    if ($existing->isEmpty()) {
+                    if ($existing->isEmpty() && $conflicts->isEmpty()) {
                         return '⚠️ Nenhuma das tags informadas existe para este usuário.';
                     }
 
-                    $lead->tags()->syncWithoutDetaching($existing->pluck('id')->all());
-
-                    $aplicadas = $existing->pluck('name')->implode(', ');
-                    $faltantes = $tags->diff($existing->pluck('name'))->values();
-
-                    $msg = '✅ Tags aplicadas: ' . $aplicadas;
-                    if ($faltantes->isNotEmpty()) {
-                        $msg .= '. Não encontrei: ' . $faltantes->implode(', ');
+                    if ($conflicts->isNotEmpty()) {
+                        Log::channel('process_job')->warning('Conflito de escopo ao aplicar tags via tool.', [
+                            'lead_id' => $lead->id,
+                            'cliente_id' => $lead->cliente_id,
+                            'tags' => $tags->all(),
+                            'conflicts' => $conflicts->all(),
+                        ]);
                     }
 
-                    return $msg;
+                    if ($existing->isNotEmpty()) {
+                        $lead->tags()->syncWithoutDetaching($existing->pluck('id')->all());
+                    }
+
+                    $messages = [];
+
+                    if ($existing->isNotEmpty()) {
+                        $messages[] = '✅ Tags aplicadas: ' . $existing->pluck('name')->implode(', ');
+                    }
+
+                    if ($conflicts->isNotEmpty()) {
+                        $messages[] = 'Conflito de escopo: ' . $conflicts->implode(', ');
+                    }
+
+                    if ($missing->isNotEmpty()) {
+                        $messages[] = 'Não encontrei: ' . $missing->implode(', ');
+                    }
+
+                    return implode('. ', $messages);
                 } catch (\Throwable $e) {
                     Log::channel('process_job')->error('Erro ao aplicar tags via tool.', [
                         'error' => $e->getMessage(),

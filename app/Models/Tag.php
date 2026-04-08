@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TagScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -16,6 +17,21 @@ class Tag extends Model
         'color',
         'description',
     ];
+
+    protected $hidden = [
+        'scope_key',
+    ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (Tag $tag): void {
+            if (!$tag->user_id) {
+                return;
+            }
+
+            $tag->scope_key = TagScope::scopeKey((int) $tag->user_id, $tag->cliente_id ? (int) $tag->cliente_id : null);
+        });
+    }
 
     public function user()
     {
@@ -41,5 +57,15 @@ class Tag extends Model
     public function crmPipelineColumn()
     {
         return $this->hasOne(ClienteCrmPipelineColumn::class);
+    }
+
+    public function getScopeLabelAttribute(): string
+    {
+        return TagScope::scopeLabel($this->cliente?->nome, $this->cliente_id ? (int) $this->cliente_id : null);
+    }
+
+    public function getDisplayLabelAttribute(): string
+    {
+        return TagScope::displayLabel($this->name, $this->cliente?->nome, $this->cliente_id ? (int) $this->cliente_id : null);
     }
 }

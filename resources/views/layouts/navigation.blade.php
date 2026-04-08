@@ -10,7 +10,6 @@
 
     $ferramentas = [
         ['label' => 'Biblioteca', 'route' => 'library.index'],
-        ['label' => 'Tags', 'route' => 'tags.index'],
     ];
 
     if (Auth::user()->canManageCredentials()) {

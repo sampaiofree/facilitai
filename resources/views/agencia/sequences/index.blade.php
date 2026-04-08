@@ -469,7 +469,7 @@
 
                 <div>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tags a incluir</label>
-                    <div id="sequenceTagsIncluirContainer" class="relative mt-2 rounded-lg border border-slate-200 bg-white p-2" data-input-name="tags_incluir[]" data-tags="{{ json_encode($tags->pluck('name')) }}">
+                    <div id="sequenceTagsIncluirContainer" class="relative mt-2 rounded-lg border border-slate-200 bg-white p-2" data-input-name="tags_incluir[]" data-tags='@json($tags->pluck("name")->unique()->values())'>
                         <div class="flex flex-wrap gap-2" data-selected></div>
                         <input type="text" placeholder="Selecione tags..." class="mt-1 w-full border-none bg-transparent px-1 text-sm focus:outline-none" data-search>
                         <ul class="absolute left-0 right-0 z-10 mt-1 max-h-52 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg hidden" data-list></ul>
@@ -478,7 +478,7 @@
 
                 <div>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tags a excluir</label>
-                    <div id="sequenceTagsExcluirContainer" class="relative mt-2 rounded-lg border border-slate-200 bg-white p-2" data-input-name="tags_excluir[]" data-tags="{{ json_encode($tags->pluck('name')) }}">
+                    <div id="sequenceTagsExcluirContainer" class="relative mt-2 rounded-lg border border-slate-200 bg-white p-2" data-input-name="tags_excluir[]" data-tags='@json($tags->pluck("name")->unique()->values())'>
                         <div class="flex flex-wrap gap-2" data-selected></div>
                         <input type="text" placeholder="Selecione tags..." class="mt-1 w-full border-none bg-transparent px-1 text-sm focus:outline-none" data-search>
                         <ul class="absolute left-0 right-0 z-10 mt-1 max-h-52 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg hidden" data-list></ul>

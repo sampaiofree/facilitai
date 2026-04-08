@@ -797,11 +797,11 @@
                                                 <div
                                                     data-campaign-option
                                                     data-value="{{ $tag->id }}"
-                                                    data-label="{{ $tag->name }}"
+                                                    data-label="{{ $tag->display_label }}"
                                                     data-cliente-id="{{ $tag->cliente_id ?? '' }}"
                                                     class="flex items-center justify-between gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
                                                 >
-                                                    <span class="truncate">{{ $tag->name }}{{ $tag->cliente_id ? '' : ' (global)' }}</span>
+                                                    <span class="truncate">{{ $tag->display_label }}</span>
                                                     <div class="flex items-center gap-1">
                                                         <button
                                                             type="button"
@@ -817,7 +817,7 @@
                                                         >
                                                             Remover
                                                         </button>
-                                                        <span data-campaign-option-status class="text-[10px] text-slate-400">{{ $tag->cliente_id ? 'Tag do cliente' : 'Tag global' }}</span>
+                                                        <span data-campaign-option-status class="text-[10px] text-slate-400">{{ $tag->cliente_id ? 'Cliente: ' . ($tag->cliente?->nome ?? ('#' . $tag->cliente_id)) : 'Global legado' }}</span>
                                                     </div>
                                                 </div>
                                             @empty
