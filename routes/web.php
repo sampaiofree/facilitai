@@ -54,6 +54,7 @@ use App\Http\Controllers\Cliente\ClienteAuthController;
 use App\Http\Controllers\Cliente\ClienteDashboardController;
 use App\Http\Controllers\Cliente\ClienteCredentialController;
 use App\Http\Controllers\Cliente\ClienteCrmController;
+use App\Http\Controllers\Cliente\ClienteScheduledMessageController;
 use App\Http\Controllers\Cliente\ClienteLeadController as ClienteClienteLeadController;
 use App\Http\Controllers\Cliente\ClientePasswordController;
 use App\Http\Controllers\Cliente\ConexaoClienteController;
@@ -504,6 +505,10 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::get('conversas/export', [ClienteClienteLeadController::class, 'export'])->name('conversas.export');
         Route::put('conversas/{clienteLead}', [ClienteClienteLeadController::class, 'update'])->name('conversas.update');
         Route::delete('conversas/{clienteLead}', [ClienteClienteLeadController::class, 'destroy'])->name('conversas.destroy');
+        Route::get('mensagens-agendadas', [ClienteScheduledMessageController::class, 'index'])->name('mensagens-agendadas.index');
+        Route::get('mensagens-agendadas/{scheduledMessage}', [ClienteScheduledMessageController::class, 'show'])->name('mensagens-agendadas.show');
+        Route::patch('mensagens-agendadas/{scheduledMessage}', [ClienteScheduledMessageController::class, 'update'])->name('mensagens-agendadas.update');
+        Route::patch('mensagens-agendadas/{scheduledMessage}/cancel', [ClienteScheduledMessageController::class, 'cancel'])->name('mensagens-agendadas.cancel');
         Route::get('sequence', [ClienteSequenceController::class, 'index'])->name('sequences.index');
         Route::post('sequences', [ClienteSequenceController::class, 'store'])->name('sequences.store');
         Route::delete('sequences/{sequence}', [ClienteSequenceController::class, 'destroy'])->name('sequences.destroy');

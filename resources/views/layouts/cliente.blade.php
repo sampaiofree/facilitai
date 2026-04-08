@@ -58,6 +58,9 @@
                         <a href="{{ route('cliente.conversas.index') }}" class="{{ request()->routeIs('cliente.conversas.*') ? 'text-white' : 'hover:text-white' }}">
                             Conversas
                         </a>
+                        <a href="{{ route('cliente.mensagens-agendadas.index') }}" class="{{ request()->routeIs('cliente.mensagens-agendadas.*') ? 'text-white' : 'hover:text-white' }}">
+                            Mensagens agendadas
+                        </a>
                         <a href="{{ route('cliente.crm.index') }}" class="{{ request()->routeIs('cliente.crm.*') ? 'text-white' : 'hover:text-white' }}">
                             CRM
                         </a>
