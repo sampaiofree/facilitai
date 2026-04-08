@@ -2,27 +2,57 @@
     class="flex w-[320px] shrink-0 flex-col rounded-3xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm"
     data-column-id="{{ $column['id'] }}"
 >
-    <div class="flex items-start justify-between gap-3">
+    <div class="flex flex-col gap-3">
         <div class="min-w-0">
             <div class="flex items-center gap-2">
                 <span
                     class="h-3 w-3 shrink-0 rounded-full border border-white/60 shadow-sm"
                     style="background-color: {{ $column['tag_color'] !== '' ? $column['tag_color'] : '#0f172a' }};"
                 ></span>
-                <h3 class="truncate text-sm font-semibold text-slate-900">{{ $column['tag_name'] }}</h3>
+                <h3 class="text-sm font-semibold leading-snug whitespace-normal break-words text-slate-900">{{ $column['tag_name'] }}</h3>
             </div>
             <p class="mt-1 text-xs text-slate-500">
                 <span data-column-count>{{ $column['count'] }}</span> lead(s)
             </p>
         </div>
 
-        <div class="flex items-center gap-2">
-            <span
-                class="cursor-move rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400"
-                data-column-handle
-            >
-                mover
-            </span>
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+                <form method="POST" action="{{ route('cliente.crm.columns.move', [$crmPipeline, $column['id']]) }}">
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="direction" value="left">
+                    @if($searchValue !== '')
+                        <input type="hidden" name="q" value="{{ $searchValue }}">
+                    @endif
+                    <button
+                        type="submit"
+                        class="rounded-full px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Mover coluna para a esquerda"
+                        title="Mover para a esquerda"
+                        @disabled(!($column['can_move_left'] ?? false))
+                    >
+                        ←
+                    </button>
+                </form>
+                <form method="POST" action="{{ route('cliente.crm.columns.move', [$crmPipeline, $column['id']]) }}">
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="direction" value="right">
+                    @if($searchValue !== '')
+                        <input type="hidden" name="q" value="{{ $searchValue }}">
+                    @endif
+                    <button
+                        type="submit"
+                        class="rounded-full px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Mover coluna para a direita"
+                        title="Mover para a direita"
+                        @disabled(!($column['can_move_right'] ?? false))
+                    >
+                        →
+                    </button>
+                </form>
+            </div>
             <button
                 type="button"
                 class="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 hover:bg-sky-100"

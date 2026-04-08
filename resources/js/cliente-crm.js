@@ -198,8 +198,6 @@ document.addEventListener('DOMContentLoaded', () => {
         tags: document.getElementById('crmLeadModalTags'),
     };
 
-    const columnsTrack = board.querySelector('[data-columns-track]');
-    const reorderUrl = board.dataset.reorderUrl || '';
     const moveUrlTemplate = board.dataset.moveUrlTemplate || '';
 
     const getColumnElementById = (columnId) => board.querySelector(`[data-column-id="${String(columnId)}"]`);
@@ -380,6 +378,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         showModal(leadModal);
+    };
+
+    const readJsonErrorMessage = async (response, fallbackMessage) => {
+        try {
+            const payload = await response.json();
+
+            if (typeof payload?.message === 'string' && payload.message.trim() !== '') {
+                return payload.message;
+            }
+
+            const columnErrors = payload?.errors?.column_ids;
+            if (Array.isArray(columnErrors) && columnErrors.length > 0) {
+                return String(columnErrors[0]);
+            }
+        } catch (error) {
+            // Ignora falha ao ler o corpo; usa a mensagem padrão.
+        }
+
+        return fallbackMessage;
     };
 
     const bindCardInteractions = (scope = document) => {
@@ -731,39 +748,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     bindCardInteractions();
     bindLoadMoreButtons();
-
-    if (columnsTrack && reorderUrl) {
-        Sortable.create(columnsTrack, {
-            animation: 180,
-            handle: '[data-column-handle]',
-            draggable: '[data-column-id]',
-            forceFallback: true,
-            fallbackOnBody: true,
-            fallbackTolerance: 4,
-            async onEnd() {
-                const columnIds = Array.from(columnsTrack.querySelectorAll('[data-column-id]'))
-                    .map((column) => Number(column.dataset.columnId))
-                    .filter((value) => Number.isInteger(value) && value > 0);
-
-                try {
-                    const response = await fetch(reorderUrl, {
-                        method: 'PATCH',
-                        headers: jsonHeaders(csrfToken),
-                        body: JSON.stringify({ column_ids: columnIds }),
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('column-reorder-failed');
-                    }
-
-                    window.location.reload();
-                } catch (error) {
-                    window.location.reload();
-                }
-            },
-        });
-    }
-
     board.querySelectorAll('[data-column-cards]').forEach((cardsContainer) => {
         Sortable.create(cardsContainer, {
             group: {

@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Cliente;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tag;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ClienteTagController extends Controller
 {
@@ -23,12 +25,28 @@ class ClienteTagController extends Controller
     public function store(Request $request)
     {
         $cliente = auth('client')->user();
+        $existingTag = null;
+
+        if ($request->filled('tag_id')) {
+            $existingTag = Tag::where('cliente_id', $cliente->id)
+                ->where('user_id', $cliente->user_id)
+                ->findOrFail((int) $request->input('tag_id'));
+        }
+
+        $nameRule = Rule::unique('tags', 'name')
+            ->where(fn ($query) => $query->where('user_id', $cliente->user_id));
+
+        if ($existingTag) {
+            $nameRule = $nameRule->ignore($existingTag->id);
+        }
 
         $data = $request->validate([
             'tag_id' => ['nullable', 'integer'],
-            'name' => ['required', 'string', 'max:50'],
+            'name' => ['required', 'string', 'max:50', $nameRule],
             'color' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string', 'max:255'],
+        ], [
+            'name.unique' => 'Já existe uma tag com esse nome na sua conta.',
         ]);
 
         $payload = [
@@ -39,15 +57,18 @@ class ClienteTagController extends Controller
             'description' => $data['description'] ?? null,
         ];
 
-        if (!empty($data['tag_id'])) {
-            $tag = Tag::where('cliente_id', $cliente->id)
-                ->where('user_id', $cliente->user_id)
-                ->findOrFail($data['tag_id']);
-            $tag->update($payload);
-            $message = 'Tag atualizada com sucesso.';
-        } else {
-            Tag::create($payload);
-            $message = 'Tag criada com sucesso.';
+        try {
+            if ($existingTag) {
+                $existingTag->update($payload);
+                $message = 'Tag atualizada com sucesso.';
+            } else {
+                Tag::create($payload);
+                $message = 'Tag criada com sucesso.';
+            }
+        } catch (UniqueConstraintViolationException) {
+            return back()
+                ->withErrors(['name' => 'Já existe uma tag com esse nome na sua conta.'])
+                ->withInput();
         }
 
         return redirect()->route('cliente.tags.index')->with('success', $message);

@@ -489,6 +489,7 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::patch('crm/pipelines/reorder', [ClienteCrmController::class, 'reorderPipelines'])->name('crm.pipelines.reorder');
         Route::post('crm/{crmPipeline}/columns', [ClienteCrmController::class, 'storeColumn'])->whereNumber('crmPipeline')->name('crm.columns.store');
         Route::delete('crm/{crmPipeline}/columns/{crmColumn}', [ClienteCrmController::class, 'destroyColumn'])->whereNumber('crmPipeline')->whereNumber('crmColumn')->name('crm.columns.destroy');
+        Route::patch('crm/{crmPipeline}/columns/{crmColumn}/move', [ClienteCrmController::class, 'moveColumn'])->whereNumber('crmPipeline')->whereNumber('crmColumn')->name('crm.columns.move');
         Route::patch('crm/{crmPipeline}/columns/reorder', [ClienteCrmController::class, 'reorderColumns'])->whereNumber('crmPipeline')->name('crm.columns.reorder');
         Route::get('crm/{crmPipeline}/columns/{crmColumn}/leads', [ClienteCrmController::class, 'columnLeads'])->whereNumber('crmPipeline')->whereNumber('crmColumn')->name('crm.columns.leads');
         Route::get('crm/{crmPipeline}/columns/{crmColumn}/search-leads', [ClienteCrmController::class, 'searchLeads'])->whereNumber('crmPipeline')->whereNumber('crmColumn')->name('crm.columns.search-leads');

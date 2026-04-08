@@ -145,6 +145,26 @@ test('crm renderiza o container do board mesmo quando a pipeline esta vazia', fu
     $response->assertSee('Criar primeira coluna');
 });
 
+test('crm mostra o nome completo da coluna no board do cliente', function () {
+    $user = User::factory()->create();
+    $cliente = clienteCrmMakeCliente($user);
+    $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
+    $tag = clienteCrmMakeTag($user, $cliente, [
+        'name' => 'Coluna com nome muito grande para aparecer inteiro no cabeçalho do board',
+    ]);
+
+    $column = clienteCrmMakeColumn($pipeline, $tag, 1);
+
+    $response = $this->actingAs($cliente, 'client')
+        ->get(route('cliente.crm.show', $pipeline));
+
+    $response->assertOk();
+    $response->assertSee('Coluna com nome muito grande para aparecer inteiro no cabeçalho do board');
+    $response->assertSee('leading-snug whitespace-normal break-words', false);
+    $response->assertSee('Use as setas de cada coluna para reordenar prioridade', false);
+    $response->assertSee(route('cliente.crm.columns.move', [$pipeline, $column]), false);
+});
+
 test('crm cria coluna com tag valida e impede reuso da mesma tag em outra pipeline', function () {
     $user = User::factory()->create();
     $cliente = clienteCrmMakeCliente($user);
@@ -240,6 +260,39 @@ test('reordenar colunas altera a prioridade apenas da pipeline atual', function 
             'column_ids' => [$colunaB->id, $colunaA->id],
         ])
         ->assertOk();
+
+    $responseA = $this->actingAs($cliente, 'client')
+        ->getJson(route('cliente.crm.columns.leads', [$pipeline, $colunaA]));
+
+    $responseB = $this->actingAs($cliente, 'client')
+        ->getJson(route('cliente.crm.columns.leads', [$pipeline, $colunaB]));
+
+    expect($responseA->json('lead_ids'))->toBe([$lead->id]);
+    expect($responseB->json('lead_ids'))->toBe([]);
+});
+
+test('cliente move coluna para a esquerda por acao explicita sem depender de arraste', function () {
+    $user = User::factory()->create();
+    $cliente = clienteCrmMakeCliente($user);
+
+    $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
+    $tagA = clienteCrmMakeTag($user, $cliente, ['name' => 'A']);
+    $tagB = clienteCrmMakeTag($user, $cliente, ['name' => 'B']);
+    $colunaA = clienteCrmMakeColumn($pipeline, $tagA, 1);
+    $colunaB = clienteCrmMakeColumn($pipeline, $tagB, 2);
+
+    $lead = clienteCrmMakeLead($cliente, ['name' => 'Lead Multi']);
+    $lead->tags()->sync([$tagA->id, $tagB->id]);
+
+    $this->actingAs($cliente, 'client')
+        ->from(route('cliente.crm.show', $pipeline))
+        ->patch(route('cliente.crm.columns.move', [$pipeline, $colunaB]), [
+            'direction' => 'left',
+        ])
+        ->assertRedirect(route('cliente.crm.show', $pipeline));
+
+    expect((int) $colunaB->fresh()->position)->toBe(1);
+    expect((int) $colunaA->fresh()->position)->toBe(2);
 
     $responseA = $this->actingAs($cliente, 'client')
         ->getJson(route('cliente.crm.columns.leads', [$pipeline, $colunaA]));

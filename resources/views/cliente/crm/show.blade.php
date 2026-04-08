@@ -61,7 +61,6 @@
     <div
         class="mt-8"
         data-crm-board
-        data-reorder-url="{{ route('cliente.crm.columns.reorder', $crmPipeline) }}"
         data-move-url-template="{{ route('cliente.crm.leads.column', ['crmPipeline' => $crmPipeline, 'clienteLead' => '__LEAD_ID__']) }}"
     >
         @if($columns->isEmpty() && $availableTags->isEmpty())
@@ -86,12 +85,12 @@
             </div>
         @else
             <div class="mb-4 flex items-center justify-between gap-3">
-                <p class="text-sm text-slate-500">Arraste colunas para reordenar prioridade e arraste os cards entre etapas.</p>
+                <p class="text-sm text-slate-500">Use as setas de cada coluna para reordenar prioridade e arraste os cards entre etapas.</p>
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Direita = maior prioridade</p>
             </div>
 
             <div class="overflow-x-auto pb-4">
-                <div class="flex min-w-max items-start gap-4" data-columns-track>
+                <div class="flex min-w-max items-start gap-4">
                     @foreach($board as $column)
                         @include('cliente.crm._column', [
                             'crmPipeline' => $crmPipeline,

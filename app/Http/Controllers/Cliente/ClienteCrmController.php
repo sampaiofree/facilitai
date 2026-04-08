@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ClienteCrmController extends Controller
@@ -43,7 +44,14 @@ class ClienteCrmController extends Controller
         $columns = $this->pipelineColumns($crmPipeline);
         $availableTags = $this->availableTags($cliente);
         $board = $columns
-            ->map(fn (ClienteCrmPipelineColumn $column) => $this->buildColumnViewData($cliente, $columns, $column, $searchTerm))
+            ->values()
+            ->map(function (ClienteCrmPipelineColumn $column, int $index) use ($cliente, $columns, $searchTerm): array {
+                $viewData = $this->buildColumnViewData($cliente, $columns, $column, $searchTerm);
+                $viewData['can_move_left'] = $index > 0;
+                $viewData['can_move_right'] = $index < ($columns->count() - 1);
+
+                return $viewData;
+            })
             ->all();
 
         return view('cliente.crm.show', [
@@ -269,31 +277,66 @@ class ClienteCrmController extends Controller
 
         $orderedIds = array_values(array_map('intval', (array) $data['column_ids']));
 
-        DB::transaction(function () use ($orderedIds, $crmPipeline, $columnIds): void {
-            $temporaryOffset = count($columnIds) + 1000;
-
-            foreach ($columnIds as $index => $columnId) {
-                ClienteCrmPipelineColumn::query()
-                    ->where('pipeline_id', $crmPipeline->id)
-                    ->whereKey($columnId)
-                    ->update([
-                        'position' => $temporaryOffset + $index,
-                    ]);
-            }
-
-            foreach ($orderedIds as $index => $columnId) {
-                ClienteCrmPipelineColumn::query()
-                    ->where('pipeline_id', $crmPipeline->id)
-                    ->whereKey($columnId)
-                    ->update([
-                        'position' => $index + 1,
-                    ]);
-            }
-        });
+        $this->persistColumnOrder($crmPipeline, $columnIds, $orderedIds);
 
         return response()->json([
             'message' => 'Ordem atualizada com sucesso.',
         ]);
+    }
+
+    public function moveColumn(Request $request, ClienteCrmPipeline $crmPipeline, ClienteCrmPipelineColumn $crmColumn): RedirectResponse|JsonResponse
+    {
+        $cliente = $this->currentCliente();
+        $this->ensurePipelineBelongsToCliente($crmPipeline, $cliente);
+        $this->ensureColumnBelongsToPipeline($crmColumn, $crmPipeline);
+
+        $data = $request->validate([
+            'direction' => ['required', 'string', Rule::in(['left', 'right'])],
+            'q' => ['nullable', 'string', 'max:191'],
+        ]);
+
+        $columns = $this->pipelineColumns($crmPipeline)->values();
+        $orderedIds = $columns->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $currentIndex = $columns->search(fn (ClienteCrmPipelineColumn $column) => (int) $column->id === (int) $crmColumn->id);
+
+        abort_if($currentIndex === false, 404);
+
+        $targetIndex = $data['direction'] === 'left'
+            ? max(0, $currentIndex - 1)
+            : min($columns->count() - 1, $currentIndex + 1);
+
+        if ($targetIndex === $currentIndex) {
+            $message = 'A coluna já está nessa extremidade.';
+
+            if ($this->expectsJson($request)) {
+                return response()->json([
+                    'message' => $message,
+                    'column_id' => (int) $crmColumn->id,
+                    'position' => $currentIndex + 1,
+                ]);
+            }
+
+            return $this->redirectToPipelineBoard($crmPipeline, $request, $message);
+        }
+
+        [$orderedIds[$currentIndex], $orderedIds[$targetIndex]] = [$orderedIds[$targetIndex], $orderedIds[$currentIndex]];
+
+        $this->persistColumnOrder($crmPipeline, $columns->pluck('id')->map(fn ($id) => (int) $id)->all(), $orderedIds);
+
+        $message = $data['direction'] === 'left'
+            ? 'Coluna movida para a esquerda.'
+            : 'Coluna movida para a direita.';
+
+        if ($this->expectsJson($request)) {
+            return response()->json([
+                'message' => $message,
+                'column_id' => (int) $crmColumn->id,
+                'position' => $targetIndex + 1,
+                'column_ids' => $orderedIds,
+            ]);
+        }
+
+        return $this->redirectToPipelineBoard($crmPipeline, $request, $message);
     }
 
     public function columnLeads(Request $request, ClienteCrmPipeline $crmPipeline, ClienteCrmPipelineColumn $crmColumn): JsonResponse
@@ -799,6 +842,45 @@ class ClienteCrmController extends Controller
     private function ensureLeadBelongsToCliente(ClienteLead $clienteLead, Cliente $cliente): void
     {
         abort_unless((int) $clienteLead->cliente_id === (int) $cliente->id, 403);
+    }
+
+    private function persistColumnOrder(ClienteCrmPipeline $crmPipeline, array $currentIds, array $orderedIds): void
+    {
+        DB::transaction(function () use ($crmPipeline, $currentIds, $orderedIds): void {
+            $temporaryOffset = count($currentIds) + 1000;
+
+            foreach ($currentIds as $index => $columnId) {
+                ClienteCrmPipelineColumn::query()
+                    ->where('pipeline_id', $crmPipeline->id)
+                    ->whereKey($columnId)
+                    ->update([
+                        'position' => $temporaryOffset + $index,
+                    ]);
+            }
+
+            foreach ($orderedIds as $index => $columnId) {
+                ClienteCrmPipelineColumn::query()
+                    ->where('pipeline_id', $crmPipeline->id)
+                    ->whereKey($columnId)
+                    ->update([
+                        'position' => $index + 1,
+                    ]);
+            }
+        });
+    }
+
+    private function redirectToPipelineBoard(ClienteCrmPipeline $crmPipeline, Request $request, string $message): RedirectResponse
+    {
+        $params = ['crmPipeline' => $crmPipeline];
+        $search = trim((string) $request->input('q', ''));
+
+        if ($search !== '') {
+            $params['q'] = $search;
+        }
+
+        return redirect()
+            ->route('cliente.crm.show', $params)
+            ->with('success', $message);
     }
 
     private function expectsJson(Request $request): bool
