@@ -32,6 +32,10 @@
         $clientName = $clienteAuth?->nome ?: 'Cliente';
         $clientInitial = trim($clientName) !== '' ? mb_strtoupper(mb_substr(trim($clientName), 0, 1)) : 'C';
         $accountActive = request()->routeIs('cliente.password.*');
+        $toolsActive = request()->routeIs('cliente.mensagens-agendadas.*')
+            || request()->routeIs('cliente.sequences.*')
+            || request()->routeIs('cliente.images.*')
+            || request()->routeIs('cliente.tags.*');
         $hasLibraryEntries = false;
         $hasAssistants = false;
         $hasCredentials = false;
@@ -58,9 +62,6 @@
                         <a href="{{ route('cliente.conversas.index') }}" class="{{ request()->routeIs('cliente.conversas.*') ? 'text-white' : 'hover:text-white' }}">
                             Conversas
                         </a>
-                        <a href="{{ route('cliente.mensagens-agendadas.index') }}" class="{{ request()->routeIs('cliente.mensagens-agendadas.*') ? 'text-white' : 'hover:text-white' }}">
-                            Mensagens agendadas
-                        </a>
                         <a href="{{ route('cliente.crm.index') }}" class="{{ request()->routeIs('cliente.crm.*') ? 'text-white' : 'hover:text-white' }}">
                             CRM
                         </a>
@@ -70,19 +71,55 @@
                             </a>
                         @endif
                         @if($hasAssistants)
-                            <a href="{{ route('cliente.sequences.index') }}" class="{{ request()->routeIs('cliente.sequences.*') ? 'text-white' : 'hover:text-white' }}">
-                                Sequencias
-                            </a>
                             <a href="{{ route('cliente.assistant.index') }}" class="{{ request()->routeIs('cliente.assistant.*') ? 'text-white' : 'hover:text-white' }}">
                                 Assistentes
                             </a>
-                            <a href="{{ route('cliente.images.index') }}" class="{{ request()->routeIs('cliente.images.*') ? 'text-white' : 'hover:text-white' }}">
-                                Imagens
-                            </a>
-                            <a href="{{ route('cliente.tags.index') }}" class="{{ request()->routeIs('cliente.tags.*') ? 'text-white' : 'hover:text-white' }}">
-                                Tags
-                            </a>
                         @endif
+                        <x-dropdown align="left" width="w-60" contentClasses="overflow-hidden rounded-xl bg-white py-2">
+                            <x-slot name="trigger">
+                                <button
+                                    type="button"
+                                    class="group inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition {{ $toolsActive ? 'bg-white/12 text-white' : 'text-white/80 hover:bg-white/8 hover:text-white' }}"
+                                >
+                                    <span>Ferramentas</span>
+                                    <svg class="h-3.5 w-3.5 shrink-0 transition {{ $toolsActive ? 'text-white/85' : 'text-white/55 group-hover:text-white/80' }}" viewBox="0 0 20 20" fill="none" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 8l4 4 4-4"/>
+                                    </svg>
+                                </button>
+                            </x-slot>
+
+                            <x-slot name="content">
+                                <div>
+                                    <x-dropdown-link
+                                        :href="route('cliente.mensagens-agendadas.index')"
+                                        class="{{ request()->routeIs('cliente.mensagens-agendadas.*') ? 'bg-slate-50 font-semibold text-slate-900' : 'text-slate-700' }}"
+                                    >
+                                        Mensagens agendadas
+                                    </x-dropdown-link>
+
+                                    @if($hasAssistants)
+                                        <x-dropdown-link
+                                            :href="route('cliente.sequences.index')"
+                                            class="{{ request()->routeIs('cliente.sequences.*') ? 'bg-slate-50 font-semibold text-slate-900' : 'text-slate-700' }}"
+                                        >
+                                            Sequencias
+                                        </x-dropdown-link>
+                                        <x-dropdown-link
+                                            :href="route('cliente.images.index')"
+                                            class="{{ request()->routeIs('cliente.images.*') ? 'bg-slate-50 font-semibold text-slate-900' : 'text-slate-700' }}"
+                                        >
+                                            Imagens
+                                        </x-dropdown-link>
+                                        <x-dropdown-link
+                                            :href="route('cliente.tags.index')"
+                                            class="{{ request()->routeIs('cliente.tags.*') ? 'bg-slate-50 font-semibold text-slate-900' : 'text-slate-700' }}"
+                                        >
+                                            Tags
+                                        </x-dropdown-link>
+                                    @endif
+                                </div>
+                            </x-slot>
+                        </x-dropdown>
                         @if($hasLibraryEntries)
                             <a href="{{ route('cliente.library.index') }}" class="{{ request()->routeIs('cliente.library.*') ? 'text-white' : 'hover:text-white' }}">
                                 Library
