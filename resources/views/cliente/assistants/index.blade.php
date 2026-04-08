@@ -3,6 +3,18 @@
 @section('title', 'Assistentes')
 
 @section('content')
+    @if(session('success'))
+        <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    @if($errors->any())
+        <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            {{ $errors->first() }}
+        </div>
+    @endif
+
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Assistentes</h2>
@@ -39,6 +51,7 @@
                                     data-id="{{ $assistant->id }}"
                                     data-name='@json($assistant->name)'
                                     data-instructions='@json($assistant->instructions)'
+                                    data-delay="{{ $assistant->delay ?? 0 }}"
                                 >Editar</button>
                             </div>
                         </td>
@@ -76,6 +89,20 @@
                             value="{{ old('name') }}"
                             class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                         >
+                    </div>
+
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="assistantDelay">Tempo de resposta (segundos)</label>
+                        <input
+                            id="assistantDelay"
+                            name="delay"
+                            type="number"
+                            min="0"
+                            step="1"
+                            value="{{ old('delay') }}"
+                            class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                        <p class="mt-1 text-xs text-slate-500">0 usa o padrão atual de 25 segundos.</p>
                     </div>
 
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -181,11 +208,13 @@
             const editingInput = document.getElementById('assistantEditingId');
             const title = document.getElementById('assistantModalTitle');
             const nameInput = document.getElementById('assistantName');
+            const delayInput = document.getElementById('assistantDelay');
             const instructionsInput = document.getElementById('assistantInstructions');
             const baseUrl = "{{ url('/cliente/assistant') }}";
             const hasErrors = @json($errors->any());
             const sessionEditingId = @json(old('editing_id'));
             const oldName = @json(old('name'));
+            const oldDelay = @json(old('delay'));
             const oldInstructions = @json(old('instructions'));
             const dropdown = document.getElementById('promptHelpDropdown');
             const dropdownMenu = document.getElementById('promptHelpDropdownMenu');
@@ -224,6 +253,9 @@
                 title.textContent = 'Editar assistente';
                 editingInput.value = '';
                 nameInput.value = '';
+                if (delayInput) {
+                    delayInput.value = '';
+                }
                 instructionsInput.value = '';
             };
 
@@ -287,6 +319,9 @@
                     form.action = `${baseUrl}/${id}`;
                     editingInput.value = id;
                     nameInput.value = parseDataValue(button.dataset.name);
+                    if (delayInput) {
+                        delayInput.value = button.dataset.delay ?? '';
+                    }
                     instructionsInput.value = parseDataValue(button.dataset.instructions);
                     openModal();
                 });
@@ -297,11 +332,17 @@
                 form.action = `${baseUrl}/${sessionEditingId}`;
                 editingInput.value = sessionEditingId;
                 nameInput.value = oldName ?? '';
+                if (delayInput) {
+                    delayInput.value = oldDelay ?? '';
+                }
                 instructionsInput.value = oldInstructions ?? '';
                 openModal();
             } else if (hasErrors) {
                 resetForm();
                 nameInput.value = oldName ?? '';
+                if (delayInput) {
+                    delayInput.value = oldDelay ?? '';
+                }
                 instructionsInput.value = oldInstructions ?? '';
                 openModal();
             }

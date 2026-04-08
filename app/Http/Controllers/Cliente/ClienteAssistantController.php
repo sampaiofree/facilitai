@@ -43,10 +43,12 @@ class ClienteAssistantController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string'],
+            'delay' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $assistant->name = $data['name'];
         $assistant->instructions = $data['instructions'];
+        $assistant->delay = $data['delay'] ?? 0;
         $assistant->version = ($assistant->version ?? 0) + 1;
         $assistant->save();
 
