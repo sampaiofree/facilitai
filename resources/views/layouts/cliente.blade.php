@@ -33,6 +33,8 @@
         $clientInitial = trim($clientName) !== '' ? mb_strtoupper(mb_substr(trim($clientName), 0, 1)) : 'C';
         $accountActive = request()->routeIs('cliente.password.*');
         $toolsActive = request()->routeIs('cliente.mensagens-agendadas.*')
+            || request()->routeIs('cliente.campos-personalizados.*')
+            || request()->routeIs('cliente.webhook-links.*')
             || request()->routeIs('cliente.sequences.*')
             || request()->routeIs('cliente.images.*')
             || request()->routeIs('cliente.tags.*');
@@ -95,6 +97,18 @@
                                         class="{{ request()->routeIs('cliente.mensagens-agendadas.*') ? 'bg-slate-50 font-semibold text-slate-900' : 'text-slate-700' }}"
                                     >
                                         Mensagens agendadas
+                                    </x-dropdown-link>
+                                    <x-dropdown-link
+                                        :href="route('cliente.campos-personalizados.index')"
+                                        class="{{ request()->routeIs('cliente.campos-personalizados.*') ? 'bg-slate-50 font-semibold text-slate-900' : 'text-slate-700' }}"
+                                    >
+                                        Campos personalizados
+                                    </x-dropdown-link>
+                                    <x-dropdown-link
+                                        :href="route('cliente.webhook-links.index')"
+                                        class="{{ request()->routeIs('cliente.webhook-links.*') ? 'bg-slate-50 font-semibold text-slate-900' : 'text-slate-700' }}"
+                                    >
+                                        Webhook links
                                     </x-dropdown-link>
 
                                     @if($hasAssistants)

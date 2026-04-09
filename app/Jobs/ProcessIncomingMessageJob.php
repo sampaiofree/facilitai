@@ -22,6 +22,7 @@ use App\Services\UazapiService;
 use App\Services\WhatsappCloudApiService;
 use App\DTOs\IAResult;
 use App\Support\LogContext;
+use App\Support\CustomFieldScope;
 use App\Support\PhoneNumberNormalizer;
 use App\Support\TagScope;
 use Illuminate\Bus\Queueable;
@@ -2131,12 +2132,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
             return [];
         }
 
-        return WhatsappCloudCustomField::query()
-            ->where('user_id', $userId)
-            ->where(function ($query) use ($clienteId) {
-                $query->whereNull('cliente_id')
-                    ->orWhere('cliente_id', $clienteId);
-            })
+        return CustomFieldScope::visibleToClienteQuery($userId, $clienteId)
             ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
             ->orderBy('name')
             ->get()

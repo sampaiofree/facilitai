@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Agencia;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\WhatsappCloudCustomField;
+use App\Support\CustomFieldScope;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class WhatsappCloudCustomFieldController extends Controller
@@ -28,10 +28,14 @@ class WhatsappCloudCustomFieldController extends Controller
         $fieldsQuery = WhatsappCloudCustomField::query()
             ->where('user_id', $userId)
             ->with('cliente:id,nome')
+            ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
             ->orderBy('name');
 
         if ($clienteFilter) {
-            $fieldsQuery->where('cliente_id', $clienteFilter);
+            $fieldsQuery->where(function ($query) use ($clienteFilter) {
+                $query->where('cliente_id', $clienteFilter)
+                    ->orWhereNull('cliente_id');
+            });
         }
 
         $fields = $fieldsQuery->get();
@@ -54,7 +58,7 @@ class WhatsappCloudCustomFieldController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'cliente_id' => [
-                'nullable',
+                'required',
                 'integer',
                 Rule::exists('clientes', 'id')
                     ->where(fn ($query) => $query->where('user_id', $userId)->whereNull('deleted_at')),
@@ -64,12 +68,20 @@ class WhatsappCloudCustomFieldController extends Controller
             'description' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $normalizedName = $this->normalizeFieldName((string) $data['name']);
-        $uniqueName = $this->resolveUniqueFieldName($userId, $normalizedName, null);
+        $clienteId = (int) $data['cliente_id'];
+        $normalizedName = CustomFieldScope::normalizeFieldName((string) $data['name']);
+        if (CustomFieldScope::hasLegacyConflict($userId, $normalizedName)) {
+            return redirect()
+                ->route('agencia.campos-personalizados.index')
+                ->withErrors(['name' => CustomFieldScope::legacyConflictMessage()])
+                ->withInput();
+        }
+
+        $uniqueName = CustomFieldScope::resolveUniqueFieldName($userId, $clienteId, $normalizedName, null);
 
         WhatsappCloudCustomField::create([
             'user_id' => $userId,
-            'cliente_id' => $data['cliente_id'] ?? null,
+            'cliente_id' => $clienteId,
             'name' => $uniqueName,
             'label' => $this->nullableTrim($data['label'] ?? null),
             'sample_value' => $this->nullableTrim($data['sample_value'] ?? null),
@@ -86,10 +98,16 @@ class WhatsappCloudCustomFieldController extends Controller
         $this->ensureOwnership($campoPersonalizado, $request->user()->id);
         $userId = (int) $request->user()->id;
 
+        if ($campoPersonalizado->cliente_id === null) {
+            return redirect()
+                ->route('agencia.campos-personalizados.index')
+                ->with('error', 'Campos globais legados são somente leitura.');
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'cliente_id' => [
-                'nullable',
+                'required',
                 'integer',
                 Rule::exists('clientes', 'id')
                     ->where(fn ($query) => $query->where('user_id', $userId)->whereNull('deleted_at')),
@@ -99,12 +117,20 @@ class WhatsappCloudCustomFieldController extends Controller
             'description' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $normalizedName = $this->normalizeFieldName((string) $data['name']);
-        $uniqueName = $this->resolveUniqueFieldName($userId, $normalizedName, $campoPersonalizado->id);
+        $clienteId = (int) $data['cliente_id'];
+        $normalizedName = CustomFieldScope::normalizeFieldName((string) $data['name']);
+        if (CustomFieldScope::hasLegacyConflict($userId, $normalizedName, $campoPersonalizado->id)) {
+            return redirect()
+                ->route('agencia.campos-personalizados.index')
+                ->withErrors(['name' => CustomFieldScope::legacyConflictMessage()])
+                ->withInput();
+        }
+
+        $uniqueName = CustomFieldScope::resolveUniqueFieldName($userId, $clienteId, $normalizedName, $campoPersonalizado->id);
 
         $campoPersonalizado->update([
             'name' => $uniqueName,
-            'cliente_id' => $data['cliente_id'] ?? null,
+            'cliente_id' => $clienteId,
             'label' => $this->nullableTrim($data['label'] ?? null),
             'sample_value' => $this->nullableTrim($data['sample_value'] ?? null),
             'description' => $this->nullableTrim($data['description'] ?? null),
@@ -118,6 +144,13 @@ class WhatsappCloudCustomFieldController extends Controller
     public function destroy(Request $request, WhatsappCloudCustomField $campoPersonalizado): RedirectResponse
     {
         $this->ensureOwnership($campoPersonalizado, $request->user()->id);
+
+        if ($campoPersonalizado->cliente_id === null) {
+            return redirect()
+                ->route('agencia.campos-personalizados.index')
+                ->with('error', 'Campos globais legados são somente leitura.');
+        }
+
         $campoPersonalizado->delete();
 
         return redirect()
@@ -130,49 +163,6 @@ class WhatsappCloudCustomFieldController extends Controller
         if ((int) $field->user_id !== $userId) {
             abort(403);
         }
-    }
-
-    private function normalizeFieldName(string $value): string
-    {
-        $value = Str::ascii($value);
-        $value = Str::lower($value);
-        $value = preg_replace('/[^a-z0-9_]+/', '_', $value) ?? '';
-        $value = trim($value, '_');
-
-        if ($value === '') {
-            $value = 'campo';
-        }
-
-        if (preg_match('/^\d/', $value)) {
-            $value = 'campo_' . $value;
-        }
-
-        return Str::limit($value, 120, '');
-    }
-
-    private function resolveUniqueFieldName(int $userId, string $base, ?int $ignoreId): string
-    {
-        $query = WhatsappCloudCustomField::query()
-            ->where('user_id', $userId);
-
-        if ($ignoreId) {
-            $query->where('id', '!=', $ignoreId);
-        }
-
-        $existing = $query->pluck('name')->all();
-        if (!in_array($base, $existing, true)) {
-            return $base;
-        }
-
-        $index = 2;
-        do {
-            $suffix = (string) $index;
-            $trimmedBase = Str::limit($base, max(1, 120 - strlen($suffix)), '');
-            $candidate = $trimmedBase . $suffix;
-            $index++;
-        } while (in_array($candidate, $existing, true));
-
-        return $candidate;
     }
 
     private function nullableTrim(mixed $value): ?string

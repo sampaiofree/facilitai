@@ -10,6 +10,7 @@ use App\Models\Conexao;
 use App\Models\KommoAccount;
 use App\Models\SystemErrorLog;
 use App\Models\WhatsappCloudCustomField;
+use App\Support\CustomFieldScope;
 use App\Support\LogContext;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Log;
@@ -680,12 +681,7 @@ class OpenAIOrchestratorService
             return [];
         }
 
-        return WhatsappCloudCustomField::query()
-            ->where('user_id', $userId)
-            ->where(function ($query) use ($clienteId) {
-                $query->whereNull('cliente_id')
-                    ->orWhere('cliente_id', $clienteId);
-            })
+        return CustomFieldScope::visibleToClienteQuery($userId, $clienteId)
             ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
             ->orderBy('name')
             ->get(['name', 'label'])

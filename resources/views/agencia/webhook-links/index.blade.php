@@ -1,7 +1,11 @@
-@extends('layouts.agencia')
+@extends($layout ?? 'layouts.agencia')
 
 @section('content')
     @php
+        $routePrefix = $routePrefix ?? 'agencia.webhook-links';
+        $showClienteSelect = $showClienteSelect ?? true;
+        $fixedCliente = $fixedCliente ?? null;
+        $isClientPortal = $isClientPortal ?? false;
         $conexaoOptions = $conexoes->map(fn ($conexao) => [
             'id' => $conexao->id,
             'name' => $conexao->name,
@@ -12,7 +16,11 @@
     <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Webhooks</h2>
-            <p class="text-sm text-slate-500">Crie links públicos para receber JSON e transformar payloads em leads, tags, campos e prompts.</p>
+            <p class="text-sm text-slate-500">
+                {{ $isClientPortal
+                    ? 'Crie links públicos do seu cliente para receber JSON e transformar payloads em leads, tags, campos e prompts.'
+                    : 'Crie links públicos para receber JSON e transformar payloads em leads, tags, campos e prompts.' }}
+            </p>
         </div>
         <button
             type="button"
@@ -83,12 +91,12 @@
                         <td class="px-5 py-4">
                             <div class="flex flex-wrap items-center gap-2">
                                 <a
-                                    href="{{ route('agencia.webhook-links.edit', $link) }}"
+                                    href="{{ route($routePrefix . '.edit', $link) }}"
                                     class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
                                 >
                                     Editar
                                 </a>
-                                <form method="POST" action="{{ route('agencia.webhook-links.status', $link) }}">
+                                <form method="POST" action="{{ route($routePrefix . '.status', $link) }}">
                                     @csrf
                                     @method('PATCH')
                                     <input type="hidden" name="is_active" value="{{ $link->is_active ? 0 : 1 }}">
@@ -120,17 +128,28 @@
                 <button type="button" data-close-webhook-link-modal class="text-slate-500 hover:text-slate-700">x</button>
             </div>
 
-            <form method="POST" action="{{ route('agencia.webhook-links.store') }}" class="mt-5 space-y-4">
+            <form method="POST" action="{{ route($routePrefix . '.store') }}" class="mt-5 space-y-4">
                 @csrf
 
                 <div>
-                    <label for="webhookClienteId" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</label>
-                    <select id="webhookClienteId" name="cliente_id" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                        <option value="">Selecione</option>
-                        @foreach($clientes as $cliente)
-                            <option value="{{ $cliente->id }}">{{ $cliente->nome }}</option>
-                        @endforeach
-                    </select>
+                    <label for="webhookClienteIdDisplay" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</label>
+                    @if($showClienteSelect)
+                        <select id="webhookClienteId" name="cliente_id" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                            <option value="">Selecione</option>
+                            @foreach($clientes as $cliente)
+                                <option value="{{ $cliente->id }}">{{ $cliente->nome }}</option>
+                            @endforeach
+                        </select>
+                    @else
+                        <input type="hidden" id="webhookClienteId" name="cliente_id" value="{{ $fixedCliente?->id }}">
+                        <input
+                            id="webhookClienteIdDisplay"
+                            type="text"
+                            readonly
+                            value="{{ $fixedCliente?->nome ?? '—' }}"
+                            class="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                        >
+                    @endif
                 </div>
 
                 <div>
@@ -157,6 +176,7 @@
             const clienteSelect = document.getElementById('webhookClienteId');
             const conexaoSelect = document.getElementById('webhookConexaoId');
             const conexoes = @json($conexaoOptions);
+            const fixedClienteId = @json($fixedCliente?->id);
 
             const openModal = () => {
                 modal.classList.remove('hidden');
@@ -169,7 +189,7 @@
             };
 
             const refreshConexoes = () => {
-                const clienteId = clienteSelect.value;
+                const clienteId = clienteSelect ? clienteSelect.value : fixedClienteId;
                 const currentValue = conexaoSelect.value;
                 const options = conexoes.filter((item) => String(item.cliente_id) === String(clienteId));
 
@@ -195,7 +215,9 @@
                 }
             });
 
-            clienteSelect.addEventListener('change', refreshConexoes);
+            if (clienteSelect) {
+                clienteSelect.addEventListener('change', refreshConexoes);
+            }
             refreshConexoes();
 
             document.querySelectorAll('[data-copy-link]').forEach((button) => {

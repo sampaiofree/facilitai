@@ -244,19 +244,19 @@ class LeadWebhookLinkController extends Controller
         ]);
     }
 
-    private function ensureOwnership(Request $request, LeadWebhookLink $leadWebhookLink): void
+    protected function ensureOwnership(Request $request, LeadWebhookLink $leadWebhookLink): void
     {
         abort_unless((int) $leadWebhookLink->user_id === (int) $request->user()->id, 403);
     }
 
-    private function resolveClienteForUser(int $clienteId, int $userId): Cliente
+    protected function resolveClienteForUser(int $clienteId, int $userId): Cliente
     {
         return Cliente::query()
             ->where('user_id', $userId)
             ->findOrFail($clienteId);
     }
 
-    private function resolveConexaoForLink(int $conexaoId, int $userId, int $clienteId): Conexao
+    protected function resolveConexaoForLink(int $conexaoId, int $userId, int $clienteId): Conexao
     {
         return Conexao::query()
             ->whereKey($conexaoId)
@@ -267,7 +267,7 @@ class LeadWebhookLinkController extends Controller
             ->firstOrFail();
     }
 
-    private function availableConexoes(int $userId, int $clienteId)
+    protected function availableConexoes(int $userId, int $clienteId)
     {
         return Conexao::query()
             ->with('whatsappApi:id,slug')
@@ -279,7 +279,7 @@ class LeadWebhookLinkController extends Controller
             ->get(['id', 'name', 'cliente_id', 'assistant_id', 'whatsapp_api_id', 'whatsapp_cloud_account_id']);
     }
 
-    private function availableTags(LeadWebhookLink $link)
+    protected function availableTags(LeadWebhookLink $link)
     {
         return Tag::query()
             ->with('cliente:id,nome')
@@ -292,7 +292,7 @@ class LeadWebhookLinkController extends Controller
             ->get(['id', 'name', 'cliente_id']);
     }
 
-    private function availableCustomFields(LeadWebhookLink $link)
+    protected function availableCustomFields(LeadWebhookLink $link)
     {
         return WhatsappCloudCustomField::query()
             ->where('user_id', $link->user_id)
@@ -304,7 +304,7 @@ class LeadWebhookLinkController extends Controller
             ->get(['id', 'name', 'label', 'cliente_id']);
     }
 
-    private function availableCloudTemplates(LeadWebhookLink $link, $conexoes)
+    protected function availableCloudTemplates(LeadWebhookLink $link, $conexoes)
     {
         $accountIds = $conexoes
             ->filter(fn (Conexao $conexao): bool => $this->isWhatsappCloudConexao($conexao))
@@ -343,7 +343,7 @@ class LeadWebhookLinkController extends Controller
             ]);
     }
 
-    private function parseConfig(string $configJson, LeadWebhookLink $link, ?Conexao $conexao): array
+    protected function parseConfig(string $configJson, LeadWebhookLink $link, ?Conexao $conexao): array
     {
         try {
             $decoded = json_decode($configJson, true, 512, JSON_THROW_ON_ERROR);
@@ -526,7 +526,7 @@ class LeadWebhookLinkController extends Controller
         ];
     }
 
-    private function hasPromptAction(array $config): bool
+    protected function hasPromptAction(array $config): bool
     {
         foreach ((array) ($config['actions'] ?? []) as $action) {
             if (is_array($action) && ($action['type'] ?? null) === 'prompt') {
@@ -537,12 +537,12 @@ class LeadWebhookLinkController extends Controller
         return false;
     }
 
-    private function isWhatsappCloudConexao(Conexao $conexao): bool
+    protected function isWhatsappCloudConexao(Conexao $conexao): bool
     {
         return Str::lower(trim((string) ($conexao->whatsappApi?->slug ?? ''))) === 'whatsapp_cloud';
     }
 
-    private function findCloudTemplateForConexao(LeadWebhookLink $link, Conexao $conexao, int $templateId): ?WhatsappCloudTemplate
+    protected function findCloudTemplateForConexao(LeadWebhookLink $link, Conexao $conexao, int $templateId): ?WhatsappCloudTemplate
     {
         $accountId = (int) ($conexao->whatsapp_cloud_account_id ?? 0);
         if ($accountId <= 0) {
@@ -561,7 +561,7 @@ class LeadWebhookLinkController extends Controller
             ->first();
     }
 
-    private function generateDefaultName(string $clienteNome, int $userId): string
+    protected function generateDefaultName(string $clienteNome, int $userId): string
     {
         $base = 'Webhook ' . trim($clienteNome);
         $count = LeadWebhookLink::query()
@@ -571,7 +571,7 @@ class LeadWebhookLinkController extends Controller
         return Str::limit(trim($base) . ' #' . ($count + 1), 255, '');
     }
 
-    private function generateUniqueToken(): string
+    protected function generateUniqueToken(): string
     {
         do {
             $token = Str::random(40);

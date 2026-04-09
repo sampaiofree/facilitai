@@ -1,111 +1,63 @@
-@extends('layouts.agencia')
+@extends('layouts.cliente')
+
+@section('title', 'Campos personalizados')
 
 @section('content')
-    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div class="min-w-[280px]">
+    <div class="mb-6 flex items-center justify-between gap-4">
+        <div>
             <h2 class="text-2xl font-semibold text-slate-900">Campos personalizados</h2>
-            <p class="text-sm text-slate-500">Gerencie os campos personalizados reutilizáveis dos seus leads. Campos globais legados seguem visíveis apenas para diagnóstico.</p>
+            <p class="text-sm text-slate-500">Gerencie os campos personalizados reutilizáveis dos leads do seu cliente.</p>
         </div>
-        <div class="flex flex-wrap items-end gap-2">
-            <form method="GET" action="{{ route('agencia.campos-personalizados.index') }}" class="flex items-end gap-2">
-                <div>
-                    <label for="customFieldFilterCliente" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Filtrar cliente</label>
-                    <select
-                        id="customFieldFilterCliente"
-                        name="cliente_id"
-                        class="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                        onchange="this.form.submit()"
-                    >
-                        <option value="">Todos os clientes</option>
-                        @foreach($clientes as $cliente)
-                            <option value="{{ $cliente->id }}" @selected((int) $clienteFilter === (int) $cliente->id)>{{ $cliente->nome }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                @if($clienteFilter)
-                    <a href="{{ route('agencia.campos-personalizados.index') }}" class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
-                        Limpar
-                    </a>
-                @endif
-            </form>
-            <button
-                id="openCustomFieldModal"
-                @disabled($clientes->isEmpty())
-                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-blue-600"
-            >
-                Novo campo
-            </button>
-        </div>
+        <button id="openCustomFieldModal" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+            Novo campo
+        </button>
     </div>
-
-    @if($clientes->isEmpty())
-        <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Cadastre ao menos um cliente antes de criar campos personalizados.
-        </div>
-    @endif
 
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table class="min-w-full text-sm">
             <thead class="bg-slate-50 text-slate-500">
                 <tr>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome técnico</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Cliente</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Rótulo</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Exemplo padrão</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Descrição</th>
-                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Nome técnico</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Rótulo</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Exemplo padrão</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Descrição</th>
+                    <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide">Ações</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @forelse($fields as $field)
                     <tr class="hover:bg-slate-50">
                         <td class="px-5 py-4 font-mono text-slate-800">{{ $field->name }}</td>
-                        <td class="px-5 py-4 text-slate-600">
-                            @if($field->cliente_id)
-                                {{ $field->cliente?->nome ?? ('Cliente #' . $field->cliente_id) }}
-                            @else
-                                <span class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
-                                    global legado
-                                </span>
-                            @endif
-                        </td>
                         <td class="px-5 py-4 text-slate-600">{{ $field->label ?? '—' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $field->sample_value ?? '—' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $field->description ?? '—' }}</td>
                         <td class="px-5 py-4">
-                            @if($field->cliente_id)
-                                <div class="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
-                                        data-edit-custom-field
-                                        data-id="{{ $field->id }}"
-                                        data-name="{{ $field->name }}"
-                                        data-cliente-id="{{ $field->cliente_id }}"
-                                        data-label="{{ $field->label }}"
-                                        data-sample-value="{{ $field->sample_value }}"
-                                        data-description="{{ $field->description }}"
-                                    >
-                                        Editar
+                            <div class="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"
+                                    data-edit-custom-field
+                                    data-id="{{ $field->id }}"
+                                    data-name="{{ $field->name }}"
+                                    data-label="{{ $field->label }}"
+                                    data-sample-value="{{ $field->sample_value }}"
+                                    data-description="{{ $field->description }}"
+                                >
+                                    Editar
+                                </button>
+                                <form method="POST" action="{{ route('cliente.campos-personalizados.destroy', $field) }}" onsubmit="return confirm('Deseja excluir este campo?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">
+                                        Excluir
                                     </button>
-                                    <form method="POST" action="{{ route('agencia.campos-personalizados.destroy', $field) }}" onsubmit="return confirm('Deseja excluir este campo?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="rounded-lg bg-rose-500 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-600">
-                                            Excluir
-                                        </button>
-                                    </form>
-                                </div>
-                            @else
-                                <span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">
-                                    Somente leitura
-                                </span>
-                            @endif
+                                </form>
+                            </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-6 text-center text-slate-500">Nenhum campo personalizado cadastrado.</td>
+                        <td colspan="5" class="px-5 py-6 text-center text-slate-500">Nenhum campo personalizado cadastrado.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -119,7 +71,7 @@
                 <button type="button" class="text-slate-500 hover:text-slate-700" data-custom-field-close>x</button>
             </div>
 
-            <form id="customFieldForm" method="POST" action="{{ route('agencia.campos-personalizados.store') }}" class="mt-5 space-y-4">
+            <form id="customFieldForm" method="POST" action="{{ route('cliente.campos-personalizados.store') }}" class="mt-5 space-y-4">
                 @csrf
                 <input type="hidden" name="_method" id="customFieldFormMethod" value="POST">
 
@@ -135,16 +87,6 @@
                         class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     >
                     <p class="mt-1 text-xs text-slate-400">Será normalizado automaticamente para minúsculo sem acentos/espaços, com sufixo se já existir para este cliente.</p>
-                </div>
-
-                <div>
-                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="customFieldCliente">Cliente</label>
-                    <select id="customFieldCliente" name="cliente_id" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                        <option value="" disabled selected>Selecione um cliente</option>
-                        @foreach($clientes as $cliente)
-                            <option value="{{ $cliente->id }}">{{ $cliente->nome }}</option>
-                        @endforeach
-                    </select>
                 </div>
 
                 <div class="grid gap-4 md:grid-cols-2">
@@ -170,7 +112,9 @@
             </form>
         </div>
     </div>
+@endsection
 
+@push('scripts')
     <script>
         (function () {
             const modal = document.getElementById('customFieldModal');
@@ -180,11 +124,9 @@
             const formMethod = document.getElementById('customFieldFormMethod');
             const modalTitle = document.getElementById('customFieldModalTitle');
             const nameInput = document.getElementById('customFieldName');
-            const clienteInput = document.getElementById('customFieldCliente');
             const labelInput = document.getElementById('customFieldLabel');
             const sampleValueInput = document.getElementById('customFieldSampleValue');
             const descriptionInput = document.getElementById('customFieldDescription');
-            const defaultClienteId = @json($clienteFilter ? (string) $clienteFilter : '');
 
             const openModal = () => {
                 modal.classList.remove('hidden');
@@ -197,11 +139,10 @@
             };
 
             const resetForm = () => {
-                form.action = "{{ route('agencia.campos-personalizados.store') }}";
+                form.action = "{{ route('cliente.campos-personalizados.store') }}";
                 formMethod.value = 'POST';
                 modalTitle.textContent = 'Novo campo personalizado';
                 nameInput.value = '';
-                clienteInput.value = defaultClienteId || '';
                 labelInput.value = '';
                 sampleValueInput.value = '';
                 descriptionInput.value = '';
@@ -226,11 +167,10 @@
                 button.addEventListener('click', () => {
                     resetForm();
                     const id = button.dataset.id;
-                    form.action = `{{ url('/agencia/campos-personalizados') }}/${id}`;
+                    form.action = `{{ url('/cliente/campos-personalizados') }}/${id}`;
                     formMethod.value = 'PATCH';
                     modalTitle.textContent = 'Editar campo personalizado';
                     nameInput.value = button.dataset.name || '';
-                    clienteInput.value = button.dataset.clienteId || '';
                     labelInput.value = button.dataset.label || '';
                     sampleValueInput.value = button.dataset.sampleValue || '';
                     descriptionInput.value = button.dataset.description || '';
@@ -239,4 +179,4 @@
             });
         })();
     </script>
-@endsection
+@endpush

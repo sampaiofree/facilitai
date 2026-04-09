@@ -1,7 +1,9 @@
-@extends('layouts.agencia')
+@extends($layout ?? 'layouts.agencia')
 
 @section('content')
     @php
+        $routePrefix = $routePrefix ?? 'agencia.webhook-links';
+        $isClientPortal = $isClientPortal ?? false;
         $publicUrl = route('api.webhook-links.handle', ['token' => $link->token]);
         $currentConfig = is_array($link->config) ? $link->config : ['lead' => ['phone_path' => null, 'name_path' => null], 'actions' => []];
         $latestDelivery = $link->latestDelivery;
@@ -49,10 +51,12 @@
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
             <div class="flex items-center gap-3">
-                <a href="{{ route('agencia.webhook-links.index') }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Voltar</a>
+                <a href="{{ route($routePrefix . '.index') }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Voltar</a>
                 <div>
                     <h2 class="text-2xl font-semibold text-slate-900">{{ $link->name }}</h2>
-                    <p class="text-sm text-slate-500">Cliente fixo: {{ $link->cliente?->nome ?? '—' }}</p>
+                    <p class="text-sm text-slate-500">
+                        {{ $isClientPortal ? 'Webhook do cliente:' : 'Cliente fixo:' }} {{ $link->cliente?->nome ?? '—' }}
+                    </p>
                 </div>
             </div>
         </div>
@@ -68,7 +72,7 @@
         </div>
     </div>
 
-    <form id="webhookLinkEditForm" method="POST" action="{{ route('agencia.webhook-links.update', $link) }}">
+    <form id="webhookLinkEditForm" method="POST" action="{{ route($routePrefix . '.update', $link) }}">
         @csrf
         @method('PUT')
         <input type="hidden" name="config_json" id="webhookConfigJson">
@@ -293,7 +297,7 @@
         </div>
     </form>
 
-    <form id="rotateWebhookTokenForm" method="POST" action="{{ route('agencia.webhook-links.rotate-token', $link) }}" class="hidden">
+    <form id="rotateWebhookTokenForm" method="POST" action="{{ route($routePrefix . '.rotate-token', $link) }}" class="hidden">
         @csrf
     </form>
 

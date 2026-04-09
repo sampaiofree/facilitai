@@ -17,6 +17,7 @@ use App\Models\WhatsappCloudCustomField;
 use App\Models\WhatsappCloudTemplate;
 use App\Jobs\ProcessIncomingMessageJob;
 use App\Jobs\SyncCloudTemplateContextJob;
+use App\Support\CustomFieldScope;
 use App\Support\PhoneNumberNormalizer;
 use App\Services\ScheduledMessageService;
 use App\Services\WhatsappCloudConversationWindowService;
@@ -862,12 +863,7 @@ class ClienteLeadController extends Controller
                 'variables',
             ]);
 
-        $customFields = WhatsappCloudCustomField::query()
-            ->where('user_id', $user->id)
-            ->where(function ($query) use ($clienteLead) {
-                $query->whereNull('cliente_id')
-                    ->orWhere('cliente_id', $clienteLead->cliente_id);
-            })
+        $customFields = CustomFieldScope::visibleToClienteQuery($user->id, (int) $clienteLead->cliente_id)
             ->orderByRaw('CASE WHEN cliente_id IS NULL THEN 1 ELSE 0 END')
             ->orderBy('name')
             ->get(['id', 'name', 'label', 'sample_value', 'cliente_id']);
@@ -1782,13 +1778,8 @@ class ClienteLeadController extends Controller
             ]);
         }
 
-        $allowedFieldIds = WhatsappCloudCustomField::query()
-            ->where('user_id', $userId)
+        $allowedFieldIds = CustomFieldScope::visibleToClienteQuery($userId, $clienteId)
             ->whereIn('id', $fieldIds)
-            ->where(function ($query) use ($clienteId) {
-                $query->whereNull('cliente_id')
-                    ->orWhere('cliente_id', $clienteId);
-            })
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
@@ -1963,13 +1954,8 @@ class ClienteLeadController extends Controller
         }
 
         if (!empty($customFieldIds)) {
-            $allowedFieldIds = WhatsappCloudCustomField::query()
-                ->where('user_id', $userId)
+            $allowedFieldIds = CustomFieldScope::visibleToClienteQuery($userId, $clienteId)
                 ->whereIn('id', $customFieldIds)
-                ->where(function ($query) use ($clienteId) {
-                    $query->whereNull('cliente_id')
-                        ->orWhere('cliente_id', $clienteId);
-                })
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
