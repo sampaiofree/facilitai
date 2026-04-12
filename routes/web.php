@@ -483,6 +483,7 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::get('credenciais', [ClienteCredentialController::class, 'index'])->name('credentials.index');
         Route::patch('credenciais/{credential}', [ClienteCredentialController::class, 'update'])->name('credentials.update');
         Route::get('conexoes', [ConexaoClienteController::class, 'index'])->name('conexoes.index');
+        Route::patch('conexoes/{conexao}', [ConexaoClienteController::class, 'update'])->name('conexoes.update');
         Route::get('conexoes/{conexao}/status', [ConexaoClienteController::class, 'status'])->name('conexoes.status');
         Route::post('conexoes/{conexao}/connect', [ConexaoClienteController::class, 'connect'])->name('conexoes.connect');
         Route::get('crm', [ClienteCrmController::class, 'index'])->name('crm.index');

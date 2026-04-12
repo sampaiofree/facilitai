@@ -25,6 +25,7 @@ class Conexao extends Model
         'cliente_id',
         'status',
         'is_active',
+        'permitiredicao',
         'phone',
         'proxy_ip',
         'proxy_port',
@@ -40,6 +41,7 @@ class Conexao extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'permitiredicao' => 'boolean',
     ];
 
     protected static function booted(): void

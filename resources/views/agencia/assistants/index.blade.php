@@ -17,6 +17,7 @@
                 <tr>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">ID</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Nome</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Cliente</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Versão</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Instruções</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Atualizado em</th>
@@ -28,6 +29,7 @@
                     <tr class="hover:bg-slate-50">
                         <td class="px-5 py-4 text-slate-600">{{ $assistant->id }}</td>
                         <td class="px-5 py-4 font-medium text-slate-800">{{ $assistant->name }}</td>
+                        <td class="px-5 py-4 text-slate-600">{{ $assistant->cliente?->nome ?? 'Sem cliente' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $assistant->version }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ \Illuminate\Support\Str::limit($assistant->instructions, 70) }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $assistant->updated_at?->format('d/m/Y H:i') ?? '-' }}</td>
@@ -53,7 +55,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-6 text-center text-slate-500">Nenhum assistente cadastrado.</td>
+                        <td colspan="7" class="px-5 py-6 text-center text-slate-500">Nenhum assistente cadastrado.</td>
                     </tr>
                 @endforelse
             </tbody>

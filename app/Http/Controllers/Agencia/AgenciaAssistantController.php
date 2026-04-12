@@ -14,7 +14,9 @@ class AgenciaAssistantController extends Controller
     {
         $user = $request->user();
 
-        $assistants = Assistant::where('user_id', $user->id)
+        $assistants = Assistant::query()
+            ->with('cliente:id,nome')
+            ->where('user_id', $user->id)
             ->orderByDesc('updated_at')
             ->get();
         $clients = \App\Models\Cliente::where('user_id', $user->id)->orderBy('nome')->get();

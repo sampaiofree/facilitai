@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Cliente;
 
 use App\Http\Controllers\Controller;
 use App\Models\Conexao;
+use App\Models\Iamodelo;
 use App\Services\UazapiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class ConexaoClienteController extends Controller
 {
@@ -19,12 +21,61 @@ class ConexaoClienteController extends Controller
     {
         $clienteId = auth('client')->id();
 
-        $conexoes = Conexao::with('whatsappApi')
+        $conexoes = Conexao::with(['whatsappApi', 'credential', 'iamodelo'])
             ->where('cliente_id', $clienteId)
             ->latest()
             ->get();
 
-        return view('cliente.conexoes.index', compact('conexoes'));
+        $iamodelos = Iamodelo::query()
+            ->orderBy('nome')
+            ->get();
+
+        return view('cliente.conexoes.index', compact('conexoes', 'iamodelos'));
+    }
+
+    public function update(Request $request, Conexao $conexao)
+    {
+        $this->ensureOwner($conexao);
+
+        if (!$conexao->permitiredicao) {
+            abort(403);
+        }
+
+        $conexao->loadMissing('credential');
+
+        $credentialPlatformId = $conexao->credential?->iaplataforma_id;
+
+        $data = $request->validate([
+            'model' => [
+                'required',
+                Rule::exists('iamodelos', 'id'),
+                function (string $attribute, mixed $value, \Closure $fail) use ($credentialPlatformId): void {
+                    if (!$credentialPlatformId) {
+                        return;
+                    }
+
+                    $isCompatible = Iamodelo::query()
+                        ->whereKey($value)
+                        ->where('iaplataforma_id', $credentialPlatformId)
+                        ->exists();
+
+                    if (!$isCompatible) {
+                        $fail('O modelo selecionado nao e compativel com a credencial desta conexao.');
+                    }
+                },
+            ],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $conexao->model = (int) $data['model'];
+        $conexao->is_active = $request->has('is_active')
+            ? $request->boolean('is_active')
+            : (bool) $conexao->is_active;
+        $conexao->save();
+
+        return redirect()
+            ->route('cliente.conexoes.index')
+            ->with('success', 'Conexao atualizada com sucesso.');
     }
 
     public function status(Request $request, Conexao $conexao)

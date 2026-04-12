@@ -99,6 +99,7 @@ class AgenciaConexaoController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'is_active' => ['nullable', 'boolean'],
+            'permitiredicao' => ['nullable', 'boolean'],
             'credential_id' => [
                 'required',
                 Rule::exists('credentials', 'id')->where('user_id', $user->id),
@@ -125,6 +126,7 @@ class AgenciaConexaoController extends Controller
         $conexao->model = $data['model'];
         $conexao->whatsapp_api_id = $data['whatsapp_api_id'];
         $conexao->is_active = $request->boolean('is_active', true);
+        $conexao->permitiredicao = $request->boolean('permitiredicao', false);
 
         try {
             if ($whatsappApi->slug === 'uazapi') {
@@ -339,6 +341,7 @@ class AgenciaConexaoController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'is_active' => ['nullable', 'boolean'],
+            'permitiredicao' => ['nullable', 'boolean'],
             'credential_id' => [
                 'required',
                 Rule::exists('credentials', 'id')->where('user_id', $user->id),
@@ -362,6 +365,7 @@ class AgenciaConexaoController extends Controller
         $conexao->is_active = $request->has('is_active')
             ? $request->boolean('is_active')
             : (bool) $conexao->is_active;
+        $conexao->permitiredicao = $request->boolean('permitiredicao', false);
         $conexao->save();
 
         return redirect()

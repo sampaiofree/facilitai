@@ -39,6 +39,7 @@
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Credencial</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Status</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ativa</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Permitir edicao</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Phone</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Assistente</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Modelo</th>
@@ -75,6 +76,7 @@
                                 {{ $conexao->is_active ? 'Ativa' : 'Inativa' }}
                             </span>
                         </td>
+                        <td class="px-5 py-4 text-slate-600">{{ $conexao->permitiredicao ? 'Sim' : 'Nao' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ $conexao->phone ?? '-' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ optional($conexao->assistant)->name ?? '-' }}</td>
                         <td class="px-5 py-4 text-slate-600">{{ optional($conexao->iamodelo)->nome ?? '-' }}</td>
@@ -94,6 +96,7 @@
                                     data-whatsapp-api-slug="{{ $conexao->whatsappApi?->slug }}"
                                     data-whatsapp-cloud-account-id="{{ $conexao->whatsapp_cloud_account_id }}"
                                     data-is-active="{{ $conexao->is_active ? '1' : '0' }}"
+                                    data-permitiredicao="{{ $conexao->permitiredicao ? '1' : '0' }}"
                                     data-phone="{{ $conexao->phone }}"
                                 >Editar</button>
                                 <form method="POST" action="{{ route('agencia.conexoes.destroy', $conexao) }}" onsubmit="return confirm('Deseja excluir esta conexão?');">
@@ -165,6 +168,19 @@
                             <option value="{{ $cliente->id }}" @selected(old('cliente_id') == $cliente->id)>{{ $cliente->nome }}</option>
                         @endforeach
                     </select>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <input type="hidden" name="permitiredicao" value="0">
+                    <input
+                        id="conexaoPermitirEdicao"
+                        name="permitiredicao"
+                        type="checkbox"
+                        value="1"
+                        class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        @checked(old('permitiredicao', '0') === '1')
+                    >
+                    <label for="conexaoPermitirEdicao" class="text-sm text-slate-600">Permitir edicao</label>
                 </div>
 
                 <div>
@@ -332,6 +348,7 @@
             const cloudFields = document.getElementById('conexaoCloudFields');
             const cloudAccountSelect = document.getElementById('conexaoCloudAccount');
             const activeInput = document.getElementById('conexaoActive');
+            const permitiredicaoInput = document.getElementById('conexaoPermitirEdicao');
             const storeRoute = "{{ route('agencia.conexoes.store') }}";
             const baseUrl = "{{ url('/agencia/conexoes') }}";
             const hasErrors = @json($errors->any());
@@ -347,6 +364,7 @@
             const oldBusinessId = @json(old('businessId'));
             const oldNumber = @json(old('number'));
             const oldIsActive = @json(old('is_active', '1'));
+            const oldPermitiredicao = @json(old('permitiredicao', '0'));
             const statusElements = Array.from(document.querySelectorAll('[data-conexao-status]'));
             const connectButtons = Array.from(document.querySelectorAll('[data-conexao-connect]'));
             const statusUrl = (id) => `${baseUrl}/${id}/status`;
@@ -528,6 +546,9 @@
                 if (activeInput) {
                     activeInput.checked = true;
                 }
+                if (permitiredicaoInput) {
+                    permitiredicaoInput.checked = false;
+                }
                 toggleConnectionFields({ slug: '', isEditing: false });
             };
 
@@ -573,6 +594,9 @@
                         if (activeInput) {
                             activeInput.checked = button.dataset.isActive !== '0';
                         }
+                        if (permitiredicaoInput) {
+                            permitiredicaoInput.checked = button.dataset.permitiredicao === '1';
+                        }
                         toggleConnectionFields({
                             slug: button.dataset.whatsappApiSlug || getSelectedWhatsappApiSlug(),
                             isEditing: true,
@@ -606,6 +630,9 @@
                 if (activeInput) {
                     activeInput.checked = oldIsActive === '1' || oldIsActive === 1 || oldIsActive === true;
                 }
+                if (permitiredicaoInput) {
+                    permitiredicaoInput.checked = oldPermitiredicao === '1' || oldPermitiredicao === 1 || oldPermitiredicao === true;
+                }
                 toggleConnectionFields({
                     slug: getSelectedWhatsappApiSlug(),
                     isEditing: true,
@@ -634,6 +661,9 @@
                 }
                 if (activeInput) {
                     activeInput.checked = oldIsActive === '1' || oldIsActive === 1 || oldIsActive === true;
+                }
+                if (permitiredicaoInput) {
+                    permitiredicaoInput.checked = oldPermitiredicao === '1' || oldPermitiredicao === 1 || oldPermitiredicao === true;
                 }
                 if (apiOficialNumberInput) {
                     apiOficialNumberInput.value = oldNumber ?? '';
