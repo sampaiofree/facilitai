@@ -110,6 +110,19 @@ function agenciaOpenAiConversasFakeResponse(string $convId): array
                 ],
             ],
             [
+                'id' => 'reasoning_1',
+                'type' => 'reasoning',
+                'status' => 'completed',
+                'summary' => [],
+            ],
+            [
+                'id' => 'tool_1',
+                'type' => 'function_call',
+                'status' => 'completed',
+                'name' => 'buscar_lead',
+                'arguments' => '{"phone":"5511999999999"}',
+            ],
+            [
                 'id' => 'msg_user_1',
                 'type' => 'message',
                 'status' => 'completed',
@@ -118,6 +131,43 @@ function agenciaOpenAiConversasFakeResponse(string $convId): array
                     [
                         'type' => 'input_text',
                         'text' => 'Olá! Tenho interesse COMBO ADMINISTRATIVO...',
+                    ],
+                ],
+            ],
+        ],
+        'has_more' => false,
+        'last_id' => 'msg_user_1',
+        'first_id' => 'msg_assistant_1',
+        'conversation_id' => $convId,
+    ];
+}
+
+function agenciaOpenAiConversasFakeResponseOnlyVisibleMessages(string $convId): array
+{
+    return [
+        'object' => 'list',
+        'data' => [
+            [
+                'id' => 'msg_assistant_1',
+                'type' => 'message',
+                'status' => 'completed',
+                'role' => 'assistant',
+                'content' => [
+                    [
+                        'type' => 'output_text',
+                        'text' => 'Olá! Eu sou a *Joana*.',
+                    ],
+                ],
+            ],
+            [
+                'id' => 'msg_user_1',
+                'type' => 'message',
+                'status' => 'completed',
+                'role' => 'user',
+                'content' => [
+                    [
+                        'type' => 'input_text',
+                        'text' => 'Olá! Tenho interesse.',
                     ],
                 ],
             ],
@@ -160,8 +210,12 @@ test('rota agencia openai conversas renderiza somente mensagens de lead e assist
     $response->assertSee('Olá! Tenho interesse COMBO ADMINISTRATIVO...');
     $response->assertSee('<strong>Joana</strong>', false);
     $response->assertSee('<strong>Portal EAD CONQUISTAFLIX</strong>', false);
-    $response->assertDontSee('Contexto interno oculto');
-    $response->assertDontSee('msg_system_1');
+    $response->assertSee('Itens técnicos (<span id="technical-items-count">3</span>)', false);
+    $response->assertSee('Itens ocultados do chat principal');
+    $response->assertSee('Mensagem system');
+    $response->assertSee('Reasoning');
+    $response->assertSee('Chamada de funcao');
+    $response->assertSee('Contexto interno oculto');
     $response->assertDontSee('JSON retornado');
 });
 
@@ -210,11 +264,40 @@ test('rota agencia openai conversas mantem payload json bruto para paginação i
     $response->assertJsonPath('limit', 15);
     $response->assertJsonPath('data.0.role', 'assistant');
     $response->assertJsonPath('data.1.role', 'system');
-    $response->assertJsonPath('data.2.role', 'user');
+    $response->assertJsonPath('data.2.type', 'reasoning');
+    $response->assertJsonPath('data.3.type', 'function_call');
+    $response->assertJsonPath('data.4.role', 'user');
     $response->assertJsonPath('has_more', false);
     $response->assertJsonPath('last_id', 'msg_user_1');
     $response->assertJsonPath('first_id', 'msg_assistant_1');
     $response->assertJsonMissingPath('messages');
+});
+
+test('rota agencia openai conversas oculta o botao de itens tecnicos quando nao ha itens ocultados inicialmente', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaOpenAiConversasMakeCliente($user);
+    $credential = agenciaOpenAiConversasMakeCredential($user, ['cliente_id' => $cliente->id]);
+    $assistant = agenciaOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    $lead = agenciaOpenAiConversasMakeLead($cliente);
+    $assistantLead = agenciaOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_only_visible_123']);
+    agenciaOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(
+            agenciaOpenAiConversasFakeResponseOnlyVisibleMessages($assistantLead->conv_id),
+            200
+        ),
+    ]);
+
+    $response = $this->actingAs($user)->get(route('agencia.openai.conversas', [
+        'conv_id' => $assistantLead->conv_id,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('Itens técnicos (<span id="technical-items-count">0</span>)', false);
+    $response->assertSee('id="technical-items-btn"', false);
+    $response->assertSee('class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 hidden"', false);
+    $response->assertSee('Nenhum item técnico ocultado foi carregado até agora.');
 });
 
 test('listagem de conversas usa a nova rota agencia openai conversas no payload do lead', function () {

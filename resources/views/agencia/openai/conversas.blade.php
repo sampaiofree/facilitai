@@ -5,6 +5,7 @@
         $lead = $assistantLead?->lead;
         $assistant = $assistantLead?->assistant;
         $visibleMessages = $messages ?? [];
+        $technicalItems = $technicalItems ?? [];
         $connections = $conexoes ?? collect();
         $selectedConnection = $selectedConexao ?? null;
         $connectionLeads = $sidebarLeads ?? collect();
@@ -161,6 +162,7 @@
                         data-after="{{ $lastId }}"
                         data-has-more="{{ $hasMore ? '1' : '0' }}"
                         data-visible-count="{{ count($visibleMessages) }}"
+                        data-technical-count="{{ count($technicalItems) }}"
                         data-limit="{{ $limit ?? '' }}"
                     >
                         @forelse($visibleMessages as $message)
@@ -198,10 +200,83 @@
                                     Sem mais itens
                                 @endif
                             </button>
+                            <button
+                                id="technical-items-btn"
+                                type="button"
+                                class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 {{ count($technicalItems) === 0 ? 'hidden' : '' }}"
+                            >
+                                Itens técnicos (<span id="technical-items-count">{{ count($technicalItems) }}</span>)
+                            </button>
                             <span id="load-more-status" class="text-xs text-slate-500"></span>
                         </div>
 
                         <div id="load-more-error" class="mt-3 hidden rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700"></div>
+                    </div>
+                </div>
+
+                <div id="technical-items-modal" class="fixed inset-0 z-50 hidden">
+                    <div class="absolute inset-0 bg-slate-900/60" data-technical-modal-close="true"></div>
+
+                    <div class="relative flex min-h-full items-center justify-center p-4">
+                        <div class="relative max-h-[85vh] w-full max-w-4xl overflow-hidden rounded-[28px] bg-white shadow-2xl">
+                            <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-slate-900">Itens técnicos</h3>
+                                    <p class="text-sm text-slate-500">Itens ocultados do chat principal</p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                                    data-technical-modal-close="true"
+                                >
+                                    Fechar
+                                </button>
+                            </div>
+
+                            <div class="max-h-[calc(85vh-92px)] overflow-y-auto bg-slate-50 px-6 py-5">
+                                <div id="technical-items-list" class="space-y-3">
+                                    @forelse($technicalItems as $technicalItem)
+                                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                                <div class="min-w-0 flex-1">
+                                                    <p class="text-sm font-semibold text-slate-800">{{ $technicalItem['label'] }}</p>
+                                                    <p class="mt-1 text-sm text-slate-500">{{ $technicalItem['summary'] }}</p>
+                                                </div>
+
+                                                <div class="flex flex-wrap gap-2 text-[11px]">
+                                                    @if(!empty($technicalItem['type']))
+                                                        <span class="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">type {{ $technicalItem['type'] }}</span>
+                                                    @endif
+                                                    @if(!empty($technicalItem['role']))
+                                                        <span class="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">role {{ $technicalItem['role'] }}</span>
+                                                    @endif
+                                                    @if(!empty($technicalItem['status']))
+                                                        <span class="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">status {{ $technicalItem['status'] }}</span>
+                                                    @endif
+                                                </div>
+                                            </div>
+
+                                            <details class="mt-4 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 text-slate-100">
+                                                <summary class="cursor-pointer px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                                                    Ver JSON
+                                                </summary>
+                                                <div class="border-t border-slate-700 px-4 py-4">
+                                                    <pre class="overflow-x-auto whitespace-pre-wrap break-all text-xs leading-relaxed">{{ $technicalItem['json'] }}</pre>
+                                                </div>
+                                            </details>
+                                        </div>
+                                    @empty
+                                        <div
+                                            id="technical-items-empty"
+                                            class="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-5 text-center text-sm text-slate-500"
+                                        >
+                                            Nenhum item técnico ocultado foi carregado até agora.
+                                        </div>
+                                    @endforelse
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             @elseif($selectedConnection)
@@ -252,6 +327,11 @@
             const statusEl = document.getElementById('load-more-status');
             const errorEl = document.getElementById('load-more-error');
             const emptyState = document.getElementById('chat-empty-state');
+            const technicalItemsBtn = document.getElementById('technical-items-btn');
+            const technicalItemsCountEl = document.getElementById('technical-items-count');
+            const technicalItemsModal = document.getElementById('technical-items-modal');
+            const technicalItemsList = document.getElementById('technical-items-list');
+            const technicalItemsEmptyState = document.getElementById('technical-items-empty');
 
             if (!loadMoreBtn || !container) {
                 return;
@@ -261,12 +341,19 @@
             let after = container.dataset.after || null;
             let hasMore = container.dataset.hasMore === '1';
             let visibleCount = Number.parseInt(container.dataset.visibleCount || '0', 10);
+            let technicalItemsCount = Number.parseInt(container.dataset.technicalCount || '0', 10);
             const limit = container.dataset.limit || null;
 
             const escapeHtml = (value) => {
                 const div = document.createElement('div');
                 div.textContent = value;
                 return div.innerHTML;
+            };
+
+            const normalizeText = (value) => {
+                return typeof value === 'string'
+                    ? value.replace(/\r\n?/g, '\n').trim()
+                    : '';
             };
 
             const formatWhatsappText = (value) => {
@@ -289,8 +376,7 @@
                         return;
                     }
 
-                    const rawText = typeof contentItem.text === 'string' ? contentItem.text : '';
-                    const text = rawText.replace(/\r\n?/g, '\n').trim();
+                    const text = normalizeText(contentItem.text);
                     if (text) {
                         parts.push(text);
                     }
@@ -299,30 +385,142 @@
                 return parts.join('\n\n');
             };
 
+            const humanize = (value) => {
+                if (typeof value !== 'string') {
+                    return 'Item tecnico';
+                }
+
+                const normalized = value.replace(/[-_]+/g, ' ').trim();
+                if (!normalized) {
+                    return 'Item tecnico';
+                }
+
+                return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
+            };
+
+            const extractTechnicalName = (item) => {
+                const candidates = [
+                    item?.name,
+                    item?.tool_name,
+                    item?.function?.name,
+                    item?.tool?.name,
+                ];
+
+                for (const candidate of candidates) {
+                    const value = normalizeText(candidate);
+                    if (value) {
+                        return value;
+                    }
+                }
+
+                return '';
+            };
+
+            const buildTechnicalLabel = (item) => {
+                const type = normalizeText(item?.type);
+                const role = normalizeText(item?.role);
+
+                if (type === 'function_call') {
+                    return 'Chamada de funcao';
+                }
+
+                if (type === 'function_call_output') {
+                    return 'Saida de funcao';
+                }
+
+                if (type === 'reasoning') {
+                    return 'Reasoning';
+                }
+
+                if (type === 'message') {
+                    return role ? `Mensagem ${role}` : 'Mensagem tecnica';
+                }
+
+                return type ? humanize(type) : 'Item tecnico';
+            };
+
+            const buildTechnicalSummary = (item) => {
+                const type = normalizeText(item?.type);
+                const role = normalizeText(item?.role);
+                const status = normalizeText(item?.status);
+                const parts = [];
+                const name = extractTechnicalName(item);
+
+                if (name) {
+                    parts.push(name);
+                }
+
+                if (type) {
+                    parts.push(`type: ${type}`);
+                }
+
+                if (role) {
+                    parts.push(`role: ${role}`);
+                }
+
+                if (status) {
+                    parts.push(`status: ${status}`);
+                }
+
+                if (type === 'message' && !extractText(item)) {
+                    parts.push('sem texto visivel');
+                }
+
+                return parts.join(' · ') || 'Item tecnico ocultado do chat principal.';
+            };
+
+            const normalizeVisibleMessage = (item) => {
+                if (!item || item.type !== 'message') {
+                    return null;
+                }
+
+                const role = item.role === 'assistant' ? 'assistant' : (item.role === 'user' ? 'user' : '');
+                if (!role) {
+                    return null;
+                }
+
+                const text = extractText(item);
+                if (!text) {
+                    return null;
+                }
+
+                return {
+                    role,
+                    sender: role === 'assistant' ? 'Assistente' : 'Lead',
+                    html: role === 'assistant' ? formatWhatsappText(text) : escapeHtml(text),
+                };
+            };
+
             const toVisibleMessages = (items) => {
                 if (!Array.isArray(items)) {
                     return [];
                 }
 
+                return items.map(normalizeVisibleMessage).filter(Boolean);
+            };
+
+            const toTechnicalItems = (items) => {
+                if (!Array.isArray(items)) {
+                    return [];
+                }
+
                 return items.map((item) => {
-                    if (!item || item.type !== 'message') {
+                    if (!item || typeof item !== 'object') {
                         return null;
                     }
 
-                    const role = item.role === 'assistant' ? 'assistant' : (item.role === 'user' ? 'user' : '');
-                    if (!role) {
-                        return null;
-                    }
-
-                    const text = extractText(item);
-                    if (!text) {
+                    if (normalizeVisibleMessage(item)) {
                         return null;
                     }
 
                     return {
-                        role,
-                        sender: role === 'assistant' ? 'Assistente' : 'Lead',
-                        html: role === 'assistant' ? formatWhatsappText(text) : escapeHtml(text),
+                        id: normalizeText(item.id),
+                        type: normalizeText(item.type),
+                        role: normalizeText(item.role),
+                        status: normalizeText(item.status),
+                        label: buildTechnicalLabel(item),
+                        summary: buildTechnicalSummary(item),
+                        json: JSON.stringify(item, null, 2) || '{}',
                     };
                 }).filter(Boolean);
             };
@@ -373,6 +571,82 @@
                 container.appendChild(wrapper);
             };
 
+            const technicalBadge = (label, value) => {
+                if (!value) {
+                    return '';
+                }
+
+                return `<span class="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">${escapeHtml(label)} ${escapeHtml(value)}</span>`;
+            };
+
+            const renderTechnicalItem = (item) => {
+                return `
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-semibold text-slate-800">${escapeHtml(item.label)}</p>
+                                <p class="mt-1 text-sm text-slate-500">${escapeHtml(item.summary)}</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2 text-[11px]">
+                                ${technicalBadge('type', item.type)}
+                                ${technicalBadge('role', item.role)}
+                                ${technicalBadge('status', item.status)}
+                            </div>
+                        </div>
+                        <details class="mt-4 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 text-slate-100">
+                            <summary class="cursor-pointer px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                                Ver JSON
+                            </summary>
+                            <div class="border-t border-slate-700 px-4 py-4">
+                                <pre class="overflow-x-auto whitespace-pre-wrap break-all text-xs leading-relaxed">${escapeHtml(item.json)}</pre>
+                            </div>
+                        </details>
+                    </div>
+                `;
+            };
+
+            const updateTechnicalItemsButton = () => {
+                if (!technicalItemsBtn || !technicalItemsCountEl) {
+                    return;
+                }
+
+                technicalItemsCountEl.textContent = String(technicalItemsCount);
+                technicalItemsBtn.classList.toggle('hidden', technicalItemsCount === 0);
+            };
+
+            const appendTechnicalItem = (item) => {
+                if (!technicalItemsList) {
+                    return;
+                }
+
+                if (technicalItemsEmptyState) {
+                    technicalItemsEmptyState.remove();
+                }
+
+                technicalItemsCount += 1;
+                container.dataset.technicalCount = String(technicalItemsCount);
+                technicalItemsList.insertAdjacentHTML('beforeend', renderTechnicalItem(item));
+                updateTechnicalItemsButton();
+            };
+
+            const openTechnicalItemsModal = () => {
+                if (!technicalItemsModal) {
+                    return;
+                }
+
+                technicalItemsModal.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            };
+
+            const closeTechnicalItemsModal = () => {
+                if (!technicalItemsModal) {
+                    return;
+                }
+
+                technicalItemsModal.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            };
+
             const updateButton = (extraStatus = '') => {
                 if (hasMore) {
                     loadMoreBtn.disabled = false;
@@ -389,6 +663,22 @@
                     statusEl.textContent = extraStatus || 'Todas as paginas foram carregadas.';
                 }
             };
+
+            if (technicalItemsBtn) {
+                technicalItemsBtn.addEventListener('click', openTechnicalItemsModal);
+            }
+
+            if (technicalItemsModal) {
+                technicalItemsModal.querySelectorAll('[data-technical-modal-close]').forEach((element) => {
+                    element.addEventListener('click', closeTechnicalItemsModal);
+                });
+            }
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && technicalItemsModal && !technicalItemsModal.classList.contains('hidden')) {
+                    closeTechnicalItemsModal();
+                }
+            });
 
             loadMoreBtn.addEventListener('click', async () => {
                 if (!hasMore) {
@@ -426,6 +716,8 @@
 
                     const visibleMessages = toVisibleMessages(payload.data);
                     visibleMessages.forEach(appendMessage);
+                    const technicalItems = toTechnicalItems(payload.data);
+                    technicalItems.forEach(appendTechnicalItem);
 
                     hasMore = !!payload.has_more;
                     after = payload.last_id || after;
@@ -444,6 +736,7 @@
                 }
             });
 
+            updateTechnicalItemsButton();
             updateButton();
         });
     </script>

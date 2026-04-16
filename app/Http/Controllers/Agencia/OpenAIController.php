@@ -62,6 +62,7 @@ class OpenAIController extends Controller
             'assistantLeadMatchesCount' => 0,
             'items' => [],
             'messages' => [],
+            'technicalItems' => [],
             'hasMore' => false,
             'lastId' => null,
             'firstId' => null,
@@ -160,7 +161,9 @@ class OpenAIController extends Controller
             }
 
             $data['items'] = is_array($data['result']['data'] ?? null) ? $data['result']['data'] : [];
-            $data['messages'] = OpenAIConversationFormatter::normalizeItems($data['items']);
+            $partitionedItems = OpenAIConversationFormatter::partitionItems($data['items']);
+            $data['messages'] = $partitionedItems['messages'];
+            $data['technicalItems'] = $partitionedItems['technicalItems'];
             $data['hasMore'] = (bool) ($data['result']['has_more'] ?? false);
             $data['lastId'] = $data['result']['last_id'] ?? null;
             $data['firstId'] = $data['result']['first_id'] ?? null;
