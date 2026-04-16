@@ -8,6 +8,7 @@ use App\Models\Conexao;
 use App\Models\Credential;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 function agenciaOpenAiConversasMakeCliente(User $user, array $attributes = []): Cliente
@@ -231,4 +232,144 @@ test('listagem de conversas usa a nova rota agencia openai conversas no payload 
         '"conv_url":"http:\\/\\/facilitai.test\\/agencia\\/openai\\/conversas?conv_id=' . $assistantLead->conv_id . '"',
         false
     );
+});
+
+test('rota agencia openai conversas com apenas conexao_id mostra sidebar e placeholder de conversa', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaOpenAiConversasMakeCliente($user, ['nome' => 'Cliente Sidebar']);
+    $credential = agenciaOpenAiConversasMakeCredential($user, ['cliente_id' => $cliente->id]);
+    $assistant = agenciaOpenAiConversasMakeAssistant($user, $cliente, $credential, ['name' => 'Assistente Sidebar']);
+    $conexao = agenciaOpenAiConversasMakeConexao($cliente, $credential, $assistant, ['name' => 'Conexão Principal']);
+
+    $leadRecent = agenciaOpenAiConversasMakeLead($cliente, ['name' => 'Lead Recente', 'phone' => '5511999991000']);
+    agenciaOpenAiConversasMakeAssistantLead($leadRecent, $assistant, ['conv_id' => 'conv_sidebar_recent']);
+    $leadRecent->forceFill(['updated_at' => Carbon::parse('2026-04-16 10:30:00')])->saveQuietly();
+
+    $leadOlder = agenciaOpenAiConversasMakeLead($cliente, ['name' => 'Lead Antigo', 'phone' => '5511999992000']);
+    agenciaOpenAiConversasMakeAssistantLead($leadOlder, $assistant, ['conv_id' => 'conv_sidebar_old']);
+    $leadOlder->forceFill(['updated_at' => Carbon::parse('2026-04-15 10:30:00')])->saveQuietly();
+
+    $response = $this->actingAs($user)->get(route('agencia.openai.conversas', [
+        'conexao_id' => $conexao->id,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('Conexão Principal');
+    $response->assertSee('Cliente Sidebar');
+    $response->assertSee('Assistente Sidebar');
+    $response->assertSee('Selecione um lead para visualizar a conversa');
+    $response->assertSee('Lead Recente');
+    $response->assertSee('Lead Antigo');
+    $response->assertSee(e(route('agencia.openai.conversas', [
+        'conexao_id' => $conexao->id,
+        'conv_id' => 'conv_sidebar_recent',
+    ])), false);
+});
+
+test('sidebar da rota agencia openai conversas filtra por cliente assistente e conv_id e respeita ordenacao do lead', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaOpenAiConversasMakeCliente($user, ['nome' => 'Cliente A']);
+    $outroCliente = agenciaOpenAiConversasMakeCliente($user, ['nome' => 'Cliente B', 'email' => fake()->unique()->safeEmail()]);
+    $credential = agenciaOpenAiConversasMakeCredential($user, ['cliente_id' => $cliente->id]);
+    $assistantA = agenciaOpenAiConversasMakeAssistant($user, $cliente, $credential, ['name' => 'Assistente A']);
+    $assistantB = agenciaOpenAiConversasMakeAssistant($user, $cliente, $credential, ['name' => 'Assistente B']);
+    $conexao = agenciaOpenAiConversasMakeConexao($cliente, $credential, $assistantA, ['name' => 'Conexão A']);
+
+    $leadRecent = agenciaOpenAiConversasMakeLead($cliente, ['name' => 'Lead Mais Recente']);
+    agenciaOpenAiConversasMakeAssistantLead($leadRecent, $assistantA, ['conv_id' => 'conv_filter_recent']);
+    $leadRecent->forceFill(['updated_at' => Carbon::parse('2026-04-16 12:00:00')])->saveQuietly();
+
+    $leadOlder = agenciaOpenAiConversasMakeLead($cliente, ['name' => 'Lead Mais Antigo']);
+    agenciaOpenAiConversasMakeAssistantLead($leadOlder, $assistantA, ['conv_id' => 'conv_filter_old']);
+    $leadOlder->forceFill(['updated_at' => Carbon::parse('2026-04-15 12:00:00')])->saveQuietly();
+
+    $leadWrongAssistant = agenciaOpenAiConversasMakeLead($cliente, ['name' => 'Lead Outro Assistente']);
+    agenciaOpenAiConversasMakeAssistantLead($leadWrongAssistant, $assistantB, ['conv_id' => 'conv_wrong_assistant']);
+    $leadWrongAssistant->forceFill(['updated_at' => Carbon::parse('2026-04-17 12:00:00')])->saveQuietly();
+
+    $leadWithoutConv = agenciaOpenAiConversasMakeLead($cliente, ['name' => 'Lead Sem Conv']);
+    agenciaOpenAiConversasMakeAssistantLead($leadWithoutConv, $assistantA, ['conv_id' => null]);
+
+    $leadOtherClient = agenciaOpenAiConversasMakeLead($outroCliente, ['name' => 'Lead Outro Cliente']);
+    agenciaOpenAiConversasMakeAssistantLead($leadOtherClient, $assistantA, ['conv_id' => 'conv_other_client']);
+
+    $response = $this->actingAs($user)->get(route('agencia.openai.conversas', [
+        'conexao_id' => $conexao->id,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('Lead Mais Recente');
+    $response->assertSee('Lead Mais Antigo');
+    $response->assertDontSee('Lead Outro Assistente');
+    $response->assertDontSee('Lead Sem Conv');
+    $response->assertDontSee('Lead Outro Cliente');
+
+    $content = $response->getContent();
+    expect(strpos($content, 'Lead Mais Recente'))->toBeLessThan(strpos($content, 'Lead Mais Antigo'));
+});
+
+test('conv_id valido seleciona automaticamente a conexao correta e sincroniza conexao_id divergente', function () {
+    $user = User::factory()->create();
+    $clienteA = agenciaOpenAiConversasMakeCliente($user, ['nome' => 'Cliente A']);
+    $clienteB = agenciaOpenAiConversasMakeCliente($user, ['nome' => 'Cliente B', 'email' => fake()->unique()->safeEmail()]);
+
+    $credentialA = agenciaOpenAiConversasMakeCredential($user, ['cliente_id' => $clienteA->id]);
+    $credentialB = agenciaOpenAiConversasMakeCredential($user, ['cliente_id' => $clienteB->id, 'name' => 'Credencial B']);
+
+    $assistantA = agenciaOpenAiConversasMakeAssistant($user, $clienteA, $credentialA, ['name' => 'Assistente A']);
+    $assistantB = agenciaOpenAiConversasMakeAssistant($user, $clienteB, $credentialB, ['name' => 'Assistente B']);
+
+    $conexaoA = agenciaOpenAiConversasMakeConexao($clienteA, $credentialA, $assistantA, ['name' => 'Conexão A']);
+    $conexaoB = agenciaOpenAiConversasMakeConexao($clienteB, $credentialB, $assistantB, ['name' => 'Conexão B']);
+
+    $leadB = agenciaOpenAiConversasMakeLead($clienteB, ['name' => 'Lead B', 'phone' => '5511988887777']);
+    $assistantLeadB = agenciaOpenAiConversasMakeAssistantLead($leadB, $assistantB, ['conv_id' => 'conv_sync_123']);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(
+            agenciaOpenAiConversasFakeResponse($assistantLeadB->conv_id),
+            200
+        ),
+    ]);
+
+    $response = $this->actingAs($user)->get(route('agencia.openai.conversas', [
+        'conexao_id' => $conexaoA->id,
+        'conv_id' => $assistantLeadB->conv_id,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('Conexão B');
+    $response->assertSee('Lead B');
+    $response->assertSee('<option value="' . $conexaoB->id . '" selected>', false);
+    $response->assertSee(e(route('agencia.openai.conversas', [
+        'conexao_id' => $conexaoB->id,
+        'conv_id' => $assistantLeadB->conv_id,
+    ])), false);
+});
+
+test('conexao_id de outro usuario e ignorado e a primeira conexao valida do usuario e selecionada', function () {
+    $user = User::factory()->create();
+    $otherUser = User::factory()->create();
+
+    $clienteUser = agenciaOpenAiConversasMakeCliente($user, ['nome' => 'Cliente User']);
+    $credentialUser = agenciaOpenAiConversasMakeCredential($user, ['cliente_id' => $clienteUser->id]);
+    $assistantUser = agenciaOpenAiConversasMakeAssistant($user, $clienteUser, $credentialUser, ['name' => 'Assistente User']);
+    $conexaoUser = agenciaOpenAiConversasMakeConexao($clienteUser, $credentialUser, $assistantUser, ['name' => 'Conexão User']);
+    $leadUser = agenciaOpenAiConversasMakeLead($clienteUser, ['name' => 'Lead User']);
+    agenciaOpenAiConversasMakeAssistantLead($leadUser, $assistantUser, ['conv_id' => 'conv_user_123']);
+
+    $clienteOther = agenciaOpenAiConversasMakeCliente($otherUser, ['nome' => 'Cliente Other', 'email' => fake()->unique()->safeEmail()]);
+    $credentialOther = agenciaOpenAiConversasMakeCredential($otherUser, ['cliente_id' => $clienteOther->id, 'name' => 'Credencial Other']);
+    $assistantOther = agenciaOpenAiConversasMakeAssistant($otherUser, $clienteOther, $credentialOther, ['name' => 'Assistente Other']);
+    $conexaoOther = agenciaOpenAiConversasMakeConexao($clienteOther, $credentialOther, $assistantOther, ['name' => 'Conexão Other']);
+
+    $response = $this->actingAs($user)->get(route('agencia.openai.conversas', [
+        'conexao_id' => $conexaoOther->id,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('<option value="' . $conexaoUser->id . '" selected>', false);
+    $response->assertDontSee('Conexão Other');
+    $response->assertSee('Lead User');
+    $response->assertSee('Selecione um lead para visualizar a conversa');
 });
