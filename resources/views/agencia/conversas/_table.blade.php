@@ -107,11 +107,16 @@
                         'bot' => $lead->bot_enabled ? 'Ativado' : 'Desativado',
                         'created_at' => $lead->created_at?->format('d/m/Y H:i') ?? '-',
                         'assistant_leads' => $lead->assistantLeads->map(function ($assistantLead) {
+                            $convId = $assistantLead->conv_id ?? '-';
+
                             return [
                                 'assistant_id' => $assistantLead->assistant_id,
                                 'assistant' => optional($assistantLead->assistant)->name ?? '-',
                                 'version' => $assistantLead->version,
-                                'conv_id' => $assistantLead->conv_id ?? '-',
+                                'conv_id' => $convId,
+                                'conv_url' => $convId && $convId !== '-'
+                                    ? route('agencia.openai.conversas', ['conv_id' => $convId])
+                                    : null,
                                 'created_at' => $assistantLead->created_at?->format('d/m/Y H:i') ?? '-',
                             ];
                         })->toArray(),

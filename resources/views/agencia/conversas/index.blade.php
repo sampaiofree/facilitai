@@ -1017,7 +1017,7 @@
             const filtersQueryInput = filtersMenu?.querySelector('input[name="q"]');
             const filtersSortByInput = filtersMenu?.querySelector('input[name="sort_by"]');
             const filtersSortDirInput = filtersMenu?.querySelector('input[name="sort_dir"]');
-            const convIdBaseUrl = @json(route('agencia.openai.conv_id'));
+            const convIdBaseUrl = @json(route('agencia.openai.conversas'));
             const previewEmpty = document.getElementById('previewEmpty');
             const importMappingWrap = document.getElementById('importMappingWrap');
             const importMappingRows = document.getElementById('importMappingRows');
@@ -2203,8 +2203,11 @@
 
                 return list.map(item => {
                     const convId = item.conv_id || '-';
-                    const convLink = convId && convId !== '-'
-                        ? `<a class="text-blue-600 hover:underline" href="${convIdBaseUrl}?conv_id=${encodeURIComponent(convId)}">${convId}</a>`
+                    const convUrl = item.conv_url || (convId && convId !== '-'
+                        ? `${convIdBaseUrl}?conv_id=${encodeURIComponent(convId)}`
+                        : '');
+                    const convLink = convUrl
+                        ? `<a class="text-blue-600 hover:underline" href="${convUrl}">${convId}</a>`
                         : convId;
                     const assistantId = item.assistant_id ?? '';
                     const assistantName = item.assistant ?? '-';

@@ -427,6 +427,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     Route::post('conversas/import', [AgenciaClienteLeadController::class, 'import'])->name('conversas.import');
     Route::post('conversas/preview', [AgenciaClienteLeadController::class, 'preview'])->name('conversas.preview');
     Route::get('conversas/export', [AgenciaClienteLeadController::class, 'export'])->name('conversas.export');
+    Route::get('openai/conversas', [AgenciaOpenAIController::class, 'conversas'])->name('openai.conversas');
     Route::get('openai/conv_id', [AgenciaOpenAIController::class, 'convId'])->name('openai.conv_id');
     Route::put('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'update'])->name('conversas.update');
     Route::delete('conversas/{clienteLead}', [AgenciaClienteLeadController::class, 'destroy'])->name('conversas.destroy');

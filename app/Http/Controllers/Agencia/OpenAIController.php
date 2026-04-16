@@ -5,12 +5,38 @@ namespace App\Http\Controllers\Agencia;
 use App\Http\Controllers\Controller;
 use App\Models\AssistantLead;
 use App\Services\OpenAIService;
+use App\Support\OpenAIConversationFormatter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class OpenAIController extends Controller
 {
     public function convId(Request $request)
+    {
+        $data = $this->resolveConversationData($request);
+
+        if ($request->wantsJson()) {
+            return $this->jsonConversationResponse($data);
+        }
+
+        return view('agencia.openai.conv_id', $data);
+    }
+
+    public function conversas(Request $request)
+    {
+        $data = $this->resolveConversationData($request);
+
+        if ($request->wantsJson()) {
+            return $this->jsonConversationResponse($data);
+        }
+
+        return view('agencia.openai.conversas', $data);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolveConversationData(Request $request): array
     {
         $user = $request->user();
         $convId = (string) $request->input('conv_id');
@@ -24,7 +50,6 @@ class OpenAIController extends Controller
         $firstId = null;
         $object = null;
         $status = null;
-        $response = null;
         $assistantLead = null;
         $assistantLeadMatchesCount = 0;
 
@@ -121,30 +146,14 @@ class OpenAIController extends Controller
             }
         }
 
-        if ($request->wantsJson()) {
-            $statusCode = $error ? ($status ?: 400) : 200;
-
-            return response()->json([
-                'conv_id' => $convId,
-                'data' => $items,
-                'has_more' => $hasMore,
-                'last_id' => $lastId,
-                'first_id' => $firstId,
-                'object' => $object,
-                'after' => $after !== '' ? $after : null,
-                'limit' => $limit,
-                'status' => $status,
-                'error' => $error,
-            ], $statusCode);
-        }
-
-        return view('agencia.openai.conv_id', [
+        return [
             'convId' => $convId,
             'result' => $result,
             'error' => $error,
             'assistantLead' => $assistantLead,
             'assistantLeadMatchesCount' => $assistantLeadMatchesCount,
             'items' => $items,
+            'messages' => OpenAIConversationFormatter::normalizeItems($items),
             'hasMore' => $hasMore,
             'lastId' => $lastId,
             'firstId' => $firstId,
@@ -152,6 +161,27 @@ class OpenAIController extends Controller
             'status' => $status,
             'after' => $after !== '' ? $after : null,
             'limit' => $limit,
-        ]);
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function jsonConversationResponse(array $data)
+    {
+        $statusCode = $data['error'] ? ($data['status'] ?: 400) : 200;
+
+        return response()->json([
+            'conv_id' => $data['convId'],
+            'data' => $data['items'],
+            'has_more' => $data['hasMore'],
+            'last_id' => $data['lastId'],
+            'first_id' => $data['firstId'],
+            'object' => $data['object'],
+            'after' => $data['after'],
+            'limit' => $data['limit'],
+            'status' => $data['status'],
+            'error' => $data['error'],
+        ], $statusCode);
     }
 }
