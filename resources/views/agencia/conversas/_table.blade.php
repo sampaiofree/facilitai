@@ -164,7 +164,7 @@
                         @endif
                     </td>
                     <td class="px-5 py-4 text-slate-600">{{ $lead->updated_at?->format('d/m/Y H:i') ?? '-' }}</td>
-                    <td class="px-5 py-4 text-slate-600">{{ $lead->created_at?->format('d/m/Y') ?? '-' }}</td>
+                    <td class="px-5 py-4 text-slate-600">{{ $lead->created_at?->format('d/m/Y H:i') ?? '-' }}</td>
                     <td class="px-5 py-4 text-right">
                         <div class="flex flex-wrap justify-end gap-2">
                             <button

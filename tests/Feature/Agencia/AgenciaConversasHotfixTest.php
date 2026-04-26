@@ -10,6 +10,7 @@ use App\Models\SequenceChat;
 use App\Models\User;
 use App\Models\WhatsappCloudCustomField;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 
 uses(RefreshDatabase::class);
@@ -456,6 +457,30 @@ test('destroy de lead preserva filtros ordenacao e pagina no redirect', function
     $this->assertDatabaseMissing('cliente_lead', [
         'id' => $lead->id,
     ]);
+});
+
+test('listagem de conversas da agencia exibe horario na coluna criado em', function () {
+    $user = User::factory()->create();
+    $cliente = agenciaConversasMakeCliente($user);
+    $lead = agenciaConversasMakeLead($cliente, [
+        'name' => 'Lead Horario',
+    ]);
+
+    $createdAt = Carbon::parse('2026-04-16 10:30:00');
+    $updatedAt = Carbon::parse('2026-04-17 11:45:00');
+
+    $lead->forceFill([
+        'created_at' => $createdAt,
+        'updated_at' => $updatedAt,
+    ])->saveQuietly();
+
+    $response = $this->actingAs($user)->get(route('agencia.conversas.index'));
+
+    $response->assertOk();
+    $response->assertSee(
+        '<td class="px-5 py-4 text-slate-600">' . $createdAt->format('d/m/Y H:i') . '</td>',
+        false
+    );
 });
 
 test('job classifica resposta concluida sem texto como silent', function () {
