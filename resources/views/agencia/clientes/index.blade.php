@@ -25,7 +25,9 @@
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Email</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Telefone</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Status</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conexões</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Último login</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Registro</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Ações</th>
                 </tr>
             </thead>
@@ -43,7 +45,13 @@
                             @endif
                         </td>
                         <td class="px-5 py-4 text-slate-600">
+                            {{ $cliente->conexoes_ativas_count }} / {{ $cliente->conexoes_count }}
+                        </td>
+                        <td class="px-5 py-4 text-slate-600">
                             {{ $cliente->last_login_at?->format('d/m/Y H:i') ?? '-' }}
+                        </td>
+                        <td class="px-5 py-4 text-slate-600">
+                            {{ $cliente->created_at?->format('d/m/Y H:i') ?? '-' }}
                         </td>
                         <td class="px-5 py-4">
                             <div class="flex items-center gap-2">
@@ -80,7 +88,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-5 py-6 text-center text-slate-500">Nenhum cliente cadastrado.</td>
+                        <td colspan="8" class="px-5 py-6 text-center text-slate-500">Nenhum cliente cadastrado.</td>
                     </tr>
                 @endforelse
             </tbody>

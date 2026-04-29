@@ -21,7 +21,13 @@ class AgenciaClienteController extends Controller
             $query->withTrashed();
         }
 
-        $clientes = $query->latest()->get();
+        $clientes = $query
+            ->withCount([
+                'conexoes',
+                'conexoes as conexoes_ativas_count' => fn ($query) => $query->where('is_active', true),
+            ])
+            ->latest()
+            ->get();
 
         return view('agencia.clientes.index', [
             'clientes' => $clientes,
