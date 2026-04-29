@@ -48,6 +48,14 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @forelse($conexoes as $conexao)
+                    @php
+                        $statusValue = strtolower(trim((string) ($conexao->status ?? '')));
+                        $statusClasses = match ($statusValue) {
+                            'connected' => 'bg-emerald-100 text-emerald-700',
+                            'disconnected' => 'bg-rose-100 text-rose-700',
+                            default => 'bg-slate-100 text-slate-600',
+                        };
+                    @endphp
                     <tr class="hover:bg-slate-50">
                         <td class="px-5 py-4 text-slate-600">{{ optional($conexao->cliente)->nome ?? '-' }}</td>
                         <td class="px-5 py-4 font-medium text-slate-800">{{ $conexao->name ?? '-' }}</td>
@@ -55,7 +63,7 @@
                         <td class="px-5 py-4">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span
-                                    class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold transition {{ $conexao->status === 'connected' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}"
+                                    class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold transition {{ $statusClasses }}"
                                     data-conexao-status
                                     data-conexao-id="{{ $conexao->id }}"
                                 >
@@ -726,10 +734,14 @@
                 if (statusEl) {
                     statusEl.textContent = status;
                     const isConnected = normalized === 'connected';
+                    const isDisconnected = normalized === 'disconnected';
+                    const isNeutral = !isConnected && !isDisconnected;
                     statusEl.classList.toggle('bg-emerald-100', isConnected);
                     statusEl.classList.toggle('text-emerald-700', isConnected);
-                    statusEl.classList.toggle('bg-slate-100', !isConnected);
-                    statusEl.classList.toggle('text-slate-600', !isConnected);
+                    statusEl.classList.toggle('bg-rose-100', isDisconnected);
+                    statusEl.classList.toggle('text-rose-700', isDisconnected);
+                    statusEl.classList.toggle('bg-slate-100', isNeutral);
+                    statusEl.classList.toggle('text-slate-600', isNeutral);
                 }
                 updateConnectVisibility(id, status);
             };
@@ -843,8 +855,7 @@
                         connectButton.dataset.isActive = payload.is_active ? '1' : '0';
                     }
                     if (payload?.status) {
-                        element.textContent = payload.status;
-                        updateConnectVisibility(id, payload.status);
+                        applyStatusUpdate(id, payload.status);
                     } else {
                         element.textContent = payload?.message ?? 'erro';
                     }

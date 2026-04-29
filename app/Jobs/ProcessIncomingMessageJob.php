@@ -37,6 +37,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProcessing
@@ -60,6 +61,7 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
 
     protected ?Conexao $conexao = null;
     protected ?ClienteLead $clienteLead = null;
+    protected bool $notifyingUazapiSendFailure = false;
 
     public function __construct(int $conexaoId, ?int $clienteLeadId, array $payload, ?string $cacheKey = null, bool $isMedia = false, int $debounceSeconds = 5, int $maxWaitSeconds = 25)
     {
@@ -827,13 +829,14 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
                 return;
             }
 
-            $uazapi = new UazapiService();
+            $uazapi = $this->makeUazapiService();
             $sendResult = $uazapi->sendText($providerToken, $phone, $message);
             if (!empty($sendResult['error'])) {
                 Log::channel('process_job')->error('Falha ao enviar mensagem via Uazapi.', $this->logContext(array_merge($logContext, [
                     'response' => $sendResult,
                 ])));
-                $this->throwTransient('Falha ao enviar mensagem via Uazapi.', $logContext);
+                $this->notifyUazapiSendFailure($providerToken, $phone, $sendResult, $logContext);
+                return;
             }
 
             return;
@@ -874,6 +877,93 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         Log::channel('process_job')->warning('Provedor WhatsApp não suportado para envio de texto.', $this->logContext(array_merge($logContext, [
             'provider_slug' => $providerSlug,
         ])));
+    }
+
+    private function notifyUazapiSendFailure(?string $token, string $phone, array $sendResult, array $logContext): void
+    {
+        if ($this->notifyingUazapiSendFailure) {
+            return;
+        }
+
+        $this->notifyingUazapiSendFailure = true;
+
+        try {
+            $message = $this->buildUazapiSendFailureMessage($phone, $sendResult, $logContext);
+
+            $this->notifyUazapiSendFailureAgency($token, $message, $logContext);
+            $this->notifyUazapiSendFailureDev($token, $message, $logContext);
+        } finally {
+            $this->notifyingUazapiSendFailure = false;
+        }
+    }
+
+    private function buildUazapiSendFailureMessage(string $phone, array $sendResult, array $logContext): string
+    {
+        $message = Arr::get($sendResult, 'body.message_ptbr')
+            ?? Arr::get($sendResult, 'body.provider_message_ptbr')
+            ?? Arr::get($sendResult, 'body.message')
+            ?? Arr::get($sendResult, 'body.error')
+            ?? Arr::get($sendResult, 'message')
+            ?? 'Falha ao enviar mensagem via Uazapi.';
+
+        $errorKey = Arr::get($sendResult, 'body.error_key') ?? Arr::get($sendResult, 'error_key');
+        $providerCode = Arr::get($sendResult, 'body.provider_code') ?? Arr::get($sendResult, 'provider_code') ?? Arr::get($sendResult, 'status');
+
+        return "Falha ao enviar mensagem via Uazapi\n" .
+            'conexao_id: ' . ($logContext['conexao_id'] ?? $this->conexao?->id ?? '-') . "\n" .
+            'assistant_id: ' . ($logContext['assistant_id'] ?? '-') . "\n" .
+            'lead_id: ' . ($logContext['lead_id'] ?? $this->clienteLead?->id ?? '-') . "\n" .
+            'phone: ' . ($phone !== '' ? $phone : '-') . "\n" .
+            'event_id: ' . ($logContext['event_id'] ?? $this->payload['event_id'] ?? '-') . "\n" .
+            'error_key: ' . ($errorKey ?: '-') . "\n" .
+            'provider_code: ' . ($providerCode ?: '-') . "\n" .
+            'message: ' . trim((string) $message);
+    }
+
+    private function notifyUazapiSendFailureAgency(?string $token, string $message, array $logContext): void
+    {
+        $user = $this->conexao?->cliente?->user;
+        if (!$user || !is_string($user->mobile_phone) || trim($user->mobile_phone) === '') {
+            Log::channel('process_job')->warning('Agencia sem telefone para notificacao de falha Uazapi.', $this->logContext($logContext));
+            return;
+        }
+
+        $phone = preg_replace('/\D/', '', $user->mobile_phone);
+        if (!is_string($phone) || $phone === '') {
+            Log::channel('process_job')->warning('Telefone da agencia invalido para notificacao de falha Uazapi.', $this->logContext(array_merge($logContext, [
+                'user_id' => $user->id,
+            ])));
+            return;
+        }
+
+        $this->sendText($token, $phone, $message, array_merge($logContext, [
+            'user_id' => $user->id,
+            'notification_target' => 'agency',
+        ]));
+    }
+
+    private function notifyUazapiSendFailureDev(?string $token, string $message, array $logContext): void
+    {
+        $devPhoneRaw = config('services.dev.whatsapp');
+        if (!is_string($devPhoneRaw) || trim($devPhoneRaw) === '') {
+            $devPhoneRaw = '5562995772922';
+        }
+
+        $phone = preg_replace('/\D/', '', $devPhoneRaw);
+        if (!is_string($phone) || $phone === '') {
+            Log::channel('process_job')->warning('DEV_WHATSAPP invalido para notificacao de falha Uazapi.', $this->logContext($logContext));
+            return;
+        }
+
+        $this->sendText($token, $phone, $message, array_merge($logContext, [
+            'dev_phone' => $phone,
+            'notification_target' => 'dev',
+        ]));
+    }
+
+    protected function makeUazapiService(): UazapiService
+    {
+        return new UazapiService();
     }
 
     private function resolveWhatsappProviderSlug(): string
