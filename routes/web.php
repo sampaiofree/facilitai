@@ -507,6 +507,7 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::post('conversas/import', [ClienteClienteLeadController::class, 'import'])->name('conversas.import');
         Route::post('conversas/preview', [ClienteClienteLeadController::class, 'preview'])->name('conversas.preview');
         Route::get('conversas/export', [ClienteClienteLeadController::class, 'export'])->name('conversas.export');
+        Route::post('conversas/{clienteLead}/send-message', [ClienteClienteLeadController::class, 'sendMessage'])->name('conversas.send-message');
         Route::put('conversas/{clienteLead}', [ClienteClienteLeadController::class, 'update'])->name('conversas.update');
         Route::delete('conversas/{clienteLead}', [ClienteClienteLeadController::class, 'destroy'])->name('conversas.destroy');
         Route::get('mensagens-agendadas', [ClienteScheduledMessageController::class, 'index'])->name('mensagens-agendadas.index');

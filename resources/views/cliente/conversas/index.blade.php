@@ -461,6 +461,49 @@
                     </table>
                 </div>
             </div>
+            <form id="leadMessageForm" class="mt-6 space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div>
+                    <h4 class="text-sm font-semibold text-slate-700">Enviar mensagem</h4>
+                    <p class="text-xs text-slate-500">Escolha a conexão/assistente que deve processar o envio para este lead.</p>
+                </div>
+                <div>
+                    <label for="leadMessageConexao" class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Conexão / Assistente</label>
+                    <select
+                        id="leadMessageConexao"
+                        class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                    >
+                        <option value="">Selecione uma conexão</option>
+                        @foreach($messageConexoes as $conexao)
+                            <option value="{{ $conexao->id }}">
+                                {{ $conexao->name ?? 'Conexão' }} - {{ $conexao->assistant?->name ?? 'Assistente' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @if($messageConexoes->isEmpty())
+                        <p class="mt-1 text-xs text-rose-600">Nenhuma conexão ativa com assistente vinculado está disponível.</p>
+                    @endif
+                </div>
+                <div>
+                    <label for="leadMessageText" class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Mensagem</label>
+                    <textarea
+                        id="leadMessageText"
+                        rows="3"
+                        maxlength="2000"
+                        class="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                        placeholder="Digite a mensagem"
+                    ></textarea>
+                </div>
+                <p id="leadMessageError" class="hidden rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700"></p>
+                <p id="leadMessageSuccess" class="hidden rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700"></p>
+                <div class="flex justify-end">
+                    <button
+                        type="submit"
+                        id="leadMessageSubmit"
+                        class="rounded-2xl bg-blue-600 px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        @disabled($messageConexoes->isEmpty())
+                    >Enviar</button>
+                </div>
+            </form>
         </div>
     </div>
 @endsection
@@ -471,6 +514,12 @@
             const modal = document.getElementById('agenciaClienteLeadModal');
             const assistantBody = document.getElementById('viewLeadAssistants');
             const tagsContainer = document.getElementById('viewLeadTags');
+            const messageForm = document.getElementById('leadMessageForm');
+            const messageConexao = document.getElementById('leadMessageConexao');
+            const messageText = document.getElementById('leadMessageText');
+            const messageError = document.getElementById('leadMessageError');
+            const messageSuccess = document.getElementById('leadMessageSuccess');
+            const messageSubmit = document.getElementById('leadMessageSubmit');
             const formModal = document.getElementById('agenciaClienteLeadFormModal');
             const clientLeadForm = document.getElementById('clienteLeadForm');
             const importForm = document.getElementById('clienteLeadImportForm');
@@ -499,6 +548,8 @@
             const previewCards = document.getElementById('previewCards');
             const previewPhoneStatus = document.getElementById('previewPhoneStatus');
             const previewEmptyDefault = previewEmpty?.textContent || '';
+            const sendMessageUrlTemplate = @json(route('cliente.conversas.send-message', ['clienteLead' => '__LEAD_ID__']));
+            let currentLead = null;
             let previewHeaders = [];
             let previewRows = [];
             const mapSelects = document.querySelectorAll('[data-map-select]');
@@ -642,8 +693,21 @@
                 fetchLeads(window.location.href);
             });
 
+            const resetMessageForm = () => {
+                if (messageConexao) {
+                    messageConexao.value = '';
+                }
+                if (messageText) {
+                    messageText.value = '';
+                }
+                messageError?.classList.add('hidden');
+                messageSuccess?.classList.add('hidden');
+            };
+
             const closeModal = () => {
                 modal?.classList.add('hidden');
+                currentLead = null;
+                resetMessageForm();
             };
 
             const renderAssistants = (list = []) => {
@@ -677,6 +741,8 @@
             };
 
             const openConversation = (data) => {
+                currentLead = data;
+                resetMessageForm();
                 document.getElementById('viewLeadId').textContent = data.id;
                 document.getElementById('viewLeadCliente').textContent = `${data.cliente.id} · ${data.cliente.nome}`;
                 document.getElementById('viewLeadPhone').textContent = data.phone;
@@ -697,6 +763,80 @@
 
                 modal?.classList.remove('hidden');
             };
+
+            messageForm?.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                if (!currentLead) {
+                    return;
+                }
+
+                const conexaoId = messageConexao?.value?.trim() ?? '';
+                const mensagem = messageText?.value?.trim() ?? '';
+
+                messageError?.classList.add('hidden');
+                messageSuccess?.classList.add('hidden');
+
+                if (!conexaoId) {
+                    if (messageError) {
+                        messageError.textContent = 'Selecione uma conexão antes de enviar.';
+                        messageError.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                if (!mensagem) {
+                    if (messageError) {
+                        messageError.textContent = 'Informe a mensagem antes de enviar.';
+                        messageError.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                if (messageSubmit) {
+                    messageSubmit.disabled = true;
+                    messageSubmit.textContent = 'Enviando...';
+                }
+
+                try {
+                    const url = sendMessageUrlTemplate.replace('__LEAD_ID__', currentLead.id);
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        },
+                        body: JSON.stringify({
+                            conexao_id: conexaoId,
+                            mensagem,
+                        }),
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'Não foi possível enviar a mensagem.');
+                    }
+
+                    if (messageSuccess) {
+                        messageSuccess.textContent = payload.message || 'Mensagem enviada para a fila.';
+                        messageSuccess.classList.remove('hidden');
+                    }
+                    if (messageText) {
+                        messageText.value = '';
+                    }
+                } catch (error) {
+                    if (messageError) {
+                        messageError.textContent = error.message || 'Não foi possível enviar a mensagem.';
+                        messageError.classList.remove('hidden');
+                    }
+                } finally {
+                    if (messageSubmit) {
+                        messageSubmit.disabled = false;
+                        messageSubmit.textContent = 'Enviar';
+                    }
+                }
+            });
 
             document.querySelectorAll('[data-view-close]').forEach(button => {
                 button.addEventListener('click', closeModal);

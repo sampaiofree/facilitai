@@ -4,15 +4,20 @@ namespace App\Http\Controllers\Cliente;
 
 use App\Http\Controllers\Controller;
 use App\Models\Assistant;
+use App\Models\AssistantLead;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Models\Tag;
+use App\Jobs\ProcessIncomingMessageJob;
+use App\Services\ScheduledMessageService;
 use App\Support\PhoneNumberNormalizer;
+use App\Services\WhatsappCloudConversationWindowService;
 use App\Services\UazapiService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Symfony\Component\HttpFoundation\Response;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -37,6 +42,15 @@ class ClienteLeadController extends Controller
         $assistants = Assistant::where('cliente_id', $cliente->id)
             ->orderBy('name')
             ->get();
+        $messageConexoes = Conexao::query()
+            ->with(['assistant:id,name,version,cliente_id', 'whatsappApi:id,slug'])
+            ->where('cliente_id', $cliente->id)
+            ->where('is_active', true)
+            ->whereNotNull('assistant_id')
+            ->whereNull('deleted_at')
+            ->whereHas('assistant', fn ($query) => $query->where('cliente_id', $cliente->id))
+            ->orderBy('name')
+            ->get();
         $tags = Tag::where('user_id', $cliente->user_id)
             ->where('cliente_id', $cliente->id)
             ->orderBy('name')
@@ -55,6 +69,7 @@ class ClienteLeadController extends Controller
             'assistants',
             'tags',
             'leads',
+            'messageConexoes',
             'assistantFilter',
             'tagFilter',
             'dateStart',
@@ -74,6 +89,110 @@ class ClienteLeadController extends Controller
         return redirect()
             ->route('cliente.conversas.index')
             ->with('success', 'Lead removido com sucesso.');
+    }
+
+    public function sendMessage(Request $request, ClienteLead $clienteLead): JsonResponse
+    {
+        $cliente = auth('client')->user();
+        abort_unless($clienteLead->cliente_id === $cliente->id, 403);
+
+        $data = $request->validate([
+            'conexao_id' => ['required', 'integer'],
+            'mensagem' => ['required', 'string', 'max:2000'],
+        ]);
+
+        $conexao = Conexao::query()
+            ->with(['assistant', 'whatsappApi', 'whatsappCloudAccount'])
+            ->whereKey((int) $data['conexao_id'])
+            ->where('cliente_id', $cliente->id)
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$conexao) {
+            return response()->json([
+                'message' => 'Conexao selecionada nao encontrada.',
+            ], 422);
+        }
+
+        $assistant = $conexao->assistant;
+        if (!$assistant || (int) $assistant->cliente_id !== (int) $cliente->id) {
+            return response()->json([
+                'message' => 'Conexao selecionada sem assistente vinculado.',
+            ], 422);
+        }
+
+        $mensagem = trim((string) $data['mensagem']);
+        if ($mensagem === '') {
+            return response()->json([
+                'message' => 'Mensagem vazia.',
+            ], 422);
+        }
+
+        $this->ensureAssistantLeadAssociation($clienteLead, $assistant);
+
+        $scheduledMessageService = app(ScheduledMessageService::class);
+        $context = $scheduledMessageService->resolveDispatchContext(
+            $clienteLead,
+            (int) $assistant->id,
+            (int) $cliente->user_id,
+            (int) $conexao->id
+        );
+
+        if (!$context['ok']) {
+            return response()->json([
+                'message' => $context['message'] ?? 'Nao foi possivel validar o contexto de envio.',
+            ], 422);
+        }
+
+        /** @var Conexao $dispatchConexao */
+        $dispatchConexao = $context['conexao'];
+        /** @var string $phone */
+        $phone = $context['phone'];
+
+        if ($this->isWhatsappCloudConexao($dispatchConexao)) {
+            $isInsideWindow = app(WhatsappCloudConversationWindowService::class)
+                ->isInsideWindow((int) $clienteLead->id, (int) $dispatchConexao->id);
+
+            if (!$isInsideWindow) {
+                return response()->json([
+                    'message' => 'Esta conversa está fora da janela de 24h. Use um modelo da WhatsApp Cloud.',
+                ], 422);
+            }
+        }
+
+        $agoraUtc = Carbon::now('UTC');
+        $eventId = sprintf(
+            'manual:cliente:lead:%d:assistant:%d:ts:%d',
+            $clienteLead->id,
+            $assistant->id,
+            $agoraUtc->valueOf()
+        );
+
+        $payload = [
+            'phone' => $phone,
+            'text' => $mensagem,
+            'tipo' => 'text',
+            'from_me' => false,
+            'is_group' => false,
+            'lead_name' => $clienteLead->name ?? $phone,
+            'openai_role' => 'system',
+            'event_id' => $eventId,
+            'message_timestamp' => $agoraUtc->valueOf(),
+            'message_type' => 'conversation',
+        ];
+
+        ProcessIncomingMessageJob::dispatch($dispatchConexao->id, $clienteLead->id, $payload)
+            ->onQueue('processarconversa');
+
+        if ($this->isWhatsappCloudConexao($dispatchConexao)) {
+            app(WhatsappCloudConversationWindowService::class)
+                ->touchOutbound((int) $clienteLead->id, (int) $dispatchConexao->id, $agoraUtc);
+        }
+
+        return response()->json([
+            'message' => 'Mensagem enviada para a fila.',
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -617,6 +736,25 @@ class ClienteLeadController extends Controller
             ->first();
 
         return $conexao?->whatsapp_api_key ?: null;
+    }
+
+    private function isWhatsappCloudConexao(Conexao $conexao): bool
+    {
+        return Str::lower(trim((string) ($conexao->whatsappApi?->slug ?? ''))) === 'whatsapp_cloud';
+    }
+
+    private function ensureAssistantLeadAssociation(ClienteLead $lead, Assistant $assistant): void
+    {
+        AssistantLead::query()->firstOrCreate(
+            [
+                'lead_id' => $lead->id,
+                'assistant_id' => $assistant->id,
+            ],
+            [
+                'version' => max(1, (int) ($assistant->version ?? 1)),
+                'conv_id' => null,
+            ]
+        );
     }
 
     private function buildChatCheckMap(array $payload): ?array
