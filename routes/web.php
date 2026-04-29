@@ -516,6 +516,7 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::patch('mensagens-agendadas/{scheduledMessage}/cancel', [ClienteScheduledMessageController::class, 'cancel'])->name('mensagens-agendadas.cancel');
         Route::get('sequence', [ClienteSequenceController::class, 'index'])->name('sequences.index');
         Route::post('sequences', [ClienteSequenceController::class, 'store'])->name('sequences.store');
+        Route::post('sequences/{sequence}/duplicate', [ClienteSequenceController::class, 'duplicate'])->name('sequences.duplicate');
         Route::delete('sequences/{sequence}', [ClienteSequenceController::class, 'destroy'])->name('sequences.destroy');
         Route::post('sequences/{sequence}/steps', [ClienteSequenceController::class, 'storeStep'])->name('sequences.steps.store');
         Route::patch('sequences/{sequence}/steps/{step}', [ClienteSequenceController::class, 'updateStep'])->name('sequences.steps.update');

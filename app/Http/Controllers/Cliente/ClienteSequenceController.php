@@ -12,6 +12,7 @@ use App\Models\SequenceStep;
 use App\Models\Tag;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ClienteSequenceController extends Controller
 {
@@ -133,6 +134,45 @@ class ClienteSequenceController extends Controller
         }
 
         return redirect()->route('cliente.sequences.index')->with('success', $message);
+    }
+
+    public function duplicate(Request $request, Sequence $sequence): RedirectResponse
+    {
+        $cliente = $request->user('client');
+        $this->ensureSequenceOwnership($sequence, $cliente->id, $cliente->user_id);
+
+        DB::transaction(function () use ($sequence) {
+            $sequence->loadMissing('steps');
+
+            $duplicated = Sequence::create([
+                'user_id' => $sequence->user_id,
+                'cliente_id' => $sequence->cliente_id,
+                'conexao_id' => $sequence->conexao_id,
+                'name' => "{$sequence->name} (cópia)",
+                'description' => $sequence->description,
+                'active' => false,
+                'tags_incluir' => $sequence->tags_incluir ?? [],
+                'tags_excluir' => $sequence->tags_excluir ?? [],
+            ]);
+
+            foreach ($sequence->steps as $step) {
+                $duplicated->steps()->create([
+                    'title' => $step->title,
+                    'ordem' => $step->ordem,
+                    'atraso_tipo' => $step->atraso_tipo,
+                    'atraso_valor' => $step->atraso_valor,
+                    'janela_inicio' => $step->janela_inicio,
+                    'janela_fim' => $step->janela_fim,
+                    'dias_semana' => $step->dias_semana ?? [],
+                    'prompt' => $step->prompt,
+                    'active' => $step->active,
+                ]);
+            }
+        });
+
+        return redirect()
+            ->route('cliente.sequences.index')
+            ->with('success', 'Sequência duplicada com sucesso.');
     }
 
     public function destroy(Request $request, Sequence $sequence): RedirectResponse
