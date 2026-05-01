@@ -1,6 +1,16 @@
 @extends('layouts.cliente')
 
 @section('content')
+    @php
+        $activeTab = $activeTab ?? 'list';
+        $tabBaseQuery = request()->query();
+        unset($tabBaseQuery['page'], $tabBaseQuery['conv_id'], $tabBaseQuery['after'], $tabBaseQuery['limit']);
+        $listTabQuery = $tabBaseQuery;
+        unset($listTabQuery['tab']);
+        $chatTabQuery = array_merge($tabBaseQuery, ['tab' => 'chat']);
+        $clearFiltersUrl = route('cliente.conversas.index', $activeTab === 'chat' ? ['tab' => 'chat'] : []);
+    @endphp
+
     <div class="flex items-center justify-between mb-6">
         <div>
             <h2 class="text-2xl font-semibold text-slate-900">Conversas</h2>
@@ -23,6 +33,9 @@
                 </button>
                 <div id="filtersMenu" class="hidden absolute right-0 mt-2 w-[90vw] max-w-[56rem] rounded-3xl border border-slate-200 bg-white p-4 shadow-lg">
                     <form method="GET" class="flex flex-wrap items-end gap-4 text-xs text-slate-500">
+                        @if($activeTab === 'chat')
+                            <input type="hidden" name="tab" value="chat">
+                        @endif
                         <input type="hidden" name="q" value="{{ request('q') }}">
 
                         <div class="flex flex-1 min-w-[220px] flex-col gap-1" data-chip-select="filter-assistants" data-input-name="assistant_id[]">
@@ -113,7 +126,7 @@
 
                         <div class="ml-auto flex items-center gap-2">
                             <button type="submit" class="rounded-2xl bg-blue-600 px-4 py-2 text-[12px] font-semibold text-white hover:bg-blue-700">Aplicar</button>
-                            <a href="{{ route('cliente.conversas.index') }}" class="text-[12px] font-semibold text-slate-500">Limpar</a>
+                            <a href="{{ $clearFiltersUrl }}" class="text-[12px] font-semibold text-slate-500">Limpar</a>
                         </div>
                     </form>
                 </div>
@@ -143,26 +156,41 @@
 
     <div class="mt-4 border-b border-slate-200"></div>
 
-    <div class="mt-4 mb-4 flex flex-wrap items-center gap-3">
-        <div class="flex-1 min-w-[240px]">
-            <input
-                type="search"
-                id="leadSearchInput"
-                placeholder="Buscar por nome ou telefone (min. 3 caracteres)"
-                value="{{ request('q') }}"
-                class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none"
-            >
-        </div>
-        <button
-            type="button"
-            id="leadSearchClear"
-            class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
-        >Limpar</button>
+    <div class="mt-4 flex flex-wrap gap-2 border-b border-slate-200">
+        <a
+            href="{{ route('cliente.conversas.index', $listTabQuery) }}"
+            class="-mb-px border-b-2 px-4 py-2 text-sm font-semibold {{ $activeTab === 'list' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800' }}"
+        >Lista</a>
+        <a
+            href="{{ route('cliente.conversas.index', $chatTabQuery) }}"
+            class="-mb-px border-b-2 px-4 py-2 text-sm font-semibold {{ $activeTab === 'chat' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800' }}"
+        >Chat</a>
     </div>
 
-    <div id="leadTableContainer">
-        @include('cliente.conversas._table', ['leads' => $leads])
-    </div>
+    @if($activeTab === 'chat')
+        @include('cliente.conversas._chat')
+    @else
+        <div class="mt-4 mb-4 flex flex-wrap items-center gap-3">
+            <div class="flex-1 min-w-[240px]">
+                <input
+                    type="search"
+                    id="leadSearchInput"
+                    placeholder="Buscar por nome ou telefone (min. 3 caracteres)"
+                    value="{{ request('q') }}"
+                    class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-400 focus:outline-none"
+                >
+            </div>
+            <button
+                type="button"
+                id="leadSearchClear"
+                class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
+            >Limpar</button>
+        </div>
+
+        <div id="leadTableContainer">
+            @include('cliente.conversas._table', ['leads' => $leads])
+        </div>
+    @endif
 
     <div id="agenciaClienteLeadFormModal" class="fixed inset-0 z-50 hidden flex items-start justify-center overflow-auto bg-black/50 px-4 py-6">
         <div class="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">

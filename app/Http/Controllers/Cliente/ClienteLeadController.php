@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Cliente;
 use App\Http\Controllers\Controller;
 use App\Models\Assistant;
 use App\Models\AssistantLead;
+use App\Models\Cliente;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Models\Tag;
 use App\Jobs\ProcessIncomingMessageJob;
+use App\Services\OpenAIService;
 use App\Services\ScheduledMessageService;
 use App\Support\PhoneNumberNormalizer;
+use App\Support\OpenAIConversationFormatter;
 use App\Services\WhatsappCloudConversationWindowService;
 use App\Services\UazapiService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -19,6 +22,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -36,9 +40,10 @@ class ClienteLeadController extends Controller
     {
     }
 
-    public function index(Request $request): View
+    public function index(Request $request): View|JsonResponse
     {
         $cliente = auth('client')->user();
+        $activeTab = $request->query('tab') === 'chat' ? 'chat' : 'list';
         $assistants = Assistant::where('cliente_id', $cliente->id)
             ->orderBy('name')
             ->get();
@@ -60,11 +65,20 @@ class ClienteLeadController extends Controller
 
         $leads = $query->orderByDesc('created_at')->paginate(25)->withQueryString();
 
-        if ($request->ajax()) {
+        $chatData = [];
+        if ($activeTab === 'chat') {
+            $chatData = $this->resolveClienteChatData($request, $cliente, $messageConexoes);
+
+            if ($request->wantsJson()) {
+                return $this->jsonClienteChatResponse($chatData);
+            }
+        }
+
+        if ($activeTab !== 'chat' && $request->ajax()) {
             return view('cliente.conversas._table', compact('leads'));
         }
 
-        return view('cliente.conversas.index', compact(
+        return view('cliente.conversas.index', array_merge(compact(
             'cliente',
             'assistants',
             'tags',
@@ -74,7 +88,8 @@ class ClienteLeadController extends Controller
             'tagFilter',
             'dateStart',
             'dateEnd',
-        ));
+            'activeTab',
+        ), $chatData));
     }
 
     public function destroy(Request $request, ClienteLead $clienteLead): RedirectResponse
@@ -692,6 +707,315 @@ class ClienteLeadController extends Controller
             'rows' => $rows,
             'is_xlsx' => $extension === 'xlsx',
         ]);
+    }
+
+    private function resolveClienteChatData(Request $request, Cliente $cliente, $messageConexoes): array
+    {
+        $convId = trim((string) $request->input('conv_id'));
+        $after = (string) $request->input('after');
+        $limit = $request->integer('limit');
+        $openAiConexoes = $this->loadClienteOpenAIConexoes($cliente);
+
+        $data = [
+            'chatConvId' => $convId,
+            'chatResult' => null,
+            'chatError' => null,
+            'chatAssistantLead' => null,
+            'chatAssistantLeadMatchesCount' => 0,
+            'chatMessages' => [],
+            'chatHasMore' => false,
+            'chatLastId' => null,
+            'chatFirstId' => null,
+            'chatObject' => null,
+            'chatStatus' => null,
+            'chatAfter' => $after !== '' ? $after : null,
+            'chatLimit' => $limit,
+            'chatConexao' => null,
+            'chatSendConexao' => null,
+            'chatLeadCards' => $request->wantsJson()
+                ? collect()
+                : $this->loadClienteChatLeadCards($request, $cliente, $openAiConexoes, $messageConexoes),
+            'chatSendOptions' => $request->wantsJson()
+                ? collect()
+                : $this->mapClienteChatSendOptions($messageConexoes),
+        ];
+
+        if ($convId === '') {
+            return $data;
+        }
+
+        $assistantLeadQuery = AssistantLead::query()
+            ->where('conv_id', $convId)
+            ->whereHas('lead', fn ($query) => $query->where('cliente_id', $cliente->id));
+
+        $data['chatAssistantLeadMatchesCount'] = (clone $assistantLeadQuery)->count();
+        $assistantLead = (clone $assistantLeadQuery)
+            ->with([
+                'assistant',
+                'lead.cliente',
+                'lead.tags',
+                'lead.customFieldValues.customField',
+            ])
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first();
+
+        $data['chatAssistantLead'] = $assistantLead;
+
+        if (!$assistantLead) {
+            $data['chatError'] = "Conv_id \"{$convId}\" nao encontrado para este cliente.";
+
+            return $data;
+        }
+
+        $lead = $assistantLead->lead;
+        if (!$lead || (int) $lead->cliente_id !== (int) $cliente->id) {
+            $data['chatError'] = 'Lead associado ao conv_id nao encontrado para este cliente.';
+
+            return $data;
+        }
+
+        $conexao = $this->resolveClienteOpenAIConexaoForAssistantLead($assistantLead, $openAiConexoes);
+        $data['chatConexao'] = $conexao;
+        $data['chatSendConexao'] = $this->resolveClienteSendConexaoForAssistantLead($assistantLead, $messageConexoes);
+
+        if (!$conexao) {
+            $data['chatError'] = 'Nao ha conexao com credencial disponivel para este cliente.';
+
+            return $data;
+        }
+
+        $credential = $conexao->credential;
+        if (!$credential || !$credential->token) {
+            $data['chatError'] = 'Credencial vinculada a conexao nao contem token.';
+
+            return $data;
+        }
+
+        try {
+            $openAi = new OpenAIService($credential->token);
+            $query = [];
+            if ($after !== '') {
+                $query['after'] = $after;
+            }
+            if ($limit) {
+                $query['limit'] = $limit;
+            }
+
+            $response = $openAi->getConversationItems($convId, $query);
+            if ($response === null) {
+                $data['chatError'] = 'OpenAIService retornou resposta nula.';
+
+                return $data;
+            }
+
+            $data['chatResult'] = $response->json();
+            $data['chatStatus'] = $response->status();
+
+            if (!$response->successful()) {
+                $apiMessage = $response->json('error.message') ?? $response->body();
+                $data['chatError'] = 'OpenAI retornou erro (' . $data['chatStatus'] . '): ' . $apiMessage;
+
+                return $data;
+            }
+
+            $items = is_array($data['chatResult']['data'] ?? null) ? $data['chatResult']['data'] : [];
+            $messages = OpenAIConversationFormatter::normalizeItems($items);
+            $data['chatMessages'] = $request->wantsJson() ? $messages : array_reverse($messages);
+            $data['chatHasMore'] = (bool) ($data['chatResult']['has_more'] ?? false);
+            $data['chatLastId'] = $data['chatResult']['last_id'] ?? null;
+            $data['chatFirstId'] = $data['chatResult']['first_id'] ?? null;
+            $data['chatObject'] = $data['chatResult']['object'] ?? null;
+        } catch (\Throwable $exception) {
+            Log::error('Erro ao buscar conversa OpenAI para cliente', [
+                'cliente_id' => $cliente->id,
+                'conv_id' => $convId,
+                'conexao_id' => $conexao->id,
+                'error' => $exception->getMessage(),
+            ]);
+            $data['chatError'] = 'Falha ao consultar o OpenAI: ' . $exception->getMessage();
+        }
+
+        return $data;
+    }
+
+    private function loadClienteChatLeadCards(Request $request, Cliente $cliente, $openAiConexoes, $messageConexoes)
+    {
+        [$assistantFilter, , , , $query] = $this->buildFilteredQuery($request, $cliente);
+        $sendOptions = $this->mapClienteChatSendOptions($messageConexoes, $assistantFilter);
+        $activeConvId = trim((string) $request->input('conv_id'));
+
+        return $query
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (ClienteLead $lead) use ($request, $openAiConexoes, $sendOptions, $activeConvId) {
+                $lastAssistantLead = $lead->assistantLeads
+                    ->sortByDesc(fn (AssistantLead $assistantLead) => sprintf(
+                        '%010d:%010d',
+                        $assistantLead->updated_at?->getTimestamp() ?? 0,
+                        (int) $assistantLead->id
+                    ))
+                    ->first();
+                $lastMessageText = $this->extractLeadWebhookText($lastAssistantLead);
+                $conversations = $lead->assistantLeads
+                    ->filter(fn (AssistantLead $assistantLead) => trim((string) ($assistantLead->conv_id ?? '')) !== '')
+                    ->sortByDesc(fn (AssistantLead $assistantLead) => $assistantLead->updated_at?->getTimestamp() ?? 0)
+                    ->map(function (AssistantLead $assistantLead) use ($request, $openAiConexoes, $activeConvId) {
+                        $convId = trim((string) ($assistantLead->conv_id ?? ''));
+                        $conexao = $this->resolveClienteOpenAIConexaoForAssistantLead($assistantLead, $openAiConexoes);
+
+                        return [
+                            'assistant_lead_id' => (int) $assistantLead->id,
+                            'assistant_id' => (int) $assistantLead->assistant_id,
+                            'assistant' => $assistantLead->assistant?->name ?: 'Assistente',
+                            'version' => $assistantLead->version,
+                            'conv_id' => $convId,
+                            'conexao_id' => $conexao?->id,
+                            'conexao' => $conexao?->name ?: ($conexao ? 'Conexao #' . $conexao->id : null),
+                            'updated_at_label' => $assistantLead->updated_at?->format('d/m/Y H:i') ?: '-',
+                            'url' => route('cliente.conversas.index', $this->buildClienteChatRouteQuery($request, [
+                                'conv_id' => $convId,
+                            ])),
+                            'is_active' => $convId !== '' && $convId === $activeConvId,
+                        ];
+                    })
+                    ->values();
+
+                return [
+                    'lead_id' => (int) $lead->id,
+                    'name' => trim((string) ($lead->name ?? '')) ?: 'Lead sem nome',
+                    'phone' => trim((string) ($lead->phone ?? '')) ?: '-',
+                    'last_message_text' => $lastMessageText !== '' ? $lastMessageText : 'Sem última mensagem do lead',
+                    'last_message_at_label' => $lastAssistantLead?->updated_at?->format('d/m/Y H:i') ?: '-',
+                    'last_assistant_lead_id' => $lastAssistantLead?->id ? (int) $lastAssistantLead->id : null,
+                    'tags' => $lead->tags->pluck('name')->values(),
+                    'conversations' => $conversations,
+                    'send_options' => $sendOptions,
+                ];
+            })
+            ->values();
+    }
+
+    private function extractLeadWebhookText(?AssistantLead $assistantLead): string
+    {
+        if (!$assistantLead) {
+            return '';
+        }
+
+        $payload = $assistantLead->webhook_payload;
+        if (!is_array($payload)) {
+            return '';
+        }
+
+        $text = $payload['text'] ?? null;
+
+        return is_string($text) ? trim($text) : '';
+    }
+
+    private function loadClienteOpenAIConexoes(Cliente $cliente)
+    {
+        return Conexao::query()
+            ->with(['assistant:id,name,version,cliente_id', 'credential'])
+            ->where('cliente_id', $cliente->id)
+            ->whereNotNull('assistant_id')
+            ->whereNotNull('credential_id')
+            ->whereNull('deleted_at')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    private function resolveClienteOpenAIConexaoForAssistantLead(?AssistantLead $assistantLead, $openAiConexoes): ?Conexao
+    {
+        if (!$assistantLead) {
+            return null;
+        }
+
+        $matching = $openAiConexoes->first(
+            fn (Conexao $conexao) => (int) $conexao->assistant_id === (int) $assistantLead->assistant_id
+        );
+
+        if ($matching instanceof Conexao) {
+            return $matching;
+        }
+
+        return null;
+    }
+
+    private function resolveClienteSendConexaoForAssistantLead(?AssistantLead $assistantLead, $messageConexoes): ?Conexao
+    {
+        if (!$assistantLead) {
+            return null;
+        }
+
+        $matching = $messageConexoes->first(
+            fn (Conexao $conexao) => (int) $conexao->assistant_id === (int) $assistantLead->assistant_id
+        );
+
+        return $matching instanceof Conexao ? $matching : null;
+    }
+
+    private function mapClienteChatSendOptions($messageConexoes, array $assistantFilter = [])
+    {
+        $assistantIds = array_values(array_filter(array_map('intval', $assistantFilter)));
+
+        return $messageConexoes
+            ->filter(function (Conexao $conexao) use ($assistantIds) {
+                if (empty($assistantIds)) {
+                    return true;
+                }
+
+                return in_array((int) $conexao->assistant_id, $assistantIds, true);
+            })
+            ->map(function (Conexao $conexao) {
+                $connectionName = trim((string) ($conexao->name ?? ''));
+                $assistantName = trim((string) ($conexao->assistant?->name ?? ''));
+
+                return [
+                    'id' => (int) $conexao->id,
+                    'assistant_id' => (int) $conexao->assistant_id,
+                    'label' => ($connectionName !== '' ? $connectionName : 'Conexao #' . $conexao->id)
+                        . ($assistantName !== '' ? ' - ' . $assistantName : ''),
+                ];
+            })
+            ->values();
+    }
+
+    private function buildClienteChatRouteQuery(Request $request, array $overrides = []): array
+    {
+        $query = $request->query();
+        unset($query['page'], $query['after'], $query['limit']);
+        $query['tab'] = 'chat';
+
+        foreach ($overrides as $key => $value) {
+            if ($value === null || $value === '') {
+                unset($query[$key]);
+                continue;
+            }
+
+            $query[$key] = $value;
+        }
+
+        return $query;
+    }
+
+    private function jsonClienteChatResponse(array $data): JsonResponse
+    {
+        $statusCode = $data['chatError'] ? ($data['chatStatus'] ?: 400) : 200;
+
+        return response()->json([
+            'conv_id' => $data['chatConvId'],
+            'messages' => $data['chatMessages'],
+            'has_more' => $data['chatHasMore'],
+            'last_id' => $data['chatLastId'],
+            'first_id' => $data['chatFirstId'],
+            'object' => $data['chatObject'],
+            'after' => $data['chatAfter'],
+            'limit' => $data['chatLimit'],
+            'status' => $data['chatStatus'],
+            'error' => $data['chatError'],
+        ], $statusCode);
     }
 
 

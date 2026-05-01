@@ -12,6 +12,9 @@
         <tbody class="divide-y divide-slate-100">
             @forelse($leads as $lead)
                 @php
+                    $chatAssistantLead = $lead->assistantLeads->first(function ($assistantLead) {
+                        return trim((string) ($assistantLead->conv_id ?? '')) !== '';
+                    });
                     $viewData = [
                         'id' => $lead->id,
                         'cliente' => [
@@ -53,6 +56,12 @@
                     <td class="px-5 py-4 text-slate-600">{{ $lead->created_at?->format('d/m/Y') ?? '-' }}</td>
                     <td class="px-5 py-4 text-right">
                         <div class="flex flex-wrap justify-end gap-2">
+                            @if($chatAssistantLead)
+                                <a
+                                    href="{{ route('cliente.conversas.index', ['tab' => 'chat', 'conv_id' => $chatAssistantLead->conv_id]) }}"
+                                    class="rounded-full bg-blue-600 px-4 py-1 text-[12px] font-semibold text-white hover:bg-blue-700"
+                                >Chat</a>
+                            @endif
                             <button
                                 type="button"
                                 class="rounded-full bg-slate-900 px-4 py-1 text-[12px] font-semibold text-white hover:bg-slate-800"
