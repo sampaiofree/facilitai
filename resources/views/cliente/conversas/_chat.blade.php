@@ -6,6 +6,9 @@
     $selectedSendConexao = $chatSendConexao ?? null;
     $visibleMessages = $chatMessages ?? [];
     $leadCards = $chatLeadCards ?? collect();
+    $leadCardsHasMore = $chatLeadCardsHasMore ?? false;
+    $leadCardsNextOffset = $chatLeadCardsNextOffset ?? $leadCards->count();
+    $leadCardsLimit = $chatLeadCardsLimit ?? 20;
     $canRenderConversation = !empty($chatConvId) && !empty($selectedAssistantLead) && empty($chatError) && $chatResult !== null;
 @endphp
 
@@ -47,96 +50,25 @@
                 </div>
 
                 @if($leadCards->isEmpty())
-                    <div class="px-4 py-5 text-sm text-slate-500">
+                    <div id="cliente-chat-cards-empty" class="px-4 py-5 text-sm text-slate-500">
                         Nenhum lead encontrado para os filtros atuais.
                     </div>
-                @else
-                    <div class="max-h-[72vh] overflow-y-auto p-2">
-                        @foreach($leadCards as $card)
-                            @php
-                                $conversations = $card['conversations'] ?? collect();
-                                $sendOptions = $card['send_options'] ?? collect();
-                                $hasActiveConversation = $conversations->contains(fn ($conversation) => $conversation['is_active']);
-                            @endphp
-                            <div class="mb-3 rounded-2xl border px-4 py-3 {{ $hasActiveConversation ? 'border-emerald-300 bg-emerald-50 shadow-sm' : 'border-slate-100 bg-slate-50' }}">
-                                <div class="flex items-start justify-between gap-3">
-                                    <div class="min-w-0 flex-1">
-                                        <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                            <span class="truncate text-sm font-semibold text-slate-800">{{ $card['name'] }}</span>
-                                            <span class="text-xs text-slate-400">-</span>
-                                            <span class="truncate text-xs text-slate-500">{{ $card['phone'] }}</span>
-                                            <span class="text-xs text-slate-400">-</span>
-                                            <span class="text-[11px] text-slate-400">{{ $card['last_message_at_label'] }}</span>
-                                        </div>
-                                        <p class="mt-2 truncate text-xs leading-relaxed text-slate-600">
-                                            {{ $card['last_message_text'] }}
-                                        </p>
-                                    </div>
-                                    @if($hasActiveConversation)
-                                        <span class="rounded-full bg-emerald-500 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">Ativo</span>
-                                    @endif
-                                </div>
-
-                                @if(!empty($card['tags']) && $card['tags']->isNotEmpty())
-                                    <div class="mt-3 flex flex-wrap gap-1">
-                                        @foreach($card['tags'] as $tag)
-                                            <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500">{{ $tag }}</span>
-                                        @endforeach
-                                    </div>
-                                @endif
-
-                                @if($conversations->isNotEmpty())
-                                    <div class="mt-3 space-y-2">
-                                        @foreach($conversations as $conversation)
-                                            <a
-                                                href="{{ $conversation['url'] }}"
-                                                class="block rounded-xl border px-3 py-2 text-xs transition {{ $conversation['is_active'] ? 'border-emerald-300 bg-white text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300' }}"
-                                            >
-                                                <div class="flex items-center justify-between gap-2">
-                                                    <span class="font-semibold">{{ $conversation['assistant'] }}</span>
-                                                    <span class="text-[10px] text-slate-400">{{ $conversation['updated_at_label'] }}</span>
-                                                </div>
-                                                <div class="mt-1 truncate font-mono text-[10px] text-slate-400">{{ $conversation['conv_id'] }}</div>
-                                            </a>
-                                        @endforeach
-                                    </div>
-                                @else
-                                    <div class="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3">
-                                        <p class="text-xs font-semibold text-slate-700">Sem chat OpenAI</p>
-                                        <p class="mt-1 text-[11px] text-slate-500">Escolha uma conexão para iniciar o envio.</p>
-                                        <form class="mt-3 space-y-2" data-chat-send-form data-lead-id="{{ $card['lead_id'] }}">
-                                            <select
-                                                data-chat-conexao
-                                                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-slate-400 focus:outline-none"
-                                                @disabled($sendOptions->isEmpty())
-                                            >
-                                                <option value="">Conexão / Assistente</option>
-                                                @foreach($sendOptions as $option)
-                                                    <option value="{{ $option['id'] }}">{{ $option['label'] }}</option>
-                                                @endforeach
-                                            </select>
-                                            <textarea
-                                                data-chat-message
-                                                rows="2"
-                                                maxlength="2000"
-                                                placeholder="Digite a mensagem"
-                                                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-slate-400 focus:outline-none"
-                                                @disabled($sendOptions->isEmpty())
-                                            ></textarea>
-                                            <p class="hidden rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-[11px] text-rose-700" data-chat-error></p>
-                                            <p class="hidden rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700" data-chat-success></p>
-                                            <button
-                                                type="submit"
-                                                class="w-full rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                                @disabled($sendOptions->isEmpty())
-                                            >Enviar</button>
-                                        </form>
-                                    </div>
-                                @endif
-                            </div>
-                        @endforeach
-                    </div>
                 @endif
+
+                <div
+                    id="cliente-chat-cards-list"
+                    class="max-h-[72vh] overflow-y-auto p-2 {{ $leadCards->isEmpty() ? 'hidden' : '' }}"
+                    data-next-offset="{{ $leadCardsNextOffset }}"
+                    data-has-more="{{ $leadCardsHasMore ? '1' : '0' }}"
+                    data-limit="{{ $leadCardsLimit }}"
+                >
+                    @include('cliente.conversas._chat_cards', ['leadCards' => $leadCards])
+                    <div id="cliente-chat-cards-sentinel" class="{{ $leadCardsHasMore ? '' : 'hidden' }} py-2 text-center text-xs text-slate-400">
+                        Carregando mais contatos...
+                    </div>
+                    <div id="cliente-chat-cards-status" class="px-2 py-2 text-center text-xs text-slate-400"></div>
+                    <div id="cliente-chat-cards-error" class="mx-2 mb-2 hidden rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700"></div>
+                </div>
             </div>
         </aside>
 
@@ -192,6 +124,7 @@
                         data-has-more="{{ $chatHasMore ? '1' : '0' }}"
                         data-visible-count="{{ count($visibleMessages) }}"
                         data-limit="{{ $chatLimit ?? '' }}"
+                        data-assistant-lead-updated-at="{{ $chatAssistantLeadUpdatedAt ?? '' }}"
                     >
                         <div class="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-sm">
                             <div class="flex flex-wrap items-center gap-3">
@@ -214,7 +147,11 @@
                         </div>
 
                         @forelse($visibleMessages as $message)
-                            <div class="flex {{ $message['role'] === 'user' ? 'justify-end' : 'justify-start' }}">
+                            <div
+                                class="flex {{ $message['role'] === 'user' ? 'justify-start' : 'justify-end' }}"
+                                data-chat-message-id="{{ $message['id'] }}"
+                                data-chat-message-role="{{ $message['role'] }}"
+                            >
                                 <div class="max-w-[88%] rounded-2xl px-4 py-3 shadow-sm {{ $message['role'] === 'user' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-800' }}">
                                     <div class="mb-1 text-[11px] font-semibold uppercase tracking-wide {{ $message['role'] === 'user' ? 'text-emerald-50/90' : 'text-slate-400' }}">
                                         {{ $message['sender'] }}
@@ -294,6 +231,7 @@
             const sendMessageUrlTemplate = @json(route('cliente.conversas.send-message', ['clienteLead' => '__LEAD_ID__']));
             const chatEndpoint = @json(route('cliente.conversas.index'));
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            let triggerEarlyChatPoll = () => {};
 
             const escapeHtml = (value) => {
                 const div = document.createElement('div');
@@ -319,81 +257,184 @@
                 element.classList.add('hidden');
             };
 
-            document.querySelectorAll('[data-chat-send-form]').forEach((form) => {
-                form.addEventListener('submit', async (event) => {
-                    event.preventDefault();
+            document.addEventListener('submit', async (event) => {
+                const form = event.target.closest('[data-chat-send-form]');
+                if (!form) {
+                    return;
+                }
 
-                    const leadId = form.dataset.leadId || '';
-                    const select = form.querySelector('[data-chat-conexao]');
-                    const textarea = form.querySelector('[data-chat-message]');
-                    const errorEl = form.querySelector('[data-chat-error]');
-                    const successEl = form.querySelector('[data-chat-success]');
-                    const button = form.querySelector('button[type="submit"]');
-                    const conexaoId = select ? select.value.trim() : (form.dataset.conexaoId || '').trim();
-                    const mensagem = textarea?.value?.trim() || '';
+                event.preventDefault();
 
-                    hideInline(errorEl);
-                    hideInline(successEl);
+                const leadId = form.dataset.leadId || '';
+                const select = form.querySelector('[data-chat-conexao]');
+                const textarea = form.querySelector('[data-chat-message]');
+                const errorEl = form.querySelector('[data-chat-error]');
+                const successEl = form.querySelector('[data-chat-success]');
+                const button = form.querySelector('button[type="submit"]');
+                const conexaoId = select ? select.value.trim() : (form.dataset.conexaoId || '').trim();
+                const mensagem = textarea?.value?.trim() || '';
 
-                    if (!leadId) {
-                        showInline(errorEl, 'Lead nao encontrado para envio.');
-                        return;
+                hideInline(errorEl);
+                hideInline(successEl);
+
+                if (!leadId) {
+                    showInline(errorEl, 'Lead nao encontrado para envio.');
+                    return;
+                }
+
+                if (!conexaoId) {
+                    showInline(errorEl, 'Selecione uma conexão antes de enviar.');
+                    return;
+                }
+
+                if (!mensagem) {
+                    showInline(errorEl, 'Informe a mensagem antes de enviar.');
+                    return;
+                }
+
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = 'Enviando...';
+                }
+
+                try {
+                    const response = await fetch(sendMessageUrlTemplate.replace('__LEAD_ID__', leadId), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                        },
+                        body: JSON.stringify({
+                            conexao_id: conexaoId,
+                            mensagem,
+                        }),
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'Não foi possível enviar a mensagem.');
                     }
 
-                    if (!conexaoId) {
-                        showInline(errorEl, 'Selecione uma conexão antes de enviar.');
-                        return;
+                    showInline(successEl, payload.message || 'Mensagem enviada para a fila.');
+                    if (textarea) {
+                        textarea.value = '';
                     }
-
-                    if (!mensagem) {
-                        showInline(errorEl, 'Informe a mensagem antes de enviar.');
-                        return;
-                    }
-
+                    triggerEarlyChatPoll();
+                } catch (error) {
+                    showInline(errorEl, error.message || 'Não foi possível enviar a mensagem.');
+                } finally {
                     if (button) {
-                        button.disabled = true;
-                        button.textContent = 'Enviando...';
+                        button.disabled = false;
+                        button.textContent = 'Enviar';
+                    }
+                }
+            });
+
+            const cardsList = document.getElementById('cliente-chat-cards-list');
+            const cardsSentinel = document.getElementById('cliente-chat-cards-sentinel');
+            const cardsStatus = document.getElementById('cliente-chat-cards-status');
+            const cardsError = document.getElementById('cliente-chat-cards-error');
+            const cardsEmpty = document.getElementById('cliente-chat-cards-empty');
+
+            if (cardsList && cardsSentinel) {
+                let cardsHasMore = cardsList.dataset.hasMore === '1';
+                let cardsNextOffset = Number.parseInt(cardsList.dataset.nextOffset || '0', 10);
+                let cardsLoading = false;
+                const cardsLimit = cardsList.dataset.limit || '20';
+
+                const setCardsError = (message = '') => {
+                    if (!cardsError) {
+                        return;
+                    }
+
+                    cardsError.textContent = message;
+                    cardsError.classList.toggle('hidden', message === '');
+                };
+
+                const loadMoreCards = async () => {
+                    if (!cardsHasMore || cardsLoading) {
+                        return;
+                    }
+
+                    cardsLoading = true;
+                    setCardsError('');
+                    cardsSentinel.classList.remove('hidden');
+                    if (cardsStatus) {
+                        cardsStatus.textContent = '';
                     }
 
                     try {
-                        const response = await fetch(sendMessageUrlTemplate.replace('__LEAD_ID__', leadId), {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': csrfToken,
-                            },
-                            body: JSON.stringify({
-                                conexao_id: conexaoId,
-                                mensagem,
-                            }),
-                        });
+                        const params = new URLSearchParams(window.location.search);
+                        params.set('tab', 'chat');
+                        params.set('cards_only', '1');
+                        params.set('cards_offset', String(cardsNextOffset));
+                        params.set('cards_limit', cardsLimit);
+                        params.delete('after');
+                        params.delete('limit');
+                        params.delete('poll_state');
 
-                        const payload = await response.json().catch(() => ({}));
+                        const response = await fetch(`${chatEndpoint}?${params.toString()}`, {
+                            headers: {
+                                'Accept': 'application/json',
+                            },
+                        });
+                        const payload = await response.json();
+
                         if (!response.ok) {
-                            throw new Error(payload.message || 'Não foi possível enviar a mensagem.');
+                            throw new Error(payload.message || 'Falha ao carregar mais contatos.');
                         }
 
-                        showInline(successEl, payload.message || 'Mensagem enviada para a fila.');
-                        if (textarea) {
-                            textarea.value = '';
+                        if (payload.html) {
+                            cardsEmpty?.remove();
+                            cardsList.classList.remove('hidden');
+                            cardsSentinel.insertAdjacentHTML('beforebegin', payload.html);
+                        }
+
+                        cardsHasMore = !!payload.has_more;
+                        cardsNextOffset = Number.parseInt(payload.next_offset || cardsNextOffset, 10);
+                        cardsList.dataset.hasMore = cardsHasMore ? '1' : '0';
+                        cardsList.dataset.nextOffset = String(cardsNextOffset);
+
+                        if (!cardsHasMore) {
+                            cardsSentinel.classList.add('hidden');
+                            if (cardsStatus) {
+                                cardsStatus.textContent = payload.count > 0 ? 'Todos os contatos foram carregados.' : '';
+                            }
                         }
                     } catch (error) {
-                        showInline(errorEl, error.message || 'Não foi possível enviar a mensagem.');
+                        setCardsError(error.message || 'Falha ao carregar mais contatos.');
+                        cardsSentinel.classList.add('hidden');
                     } finally {
-                        if (button) {
-                            button.disabled = false;
-                            button.textContent = 'Enviar';
-                        }
+                        cardsLoading = false;
                     }
-                });
-            });
+                };
+
+                if ('IntersectionObserver' in window) {
+                    const observer = new IntersectionObserver((entries) => {
+                        if (entries.some((entry) => entry.isIntersecting)) {
+                            loadMoreCards();
+                        }
+                    }, {
+                        root: cardsList,
+                        rootMargin: '120px 0px',
+                    });
+
+                    observer.observe(cardsSentinel);
+                } else {
+                    cardsList.addEventListener('scroll', () => {
+                        const nearBottom = cardsList.scrollTop + cardsList.clientHeight >= cardsList.scrollHeight - 120;
+                        if (nearBottom) {
+                            loadMoreCards();
+                        }
+                    });
+                }
+            }
 
             const loadMoreBtn = document.getElementById('cliente-chat-load-more-btn');
             const container = document.getElementById('cliente-chat-items');
             const statusEl = document.getElementById('cliente-chat-load-more-status');
             const errorEl = document.getElementById('cliente-chat-load-more-error');
-            const emptyState = document.getElementById('cliente-chat-empty-state');
 
             if (!loadMoreBtn || !container) {
                 return;
@@ -402,19 +443,40 @@
             let after = container.dataset.after || null;
             let hasMore = container.dataset.hasMore === '1';
             let visibleCount = Number.parseInt(container.dataset.visibleCount || '0', 10);
+            let messageLoadInFlight = false;
+            let refreshInFlight = false;
+            let pollInFlight = false;
+            let pollTimer = null;
+            let pollDelay = 15000;
+            let knownAssistantLeadUpdatedAt = container.dataset.assistantLeadUpdatedAt || '';
             const limit = container.dataset.limit || null;
+            const renderedMessageIds = new Set(
+                Array.from(container.querySelectorAll('[data-chat-message-id]'))
+                    .map((element) => element.dataset.chatMessageId || '')
+                    .filter((id) => id !== '')
+            );
 
-            const appendMessage = (message) => {
+            const appendMessage = (message, options = {}) => {
                 if (!message || !['user', 'assistant'].includes(message.role)) {
-                    return;
+                    return false;
                 }
 
-                emptyState?.remove();
+                const messageId = typeof message.id === 'string' ? message.id : '';
+                if ((options.dedupe ?? true) && messageId !== '' && renderedMessageIds.has(messageId)) {
+                    return false;
+                }
+
+                document.getElementById('cliente-chat-empty-state')?.remove();
                 visibleCount += 1;
                 container.dataset.visibleCount = String(visibleCount);
 
                 const wrapper = document.createElement('div');
-                wrapper.className = `flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`;
+                wrapper.className = `flex ${message.role === 'user' ? 'justify-start' : 'justify-end'}`;
+                wrapper.dataset.chatMessageRole = message.role;
+                if (messageId !== '') {
+                    wrapper.dataset.chatMessageId = messageId;
+                    renderedMessageIds.add(messageId);
+                }
 
                 const bubble = document.createElement('div');
                 bubble.className = `max-w-[88%] rounded-2xl px-4 py-3 shadow-sm ${message.role === 'user' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-800'}`;
@@ -431,6 +493,8 @@
                 bubble.appendChild(content);
                 wrapper.appendChild(bubble);
                 container.appendChild(wrapper);
+
+                return true;
             };
 
             const updateButton = (extraStatus = '') => {
@@ -469,10 +533,11 @@
             };
 
             loadMoreBtn.addEventListener('click', async () => {
-                if (!hasMore) {
+                if (!hasMore || messageLoadInFlight) {
                     return;
                 }
 
+                messageLoadInFlight = true;
                 clearLoadError();
                 loadMoreBtn.disabled = true;
                 loadMoreBtn.textContent = 'Carregando...';
@@ -514,10 +579,107 @@
                     showLoadError('Erro inesperado ao carregar mais mensagens.');
                     loadMoreBtn.disabled = false;
                     loadMoreBtn.textContent = 'Tentar novamente';
+                } finally {
+                    messageLoadInFlight = false;
                 }
             });
 
             updateButton();
+
+            const refreshVisibleMessages = async () => {
+                if (refreshInFlight || messageLoadInFlight) {
+                    return;
+                }
+
+                refreshInFlight = true;
+
+                try {
+                    const params = new URLSearchParams();
+                    params.set('tab', 'chat');
+                    params.set('conv_id', container.dataset.convId || '');
+                    params.set('limit', '20');
+
+                    const response = await fetch(`${chatEndpoint}?${params.toString()}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const payload = await response.json();
+
+                    if (!response.ok || payload.error) {
+                        throw new Error(payload.error || 'Falha ao atualizar o chat.');
+                    }
+
+                    const messages = Array.isArray(payload.messages) ? payload.messages : [];
+                    messages.slice().reverse().forEach((message) => appendMessage(message, { dedupe: true }));
+
+                    if (payload.assistant_lead_updated_at) {
+                        knownAssistantLeadUpdatedAt = payload.assistant_lead_updated_at;
+                        container.dataset.assistantLeadUpdatedAt = knownAssistantLeadUpdatedAt;
+                    }
+                } finally {
+                    refreshInFlight = false;
+                }
+            };
+
+            const schedulePoll = (delay = pollDelay) => {
+                window.clearTimeout(pollTimer);
+                pollTimer = window.setTimeout(pollChatState, delay);
+            };
+
+            const pollChatState = async () => {
+                if (!container.dataset.convId || document.hidden || messageLoadInFlight || refreshInFlight || pollInFlight) {
+                    schedulePoll();
+                    return;
+                }
+
+                pollInFlight = true;
+
+                try {
+                    const params = new URLSearchParams();
+                    params.set('tab', 'chat');
+                    params.set('conv_id', container.dataset.convId || '');
+                    params.set('poll_state', '1');
+
+                    const response = await fetch(`${chatEndpoint}?${params.toString()}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const payload = await response.json();
+
+                    if (!response.ok || payload.error) {
+                        throw new Error(payload.error || 'Falha ao verificar atualizações.');
+                    }
+
+                    const updatedAt = payload.assistant_lead_updated_at || '';
+                    if (updatedAt !== '' && updatedAt !== knownAssistantLeadUpdatedAt) {
+                        knownAssistantLeadUpdatedAt = updatedAt;
+                        container.dataset.assistantLeadUpdatedAt = updatedAt;
+                        await refreshVisibleMessages();
+                    }
+
+                    pollDelay = 15000;
+                } catch (error) {
+                    pollDelay = Math.min(pollDelay * 2, 60000);
+                } finally {
+                    pollInFlight = false;
+                    schedulePoll();
+                }
+            };
+
+            triggerEarlyChatPoll = () => {
+                pollDelay = 15000;
+                schedulePoll(3000);
+            };
+
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    triggerEarlyChatPoll();
+                }
+            });
+
+            schedulePoll();
         });
     </script>
 @endpush

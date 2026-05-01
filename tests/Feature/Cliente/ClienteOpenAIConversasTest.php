@@ -254,6 +254,31 @@ test('aba chat renderiza mensagens visiveis e oculta itens tecnicos', function (
     $response->assertDontSee('Itens técnicos');
 });
 
+test('aba chat alinha lead a esquerda e assistente a direita', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    $lead = clienteOpenAiConversasMakeLead($cliente);
+    $assistantLead = clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_alinhamento']);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponse(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->get(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $assistantLead->conv_id,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('class="flex justify-start"', false);
+    $response->assertSee('data-chat-message-role="user"', false);
+    $response->assertSee('class="flex justify-end"', false);
+    $response->assertSee('data-chat-message-role="assistant"', false);
+});
+
 test('json da aba chat retorna apenas mensagens normalizadas', function () {
     $user = User::factory()->create();
     $cliente = clienteOpenAiConversasMakeCliente($user);
@@ -286,6 +311,35 @@ test('json da aba chat retorna apenas mensagens normalizadas', function () {
     $response->assertDontSee('function_call');
 });
 
+test('poll state da aba chat retorna apenas estado local sem consultar openai', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    $lead = clienteOpenAiConversasMakeLead($cliente);
+    $assistantLead = clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_poll_state']);
+    $assistantLead->forceFill(['updated_at' => Carbon::parse('2026-05-01 13:45:00')])->saveQuietly();
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponse(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->getJson(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $assistantLead->conv_id,
+        'poll_state' => 1,
+    ]));
+
+    $response->assertOk();
+    $response->assertJsonPath('conv_id', 'conv_poll_state');
+    $response->assertJsonPath('assistant_lead_id', $assistantLead->id);
+    $response->assertJsonPath('assistant_lead_updated_at', Carbon::parse('2026-05-01 13:45:00')->toJSON());
+    $response->assertJsonMissingPath('messages');
+    $response->assertJsonMissingPath('data');
+    Http::assertNothingSent();
+});
+
 test('filtros atuais afetam os cards da aba chat', function () {
     $user = User::factory()->create();
     $cliente = clienteOpenAiConversasMakeCliente($user);
@@ -308,6 +362,109 @@ test('filtros atuais afetam os cards da aba chat', function () {
     $response->assertDontSee('Jose Oculto');
 });
 
+test('aba chat carrega somente vinte cards na primeira pagina', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+    $baseTime = Carbon::parse('2026-05-01 12:00:00');
+
+    for ($i = 1; $i <= 25; $i++) {
+        $lead = clienteOpenAiConversasMakeLead($cliente, ['name' => sprintf('Lead Pag %02d', $i)]);
+        $lead->forceFill(['updated_at' => $baseTime->copy()->subMinutes($i)])->saveQuietly();
+        clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => sprintf('conv_pag_%02d', $i)]);
+    }
+
+    $response = $this->actingAs($cliente, 'client')->get(route('cliente.conversas.index', [
+        'tab' => 'chat',
+    ]));
+
+    $response->assertOk();
+    expect(substr_count($response->getContent(), 'data-chat-card'))->toBe(20);
+    $response->assertSee('Lead Pag 01');
+    $response->assertSee('Lead Pag 20');
+    $response->assertDontSee('Lead Pag 21');
+    $response->assertSee('data-has-more="1"', false);
+    $response->assertSee('data-next-offset="20"', false);
+});
+
+test('aba chat retorna o proximo lote de cards via json', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+    $baseTime = Carbon::parse('2026-05-01 12:00:00');
+
+    for ($i = 1; $i <= 25; $i++) {
+        $lead = clienteOpenAiConversasMakeLead($cliente, ['name' => sprintf('Lead Lote %02d', $i)]);
+        $lead->forceFill(['updated_at' => $baseTime->copy()->subMinutes($i)])->saveQuietly();
+        clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => sprintf('conv_lote_%02d', $i)]);
+    }
+
+    $response = $this->actingAs($cliente, 'client')->getJson(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'cards_only' => 1,
+        'cards_offset' => 20,
+        'cards_limit' => 20,
+    ]));
+
+    $response->assertOk();
+    $response->assertJsonPath('count', 5);
+    $response->assertJsonPath('has_more', false);
+    $response->assertJsonPath('next_offset', 25);
+    expect(substr_count($response->json('html'), 'data-chat-card'))->toBe(5);
+    expect($response->json('html'))->toContain('Lead Lote 21');
+    expect($response->json('html'))->toContain('Lead Lote 25');
+    expect($response->json('html'))->not->toContain('Lead Lote 20');
+});
+
+test('card ativo fora do primeiro lote fica fixado e nao duplica no proximo lote', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+    $baseTime = Carbon::parse('2026-05-01 12:00:00');
+    $activeConvId = 'conv_pin_25';
+
+    for ($i = 1; $i <= 25; $i++) {
+        $lead = clienteOpenAiConversasMakeLead($cliente, ['name' => sprintf('Lead Pin %02d', $i)]);
+        $lead->forceFill(['updated_at' => $baseTime->copy()->subMinutes($i)])->saveQuietly();
+        clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => $i === 25 ? $activeConvId : sprintf('conv_pin_%02d', $i)]);
+    }
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponse(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->get(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $activeConvId,
+    ]));
+
+    $response->assertOk();
+    expect(substr_count($response->getContent(), 'data-chat-card'))->toBe(20);
+    $content = $response->getContent();
+    expect(strpos($content, 'Lead Pin 25'))->toBeLessThan(strpos($content, 'Lead Pin 01'));
+    $response->assertSee('Lead Pin 25');
+    $response->assertDontSee('Lead Pin 20');
+    $response->assertSee('data-next-offset="19"', false);
+
+    $nextResponse = $this->actingAs($cliente, 'client')->getJson(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $activeConvId,
+        'cards_only' => 1,
+        'cards_offset' => 19,
+        'cards_limit' => 20,
+    ]));
+
+    $nextResponse->assertOk();
+    expect($nextResponse->json('html'))->toContain('Lead Pin 20');
+    expect($nextResponse->json('html'))->not->toContain('Lead Pin 25');
+});
+
 test('multiplas conversas do mesmo lead ficam agrupadas no card', function () {
     $user = User::factory()->create();
     $cliente = clienteOpenAiConversasMakeCliente($user);
@@ -328,8 +485,30 @@ test('multiplas conversas do mesmo lead ficam agrupadas no card', function () {
     expect(substr_count($response->getContent(), 'Lead Multi'))->toBe(1);
     $response->assertSee('Assistente A');
     $response->assertSee('Assistente B');
-    $response->assertSee('conv_multi_a');
-    $response->assertSee('conv_multi_b');
+});
+
+test('cards da aba chat nao exibem tags nem bloco visual de conv id', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential, ['name' => 'Assistente Sem Tecnico']);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+    $lead = clienteOpenAiConversasMakeLead($cliente, ['name' => 'Lead Sem Tecnico']);
+    $tag = clienteOpenAiConversasMakeTag($user, $cliente, ['name' => 'Tag Que Nao Deve Aparecer No Card']);
+    $lead->tags()->sync([$tag->id]);
+    clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_visual_oculto']);
+
+    $response = $this->actingAs($cliente, 'client')->getJson(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'cards_only' => 1,
+    ]));
+
+    $response->assertOk();
+    $html = $response->json('html');
+    expect($html)->toContain('Lead Sem Tecnico');
+    expect($html)->toContain('Assistente Sem Tecnico');
+    expect($html)->not->toContain('Tag Que Nao Deve Aparecer No Card');
+    expect($html)->not->toContain('font-mono');
 });
 
 test('lead sem conv_id aparece com seletor para iniciar envio', function () {

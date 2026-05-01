@@ -33,6 +33,8 @@ use Illuminate\Support\Str;
 
 class ClienteLeadController extends Controller
 {
+    private const CHAT_CARD_LIMIT = 20;
+
     public function __construct(
         protected UazapiService $uazapiService,
         protected PhoneNumberNormalizer $phoneNumberNormalizer
@@ -70,6 +72,14 @@ class ClienteLeadController extends Controller
             $chatData = $this->resolveClienteChatData($request, $cliente, $messageConexoes);
 
             if ($request->wantsJson()) {
+                if ($request->boolean('cards_only')) {
+                    return $this->jsonClienteChatCardsResponse($chatData);
+                }
+
+                if ($request->boolean('poll_state')) {
+                    return $this->jsonClienteChatPollStateResponse($chatData);
+                }
+
                 return $this->jsonClienteChatResponse($chatData);
             }
         }
@@ -714,13 +724,24 @@ class ClienteLeadController extends Controller
         $convId = trim((string) $request->input('conv_id'));
         $after = (string) $request->input('after');
         $limit = $request->integer('limit');
-        $openAiConexoes = $this->loadClienteOpenAIConexoes($cliente);
+        $isCardsOnly = $request->boolean('cards_only');
+        $isPollState = $request->boolean('poll_state');
+        $openAiConexoes = $isPollState ? collect() : $this->loadClienteOpenAIConexoes($cliente);
+        $chatLeadCardsPage = (!$request->wantsJson() || $isCardsOnly)
+            ? $this->loadClienteChatLeadCards($request, $cliente, $openAiConexoes, $messageConexoes)
+            : [
+                'cards' => collect(),
+                'has_more' => false,
+                'next_offset' => 0,
+                'limit' => self::CHAT_CARD_LIMIT,
+            ];
 
         $data = [
             'chatConvId' => $convId,
             'chatResult' => null,
             'chatError' => null,
             'chatAssistantLead' => null,
+            'chatAssistantLeadUpdatedAt' => null,
             'chatAssistantLeadMatchesCount' => 0,
             'chatMessages' => [],
             'chatHasMore' => false,
@@ -732,13 +753,18 @@ class ClienteLeadController extends Controller
             'chatLimit' => $limit,
             'chatConexao' => null,
             'chatSendConexao' => null,
-            'chatLeadCards' => $request->wantsJson()
-                ? collect()
-                : $this->loadClienteChatLeadCards($request, $cliente, $openAiConexoes, $messageConexoes),
+            'chatLeadCards' => $chatLeadCardsPage['cards'],
+            'chatLeadCardsHasMore' => $chatLeadCardsPage['has_more'],
+            'chatLeadCardsNextOffset' => $chatLeadCardsPage['next_offset'],
+            'chatLeadCardsLimit' => $chatLeadCardsPage['limit'],
             'chatSendOptions' => $request->wantsJson()
                 ? collect()
                 : $this->mapClienteChatSendOptions($messageConexoes),
         ];
+
+        if ($isCardsOnly) {
+            return $data;
+        }
 
         if ($convId === '') {
             return $data;
@@ -761,6 +787,7 @@ class ClienteLeadController extends Controller
             ->first();
 
         $data['chatAssistantLead'] = $assistantLead;
+        $data['chatAssistantLeadUpdatedAt'] = $assistantLead?->updated_at?->toJSON();
 
         if (!$assistantLead) {
             $data['chatError'] = "Conv_id \"{$convId}\" nao encontrado para este cliente.";
@@ -772,6 +799,10 @@ class ClienteLeadController extends Controller
         if (!$lead || (int) $lead->cliente_id !== (int) $cliente->id) {
             $data['chatError'] = 'Lead associado ao conv_id nao encontrado para este cliente.';
 
+            return $data;
+        }
+
+        if ($isPollState) {
             return $data;
         }
 
@@ -839,16 +870,57 @@ class ClienteLeadController extends Controller
         return $data;
     }
 
-    private function loadClienteChatLeadCards(Request $request, Cliente $cliente, $openAiConexoes, $messageConexoes)
+    private function loadClienteChatLeadCards(Request $request, Cliente $cliente, $openAiConexoes, $messageConexoes): array
     {
         [$assistantFilter, , , , $query] = $this->buildFilteredQuery($request, $cliente);
         $sendOptions = $this->mapClienteChatSendOptions($messageConexoes, $assistantFilter);
         $activeConvId = trim((string) $request->input('conv_id'));
+        $limit = min(max($request->integer('cards_limit', self::CHAT_CARD_LIMIT), 1), self::CHAT_CARD_LIMIT);
+        $offset = max($request->integer('cards_offset', 0), 0);
 
-        return $query
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->get()
+        $this->prepareClienteChatLeadCardQuery($query);
+
+        $activeLead = null;
+        if ($activeConvId !== '') {
+            $activeLeadQuery = clone $query;
+            $this->prepareClienteChatLeadCardQuery($activeLeadQuery);
+
+            $activeLead = $activeLeadQuery
+                ->whereHas('assistantLeads', fn ($assistantLeadQuery) => $assistantLeadQuery->where('conv_id', $activeConvId))
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        $normalLimit = $offset === 0 && $activeLead ? max($limit - 1, 0) : $limit;
+        $normalQuery = clone $query;
+        $this->prepareClienteChatLeadCardQuery($normalQuery);
+
+        if ($activeLead) {
+            $normalQuery->whereKeyNot($activeLead->getKey());
+        }
+
+        $normalLeads = $normalLimit > 0
+            ? $normalQuery
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id')
+                ->skip($offset)
+                ->take($normalLimit + 1)
+                ->get()
+            : collect();
+
+        $hasMore = $normalLeads->count() > $normalLimit;
+        $normalLeads = $normalLeads->take($normalLimit)->values();
+        $leads = collect();
+
+        if ($offset === 0 && $activeLead) {
+            $leads->push($activeLead);
+        }
+
+        $leads = $leads->concat($normalLeads)->values();
+
+        return [
+            'cards' => $leads
             ->map(function (ClienteLead $lead) use ($request, $openAiConexoes, $sendOptions, $activeConvId) {
                 $lastAssistantLead = $lead->assistantLeads
                     ->sortByDesc(fn (AssistantLead $assistantLead) => sprintf(
@@ -889,12 +961,27 @@ class ClienteLeadController extends Controller
                     'last_message_text' => $lastMessageText !== '' ? $lastMessageText : 'Sem última mensagem do lead',
                     'last_message_at_label' => $lastAssistantLead?->updated_at?->format('d/m/Y H:i') ?: '-',
                     'last_assistant_lead_id' => $lastAssistantLead?->id ? (int) $lastAssistantLead->id : null,
-                    'tags' => $lead->tags->pluck('name')->values(),
                     'conversations' => $conversations,
                     'send_options' => $sendOptions,
                 ];
             })
-            ->values();
+            ->values(),
+            'has_more' => $hasMore,
+            'next_offset' => $offset + $normalLeads->count(),
+            'limit' => $limit,
+        ];
+    }
+
+    private function prepareClienteChatLeadCardQuery($query): void
+    {
+        $query->setEagerLoads([]);
+        $query->with([
+            'assistantLeads' => fn ($assistantLeadQuery) => $assistantLeadQuery
+                ->select('id', 'lead_id', 'assistant_id', 'version', 'conv_id', 'webhook_payload', 'updated_at')
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id'),
+            'assistantLeads.assistant:id,name,version,cliente_id',
+        ]);
     }
 
     private function extractLeadWebhookText(?AssistantLead $assistantLead): string
@@ -1006,6 +1093,8 @@ class ClienteLeadController extends Controller
 
         return response()->json([
             'conv_id' => $data['chatConvId'],
+            'assistant_lead_id' => $data['chatAssistantLead']?->id,
+            'assistant_lead_updated_at' => $data['chatAssistantLeadUpdatedAt'],
             'messages' => $data['chatMessages'],
             'has_more' => $data['chatHasMore'],
             'last_id' => $data['chatLastId'],
@@ -1014,6 +1103,31 @@ class ClienteLeadController extends Controller
             'after' => $data['chatAfter'],
             'limit' => $data['chatLimit'],
             'status' => $data['chatStatus'],
+            'error' => $data['chatError'],
+        ], $statusCode);
+    }
+
+    private function jsonClienteChatCardsResponse(array $data): JsonResponse
+    {
+        return response()->json([
+            'html' => view('cliente.conversas._chat_cards', [
+                'leadCards' => $data['chatLeadCards'],
+            ])->render(),
+            'has_more' => (bool) $data['chatLeadCardsHasMore'],
+            'next_offset' => (int) $data['chatLeadCardsNextOffset'],
+            'limit' => (int) $data['chatLeadCardsLimit'],
+            'count' => $data['chatLeadCards']->count(),
+        ]);
+    }
+
+    private function jsonClienteChatPollStateResponse(array $data): JsonResponse
+    {
+        $statusCode = $data['chatError'] ? 400 : 200;
+
+        return response()->json([
+            'conv_id' => $data['chatConvId'],
+            'assistant_lead_id' => $data['chatAssistantLead']?->id,
+            'assistant_lead_updated_at' => $data['chatAssistantLeadUpdatedAt'],
             'error' => $data['chatError'],
         ], $statusCode);
     }
