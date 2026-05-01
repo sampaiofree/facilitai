@@ -651,3 +651,58 @@ test('botao carregar mais fica dentro do chat antes das mensagens', function () 
     expect(strpos($content, 'id="cliente-chat-load-more-btn"'))->toBeLessThan(strpos($content, 'Tenho interesse.'));
     $response->assertSee('Carregar mais');
 });
+
+test('card enviar mensagem renderiza timer de verificacao do chat', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    $lead = clienteOpenAiConversasMakeLead($cliente);
+    $assistantLead = clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_timer_poll']);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponse(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->get(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $assistantLead->conv_id,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('id="cliente-chat-poll-timer"', false);
+    $response->assertSee('Próxima verificação em 15s');
+});
+
+test('javascript do chat insere antigas no topo e mantem refresh no final', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    $lead = clienteOpenAiConversasMakeLead($cliente);
+    $assistantLead = clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_js_topo']);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponseWithMore(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->get(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $assistantLead->conv_id,
+    ]));
+
+    $response->assertOk();
+    $content = $response->getContent();
+
+    expect($content)->toContain('const prependMessages = (messages) =>');
+    expect($content)->toContain('container.insertBefore(wrapper, anchor);');
+    expect($content)->toContain('const insertedCount = prependMessages(messages.slice().reverse());');
+    expect($content)->toContain('window.scrollTo({');
+    expect($content)->toContain("messages.slice().reverse().forEach((message) => appendMessage(message, { dedupe: true }));");
+    expect($content)->toContain('window.setInterval(updatePollCountdown, 1000)');
+    expect($content)->toContain('Verificando novas mensagens...');
+    expect($content)->toContain('Verificação pausada até a aba ficar ativa');
+    expect($content)->toContain('Nova tentativa em');
+});

@@ -189,6 +189,13 @@
                                 @endif
                             </p>
                         </div>
+                        <div
+                            id="cliente-chat-poll-timer"
+                            class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-500"
+                            data-default-label="Próxima verificação em 15s"
+                        >
+                            Próxima verificação em 15s
+                        </div>
                     </div>
                     <div class="mt-3">
                         <textarea
@@ -435,6 +442,7 @@
             const container = document.getElementById('cliente-chat-items');
             const statusEl = document.getElementById('cliente-chat-load-more-status');
             const errorEl = document.getElementById('cliente-chat-load-more-error');
+            const pollTimerEl = document.getElementById('cliente-chat-poll-timer');
 
             if (!loadMoreBtn || !container) {
                 return;
@@ -448,6 +456,8 @@
             let pollInFlight = false;
             let pollTimer = null;
             let pollDelay = 15000;
+            let nextPollAt = null;
+            let pollTimerMode = 'scheduled';
             let knownAssistantLeadUpdatedAt = container.dataset.assistantLeadUpdatedAt || '';
             const limit = container.dataset.limit || null;
             const renderedMessageIds = new Set(
@@ -456,19 +466,17 @@
                     .filter((id) => id !== '')
             );
 
-            const appendMessage = (message, options = {}) => {
+            const buildMessageElement = (message, options = {}) => {
                 if (!message || !['user', 'assistant'].includes(message.role)) {
-                    return false;
+                    return null;
                 }
 
                 const messageId = typeof message.id === 'string' ? message.id : '';
                 if ((options.dedupe ?? true) && messageId !== '' && renderedMessageIds.has(messageId)) {
-                    return false;
+                    return null;
                 }
 
                 document.getElementById('cliente-chat-empty-state')?.remove();
-                visibleCount += 1;
-                container.dataset.visibleCount = String(visibleCount);
 
                 const wrapper = document.createElement('div');
                 wrapper.className = `flex ${message.role === 'user' ? 'justify-start' : 'justify-end'}`;
@@ -492,9 +500,55 @@
                 bubble.appendChild(label);
                 bubble.appendChild(content);
                 wrapper.appendChild(bubble);
+
+                return wrapper;
+            };
+
+            const appendMessage = (message, options = {}) => {
+                const wrapper = buildMessageElement(message, options);
+                if (!wrapper) {
+                    return false;
+                }
+
+                visibleCount += 1;
+                container.dataset.visibleCount = String(visibleCount);
                 container.appendChild(wrapper);
 
                 return true;
+            };
+
+            const prependMessages = (messages) => {
+                if (!Array.isArray(messages) || messages.length === 0) {
+                    return 0;
+                }
+
+                const scrollBefore = window.scrollY;
+                const heightBefore = document.documentElement.scrollHeight;
+                const anchor = container.querySelector('[data-chat-message-id], [data-chat-message-role]');
+                let inserted = 0;
+
+                messages.forEach((message) => {
+                    const wrapper = buildMessageElement(message, { dedupe: true });
+                    if (!wrapper) {
+                        return;
+                    }
+
+                    visibleCount += 1;
+                    inserted += 1;
+                    container.dataset.visibleCount = String(visibleCount);
+                    container.insertBefore(wrapper, anchor);
+                });
+
+                if (inserted > 0) {
+                    const heightAfter = document.documentElement.scrollHeight;
+                    window.scrollTo({
+                        top: scrollBefore + (heightAfter - heightBefore),
+                        left: window.scrollX,
+                        behavior: 'auto',
+                    });
+                }
+
+                return inserted;
             };
 
             const updateButton = (extraStatus = '') => {
@@ -568,13 +622,13 @@
                     }
 
                     const messages = Array.isArray(payload.messages) ? payload.messages : [];
-                    messages.forEach(appendMessage);
+                    const insertedCount = prependMessages(messages.slice().reverse());
                     hasMore = !!payload.has_more;
                     after = payload.last_id || after;
                     container.dataset.after = after || '';
                     container.dataset.hasMore = hasMore ? '1' : '0';
 
-                    updateButton(messages.length === 0 ? 'Nenhuma nova mensagem visivel nesta pagina.' : '');
+                    updateButton(insertedCount === 0 ? 'Nenhuma nova mensagem visivel nesta pagina.' : '');
                 } catch (error) {
                     showLoadError('Erro inesperado ao carregar mais mensagens.');
                     loadMoreBtn.disabled = false;
@@ -622,8 +676,44 @@
                 }
             };
 
-            const schedulePoll = (delay = pollDelay) => {
+            const setPollTimerText = (text) => {
+                if (!pollTimerEl) {
+                    return;
+                }
+
+                pollTimerEl.textContent = text;
+            };
+
+            const updatePollCountdown = () => {
+                if (!pollTimerEl) {
+                    return;
+                }
+
+                if (document.hidden) {
+                    setPollTimerText('Verificação pausada até a aba ficar ativa');
+                    return;
+                }
+
+                if (pollTimerMode === 'checking') {
+                    setPollTimerText('Verificando novas mensagens...');
+                    return;
+                }
+
+                if (!nextPollAt) {
+                    setPollTimerText(pollTimerEl.dataset.defaultLabel || 'Próxima verificação em 15s');
+                    return;
+                }
+
+                const seconds = Math.max(0, Math.ceil((nextPollAt - Date.now()) / 1000));
+                const prefix = pollTimerMode === 'retry' ? 'Nova tentativa em' : 'Próxima verificação em';
+                setPollTimerText(`${prefix} ${seconds}s`);
+            };
+
+            const schedulePoll = (delay = pollDelay, mode = 'scheduled') => {
                 window.clearTimeout(pollTimer);
+                pollTimerMode = mode;
+                nextPollAt = Date.now() + delay;
+                updatePollCountdown();
                 pollTimer = window.setTimeout(pollChatState, delay);
             };
 
@@ -634,6 +724,8 @@
                 }
 
                 pollInFlight = true;
+                pollTimerMode = 'checking';
+                updatePollCountdown();
 
                 try {
                     const params = new URLSearchParams();
@@ -663,22 +755,26 @@
                 } catch (error) {
                     pollDelay = Math.min(pollDelay * 2, 60000);
                 } finally {
+                    const nextMode = pollDelay > 15000 ? 'retry' : 'scheduled';
                     pollInFlight = false;
-                    schedulePoll();
+                    schedulePoll(pollDelay, nextMode);
                 }
             };
 
             triggerEarlyChatPoll = () => {
                 pollDelay = 15000;
-                schedulePoll(3000);
+                schedulePoll(3000, 'scheduled');
             };
 
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden) {
                     triggerEarlyChatPoll();
+                } else {
+                    updatePollCountdown();
                 }
             });
 
+            window.setInterval(updatePollCountdown, 1000);
             schedulePoll();
         });
     </script>
