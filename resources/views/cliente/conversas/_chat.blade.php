@@ -72,163 +72,7 @@
             </div>
         </aside>
 
-        <section class="space-y-4 lg:col-span-3">
-            @if($chatError)
-                <div class="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    {{ $chatError }}
-                </div>
-            @endif
-
-            @if($canRenderConversation)
-                <div class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-                    <div class="flex flex-wrap items-center justify-between gap-4">
-                        <div>
-                            <p class="text-lg font-semibold text-slate-900">{{ $selectedLead?->name ?: 'Lead sem nome' }}</p>
-                            <p class="text-sm text-slate-500">{{ $selectedLead?->phone ?: '-' }}</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-xs uppercase tracking-wide text-slate-400">Assistente</p>
-                            <p class="text-sm font-semibold text-slate-800">{{ $selectedAssistant?->name ?: '-' }}</p>
-                            @if(($chatAssistantLeadMatchesCount ?? 0) > 1)
-                                <p class="mt-1 text-[11px] text-amber-700">{{ $chatAssistantLeadMatchesCount }} vínculos encontrados; exibindo o mais recente</p>
-                            @endif
-                        </div>
-                    </div>
-                </div>
-
-                <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
-                        <div>
-                            <h3 class="text-sm font-semibold text-slate-700">Chat</h3>
-                            <p class="text-xs text-slate-500">
-                                Mensagens visíveis: {{ count($visibleMessages) }}
-                                @if($chatStatus)
-                                    · Status {{ $chatStatus }}
-                                @endif
-                            </p>
-                        </div>
-                        <div class="text-xs text-slate-500">
-                            @if($chatHasMore)
-                                Mais mensagens disponíveis
-                            @else
-                                Sem mais mensagens
-                            @endif
-                        </div>
-                    </div>
-
-                    <div
-                        id="cliente-chat-items"
-                        class="space-y-3 bg-[#efeae2] px-4 py-5 sm:px-6"
-                        data-conv-id="{{ $chatConvId }}"
-                        data-after="{{ $chatLastId }}"
-                        data-has-more="{{ $chatHasMore ? '1' : '0' }}"
-                        data-visible-count="{{ count($visibleMessages) }}"
-                        data-limit="{{ $chatLimit ?? '' }}"
-                        data-assistant-lead-updated-at="{{ $chatAssistantLeadUpdatedAt ?? '' }}"
-                    >
-                        <div class="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 shadow-sm">
-                            <div class="flex flex-wrap items-center gap-3">
-                                <button
-                                    id="cliente-chat-load-more-btn"
-                                    type="button"
-                                    class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                                    @if(!$chatHasMore) disabled @endif
-                                >
-                                    @if($chatHasMore)
-                                        Carregar mais
-                                    @else
-                                        Sem mais mensagens
-                                    @endif
-                                </button>
-                                <span id="cliente-chat-load-more-status" class="text-xs text-slate-500"></span>
-                            </div>
-
-                            <div id="cliente-chat-load-more-error" class="mt-3 hidden rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700"></div>
-                        </div>
-
-                        @forelse($visibleMessages as $message)
-                            <div
-                                class="flex {{ $message['role'] === 'user' ? 'justify-start' : 'justify-end' }}"
-                                data-chat-message-id="{{ $message['id'] }}"
-                                data-chat-message-role="{{ $message['role'] }}"
-                            >
-                                <div class="max-w-[88%] rounded-2xl px-4 py-3 shadow-sm {{ $message['role'] === 'user' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-800' }}">
-                                    <div class="mb-1 text-[11px] font-semibold uppercase tracking-wide {{ $message['role'] === 'user' ? 'text-emerald-50/90' : 'text-slate-400' }}">
-                                        {{ $message['sender'] }}
-                                    </div>
-                                    <div class="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                                        {!! $message['html'] !!}
-                                    </div>
-                                </div>
-                            </div>
-                        @empty
-                            <div
-                                id="cliente-chat-empty-state"
-                                class="rounded-2xl border border-dashed border-slate-300 bg-white/80 px-4 py-5 text-center text-sm text-slate-500"
-                            >
-                                Nenhuma mensagem de lead ou assistente retornada.
-                            </div>
-                        @endforelse
-                    </div>
-                </div>
-
-                <form
-                    class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                    data-chat-send-form
-                    data-lead-id="{{ $selectedLead?->id }}"
-                    data-conexao-id="{{ $selectedSendConexao?->id }}"
-                >
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <h4 class="text-sm font-semibold text-slate-800">Enviar mensagem</h4>
-                            <p class="text-xs text-slate-500">
-                                @if($selectedSendConexao)
-                                    Envio via {{ $selectedSendConexao->name ?: 'Conexao #' . $selectedSendConexao->id }}.
-                                @else
-                                    Nenhuma conexão ativa disponível para este assistente.
-                                @endif
-                            </p>
-                        </div>
-                        <div
-                            id="cliente-chat-poll-timer"
-                            class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-500"
-                            data-default-label="Próxima verificação em 15s"
-                        >
-                            Próxima verificação em 15s
-                        </div>
-                    </div>
-                    <div class="mt-3">
-                        <textarea
-                            data-chat-message
-                            rows="3"
-                            maxlength="2000"
-                            placeholder="Digite a mensagem"
-                            class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                            @disabled(!$selectedSendConexao)
-                        ></textarea>
-                    </div>
-                    <p class="mt-3 hidden rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700" data-chat-error></p>
-                    <p class="mt-3 hidden rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700" data-chat-success></p>
-                    <div class="mt-3 flex justify-end">
-                        <button
-                            type="submit"
-                            class="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                            @disabled(!$selectedSendConexao)
-                        >Enviar</button>
-                    </div>
-                </form>
-            @elseif(!$chatError)
-                <div class="rounded-[28px] border border-slate-200 bg-white px-6 py-10 shadow-sm">
-                    <div class="mx-auto max-w-xl text-center">
-                        <p class="text-sm font-semibold uppercase tracking-wide text-slate-400">Chat</p>
-                        <h3 class="mt-2 text-2xl font-semibold text-slate-900">Selecione uma conversa</h3>
-                        <p class="mt-3 text-sm text-slate-500">
-                            Escolha um lead na coluna ao lado para abrir uma conversa existente ou envie uma mensagem para iniciar o atendimento.
-                        </p>
-                    </div>
-                </div>
-            @endif
-        </section>
+        @include('cliente.conversas._chat_panel')
     </div>
 </div>
 
@@ -244,6 +88,16 @@
                 const div = document.createElement('div');
                 div.textContent = value ?? '';
                 return div.innerHTML;
+            };
+
+            const escapeSelectorValue = (value) => {
+                const rawValue = String(value ?? '');
+
+                if (window.CSS && typeof window.CSS.escape === 'function') {
+                    return window.CSS.escape(rawValue);
+                }
+
+                return rawValue.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
             };
 
             const showInline = (element, message) => {
@@ -438,344 +292,476 @@
                 }
             }
 
-            const loadMoreBtn = document.getElementById('cliente-chat-load-more-btn');
-            const container = document.getElementById('cliente-chat-items');
-            const statusEl = document.getElementById('cliente-chat-load-more-status');
-            const errorEl = document.getElementById('cliente-chat-load-more-error');
-            const pollTimerEl = document.getElementById('cliente-chat-poll-timer');
+            let chatPanelState = null;
 
-            if (!loadMoreBtn || !container) {
-                return;
-            }
+            const splitClasses = (value) => (value || '').split(/\s+/).filter(Boolean);
+            const addClasses = (element, value) => splitClasses(value).forEach((className) => element.classList.add(className));
+            const removeClasses = (element, value) => splitClasses(value).forEach((className) => element.classList.remove(className));
 
-            let after = container.dataset.after || null;
-            let hasMore = container.dataset.hasMore === '1';
-            let visibleCount = Number.parseInt(container.dataset.visibleCount || '0', 10);
-            let messageLoadInFlight = false;
-            let refreshInFlight = false;
-            let pollInFlight = false;
-            let pollTimer = null;
-            let pollDelay = 15000;
-            let nextPollAt = null;
-            let pollTimerMode = 'scheduled';
-            let knownAssistantLeadUpdatedAt = container.dataset.assistantLeadUpdatedAt || '';
-            const limit = container.dataset.limit || null;
-            const renderedMessageIds = new Set(
-                Array.from(container.querySelectorAll('[data-chat-message-id]'))
-                    .map((element) => element.dataset.chatMessageId || '')
-                    .filter((id) => id !== '')
-            );
-
-            const buildMessageElement = (message, options = {}) => {
-                if (!message || !['user', 'assistant'].includes(message.role)) {
-                    return null;
+            const destroyChatPanelState = () => {
+                if (!chatPanelState) {
+                    return;
                 }
 
-                const messageId = typeof message.id === 'string' ? message.id : '';
-                if ((options.dedupe ?? true) && messageId !== '' && renderedMessageIds.has(messageId)) {
-                    return null;
+                window.clearTimeout(chatPanelState.pollTimer);
+                window.clearInterval(chatPanelState.countdownTimer);
+                if (chatPanelState.visibilityHandler) {
+                    document.removeEventListener('visibilitychange', chatPanelState.visibilityHandler);
                 }
-
-                document.getElementById('cliente-chat-empty-state')?.remove();
-
-                const wrapper = document.createElement('div');
-                wrapper.className = `flex ${message.role === 'user' ? 'justify-start' : 'justify-end'}`;
-                wrapper.dataset.chatMessageRole = message.role;
-                if (messageId !== '') {
-                    wrapper.dataset.chatMessageId = messageId;
-                    renderedMessageIds.add(messageId);
-                }
-
-                const bubble = document.createElement('div');
-                bubble.className = `max-w-[88%] rounded-2xl px-4 py-3 shadow-sm ${message.role === 'user' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-800'}`;
-
-                const label = document.createElement('div');
-                label.className = `mb-1 text-[11px] font-semibold uppercase tracking-wide ${message.role === 'user' ? 'text-emerald-50/90' : 'text-slate-400'}`;
-                label.textContent = message.sender || (message.role === 'user' ? 'Lead' : 'Assistente');
-
-                const content = document.createElement('div');
-                content.className = 'whitespace-pre-wrap break-words text-sm leading-relaxed';
-                content.innerHTML = typeof message.html === 'string' ? message.html : escapeHtml(message.text || '');
-
-                bubble.appendChild(label);
-                bubble.appendChild(content);
-                wrapper.appendChild(bubble);
-
-                return wrapper;
+                chatPanelState = null;
+                triggerEarlyChatPoll = () => {};
             };
 
-            const appendMessage = (message, options = {}) => {
-                const wrapper = buildMessageElement(message, options);
-                if (!wrapper) {
-                    return false;
+            const setActiveConversation = (convId) => {
+                document.querySelectorAll('[data-chat-conversation-link]').forEach((link) => {
+                    removeClasses(link, link.dataset.activeConversationClass);
+                    addClasses(link, link.dataset.inactiveConversationClass);
+                });
+
+                document.querySelectorAll('[data-chat-card]').forEach((card) => {
+                    removeClasses(card, card.dataset.activeCardClass);
+                    addClasses(card, card.dataset.inactiveCardClass);
+                    card.querySelector('[data-chat-active-badge]')?.classList.add('hidden');
+                });
+
+                const activeLink = document.querySelector(`[data-chat-conversation-link][data-conv-id="${escapeSelectorValue(convId)}"]`);
+                if (!activeLink) {
+                    return;
                 }
 
-                visibleCount += 1;
-                container.dataset.visibleCount = String(visibleCount);
-                container.appendChild(wrapper);
+                removeClasses(activeLink, activeLink.dataset.inactiveConversationClass);
+                addClasses(activeLink, activeLink.dataset.activeConversationClass);
 
-                return true;
+                const activeCard = activeLink.closest('[data-chat-card]');
+                if (activeCard) {
+                    removeClasses(activeCard, activeCard.dataset.inactiveCardClass);
+                    addClasses(activeCard, activeCard.dataset.activeCardClass);
+                    activeCard.querySelector('[data-chat-active-badge]')?.classList.remove('hidden');
+                }
             };
 
-            const prependMessages = (messages) => {
-                if (!Array.isArray(messages) || messages.length === 0) {
-                    return 0;
+            const initializeClienteChatPanel = () => {
+                destroyChatPanelState();
+
+                const loadMoreBtn = document.getElementById('cliente-chat-load-more-btn');
+                const container = document.getElementById('cliente-chat-items');
+                const statusEl = document.getElementById('cliente-chat-load-more-status');
+                const errorEl = document.getElementById('cliente-chat-load-more-error');
+                const pollTimerEl = document.getElementById('cliente-chat-poll-timer');
+
+                if (!loadMoreBtn || !container) {
+                    return;
                 }
 
-                const scrollBefore = window.scrollY;
-                const heightBefore = document.documentElement.scrollHeight;
-                const anchor = container.querySelector('[data-chat-message-id], [data-chat-message-role]');
-                let inserted = 0;
+                let after = container.dataset.after || null;
+                let hasMore = container.dataset.hasMore === '1';
+                let visibleCount = Number.parseInt(container.dataset.visibleCount || '0', 10);
+                let messageLoadInFlight = false;
+                let refreshInFlight = false;
+                let pollInFlight = false;
+                let pollDelay = 15000;
+                let nextPollAt = null;
+                let pollTimerMode = 'scheduled';
+                let knownAssistantLeadUpdatedAt = container.dataset.assistantLeadUpdatedAt || '';
+                const limit = container.dataset.limit || null;
+                const renderedMessageIds = new Set(
+                    Array.from(container.querySelectorAll('[data-chat-message-id]'))
+                        .map((element) => element.dataset.chatMessageId || '')
+                        .filter((id) => id !== '')
+                );
 
-                messages.forEach((message) => {
-                    const wrapper = buildMessageElement(message, { dedupe: true });
+                const buildMessageElement = (message, options = {}) => {
+                    if (!message || !['user', 'assistant'].includes(message.role)) {
+                        return null;
+                    }
+
+                    const messageId = typeof message.id === 'string' ? message.id : '';
+                    if ((options.dedupe ?? true) && messageId !== '' && renderedMessageIds.has(messageId)) {
+                        return null;
+                    }
+
+                    document.getElementById('cliente-chat-empty-state')?.remove();
+
+                    const wrapper = document.createElement('div');
+                    wrapper.className = `flex ${message.role === 'user' ? 'justify-start' : 'justify-end'}`;
+                    wrapper.dataset.chatMessageRole = message.role;
+                    if (messageId !== '') {
+                        wrapper.dataset.chatMessageId = messageId;
+                        renderedMessageIds.add(messageId);
+                    }
+
+                    const bubble = document.createElement('div');
+                    bubble.className = `max-w-[88%] rounded-2xl px-4 py-3 shadow-sm ${message.role === 'user' ? 'bg-emerald-500 text-white' : 'bg-white text-slate-800'}`;
+
+                    const label = document.createElement('div');
+                    label.className = `mb-1 text-[11px] font-semibold uppercase tracking-wide ${message.role === 'user' ? 'text-emerald-50/90' : 'text-slate-400'}`;
+                    label.textContent = message.sender || (message.role === 'user' ? 'Lead' : 'Assistente');
+
+                    const content = document.createElement('div');
+                    content.className = 'whitespace-pre-wrap break-words text-sm leading-relaxed';
+                    content.innerHTML = typeof message.html === 'string' ? message.html : escapeHtml(message.text || '');
+
+                    bubble.appendChild(label);
+                    bubble.appendChild(content);
+                    wrapper.appendChild(bubble);
+
+                    return wrapper;
+                };
+
+                const appendMessage = (message, options = {}) => {
+                    const wrapper = buildMessageElement(message, options);
                     if (!wrapper) {
-                        return;
+                        return false;
                     }
 
                     visibleCount += 1;
-                    inserted += 1;
                     container.dataset.visibleCount = String(visibleCount);
-                    container.insertBefore(wrapper, anchor);
-                });
+                    container.appendChild(wrapper);
 
-                if (inserted > 0) {
-                    const heightAfter = document.documentElement.scrollHeight;
-                    window.scrollTo({
-                        top: scrollBefore + (heightAfter - heightBefore),
-                        left: window.scrollX,
-                        behavior: 'auto',
-                    });
-                }
+                    return true;
+                };
 
-                return inserted;
-            };
-
-            const updateButton = (extraStatus = '') => {
-                if (hasMore) {
-                    loadMoreBtn.disabled = false;
-                    loadMoreBtn.textContent = 'Carregar mais';
-                    if (statusEl) {
-                        statusEl.textContent = extraStatus;
-                    }
-                    return;
-                }
-
-                loadMoreBtn.disabled = true;
-                loadMoreBtn.textContent = 'Sem mais mensagens';
-                if (statusEl) {
-                    statusEl.textContent = extraStatus || 'Todas as paginas foram carregadas.';
-                }
-            };
-
-            const showLoadError = (message) => {
-                if (!errorEl) {
-                    return;
-                }
-
-                errorEl.textContent = message;
-                errorEl.classList.remove('hidden');
-            };
-
-            const clearLoadError = () => {
-                if (!errorEl) {
-                    return;
-                }
-
-                errorEl.textContent = '';
-                errorEl.classList.add('hidden');
-            };
-
-            loadMoreBtn.addEventListener('click', async () => {
-                if (!hasMore || messageLoadInFlight) {
-                    return;
-                }
-
-                messageLoadInFlight = true;
-                clearLoadError();
-                loadMoreBtn.disabled = true;
-                loadMoreBtn.textContent = 'Carregando...';
-
-                try {
-                    const params = new URLSearchParams();
-                    params.set('tab', 'chat');
-                    params.set('conv_id', container.dataset.convId || '');
-                    if (after) {
-                        params.set('after', after);
-                    }
-                    if (limit) {
-                        params.set('limit', limit);
+                const prependMessages = (messages) => {
+                    if (!Array.isArray(messages) || messages.length === 0) {
+                        return 0;
                     }
 
-                    const response = await fetch(`${chatEndpoint}?${params.toString()}`, {
-                        headers: {
-                            'Accept': 'application/json',
-                        },
+                    const scrollBefore = container.scrollTop;
+                    const heightBefore = container.scrollHeight;
+                    const anchor = container.querySelector('[data-chat-message-id], [data-chat-message-role]');
+                    let inserted = 0;
+
+                    messages.forEach((message) => {
+                        const wrapper = buildMessageElement(message, { dedupe: true });
+                        if (!wrapper) {
+                            return;
+                        }
+
+                        visibleCount += 1;
+                        inserted += 1;
+                        container.dataset.visibleCount = String(visibleCount);
+                        container.insertBefore(wrapper, anchor);
                     });
 
-                    const payload = await response.json();
-                    if (!response.ok || payload.error) {
-                        showLoadError(payload.error || 'Falha ao carregar mais mensagens.');
+                    if (inserted > 0) {
+                        const heightAfter = container.scrollHeight;
+                        container.scrollTop = scrollBefore + (heightAfter - heightBefore);
+                    }
+
+                    return inserted;
+                };
+
+                const updateButton = (extraStatus = '') => {
+                    if (hasMore) {
                         loadMoreBtn.disabled = false;
-                        loadMoreBtn.textContent = 'Tentar novamente';
+                        loadMoreBtn.textContent = 'Carregar mais';
+                        if (statusEl) {
+                            statusEl.textContent = extraStatus;
+                        }
                         return;
                     }
 
-                    const messages = Array.isArray(payload.messages) ? payload.messages : [];
-                    const insertedCount = prependMessages(messages.slice().reverse());
-                    hasMore = !!payload.has_more;
-                    after = payload.last_id || after;
-                    container.dataset.after = after || '';
-                    container.dataset.hasMore = hasMore ? '1' : '0';
+                    loadMoreBtn.disabled = true;
+                    loadMoreBtn.textContent = 'Sem mais mensagens';
+                    if (statusEl) {
+                        statusEl.textContent = extraStatus || 'Todas as paginas foram carregadas.';
+                    }
+                };
 
-                    updateButton(insertedCount === 0 ? 'Nenhuma nova mensagem visivel nesta pagina.' : '');
-                } catch (error) {
-                    showLoadError('Erro inesperado ao carregar mais mensagens.');
-                    loadMoreBtn.disabled = false;
-                    loadMoreBtn.textContent = 'Tentar novamente';
-                } finally {
-                    messageLoadInFlight = false;
-                }
-            });
-
-            updateButton();
-
-            const refreshVisibleMessages = async () => {
-                if (refreshInFlight || messageLoadInFlight) {
-                    return;
-                }
-
-                refreshInFlight = true;
-
-                try {
-                    const params = new URLSearchParams();
-                    params.set('tab', 'chat');
-                    params.set('conv_id', container.dataset.convId || '');
-                    params.set('limit', '20');
-
-                    const response = await fetch(`${chatEndpoint}?${params.toString()}`, {
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                    });
-                    const payload = await response.json();
-
-                    if (!response.ok || payload.error) {
-                        throw new Error(payload.error || 'Falha ao atualizar o chat.');
+                const showLoadError = (message) => {
+                    if (!errorEl) {
+                        return;
                     }
 
-                    const messages = Array.isArray(payload.messages) ? payload.messages : [];
-                    messages.slice().reverse().forEach((message) => appendMessage(message, { dedupe: true }));
+                    errorEl.textContent = message;
+                    errorEl.classList.remove('hidden');
+                };
 
-                    if (payload.assistant_lead_updated_at) {
-                        knownAssistantLeadUpdatedAt = payload.assistant_lead_updated_at;
-                        container.dataset.assistantLeadUpdatedAt = knownAssistantLeadUpdatedAt;
-                    }
-                } finally {
-                    refreshInFlight = false;
-                }
-            };
-
-            const setPollTimerText = (text) => {
-                if (!pollTimerEl) {
-                    return;
-                }
-
-                pollTimerEl.textContent = text;
-            };
-
-            const updatePollCountdown = () => {
-                if (!pollTimerEl) {
-                    return;
-                }
-
-                if (document.hidden) {
-                    setPollTimerText('Verificação pausada até a aba ficar ativa');
-                    return;
-                }
-
-                if (pollTimerMode === 'checking') {
-                    setPollTimerText('Verificando novas mensagens...');
-                    return;
-                }
-
-                if (!nextPollAt) {
-                    setPollTimerText(pollTimerEl.dataset.defaultLabel || 'Próxima verificação em 15s');
-                    return;
-                }
-
-                const seconds = Math.max(0, Math.ceil((nextPollAt - Date.now()) / 1000));
-                const prefix = pollTimerMode === 'retry' ? 'Nova tentativa em' : 'Próxima verificação em';
-                setPollTimerText(`${prefix} ${seconds}s`);
-            };
-
-            const schedulePoll = (delay = pollDelay, mode = 'scheduled') => {
-                window.clearTimeout(pollTimer);
-                pollTimerMode = mode;
-                nextPollAt = Date.now() + delay;
-                updatePollCountdown();
-                pollTimer = window.setTimeout(pollChatState, delay);
-            };
-
-            const pollChatState = async () => {
-                if (!container.dataset.convId || document.hidden || messageLoadInFlight || refreshInFlight || pollInFlight) {
-                    schedulePoll();
-                    return;
-                }
-
-                pollInFlight = true;
-                pollTimerMode = 'checking';
-                updatePollCountdown();
-
-                try {
-                    const params = new URLSearchParams();
-                    params.set('tab', 'chat');
-                    params.set('conv_id', container.dataset.convId || '');
-                    params.set('poll_state', '1');
-
-                    const response = await fetch(`${chatEndpoint}?${params.toString()}`, {
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                    });
-                    const payload = await response.json();
-
-                    if (!response.ok || payload.error) {
-                        throw new Error(payload.error || 'Falha ao verificar atualizações.');
+                const clearLoadError = () => {
+                    if (!errorEl) {
+                        return;
                     }
 
-                    const updatedAt = payload.assistant_lead_updated_at || '';
-                    if (updatedAt !== '' && updatedAt !== knownAssistantLeadUpdatedAt) {
-                        knownAssistantLeadUpdatedAt = updatedAt;
-                        container.dataset.assistantLeadUpdatedAt = updatedAt;
-                        await refreshVisibleMessages();
+                    errorEl.textContent = '';
+                    errorEl.classList.add('hidden');
+                };
+
+                loadMoreBtn.addEventListener('click', async () => {
+                    if (!hasMore || messageLoadInFlight) {
+                        return;
                     }
 
-                    pollDelay = 15000;
-                } catch (error) {
-                    pollDelay = Math.min(pollDelay * 2, 60000);
-                } finally {
-                    const nextMode = pollDelay > 15000 ? 'retry' : 'scheduled';
-                    pollInFlight = false;
-                    schedulePoll(pollDelay, nextMode);
-                }
-            };
+                    messageLoadInFlight = true;
+                    clearLoadError();
+                    loadMoreBtn.disabled = true;
+                    loadMoreBtn.textContent = 'Carregando...';
 
-            triggerEarlyChatPoll = () => {
-                pollDelay = 15000;
-                schedulePoll(3000, 'scheduled');
-            };
+                    try {
+                        const params = new URLSearchParams();
+                        params.set('tab', 'chat');
+                        params.set('conv_id', container.dataset.convId || '');
+                        if (after) {
+                            params.set('after', after);
+                        }
+                        if (limit) {
+                            params.set('limit', limit);
+                        }
 
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    triggerEarlyChatPoll();
-                } else {
+                        const response = await fetch(`${chatEndpoint}?${params.toString()}`, {
+                            headers: {
+                                'Accept': 'application/json',
+                            },
+                        });
+
+                        const payload = await response.json();
+                        if (!response.ok || payload.error) {
+                            showLoadError(payload.error || 'Falha ao carregar mais mensagens.');
+                            loadMoreBtn.disabled = false;
+                            loadMoreBtn.textContent = 'Tentar novamente';
+                            return;
+                        }
+
+                        const messages = Array.isArray(payload.messages) ? payload.messages : [];
+                        const insertedCount = prependMessages(messages.slice().reverse());
+                        hasMore = !!payload.has_more;
+                        after = payload.last_id || after;
+                        container.dataset.after = after || '';
+                        container.dataset.hasMore = hasMore ? '1' : '0';
+
+                        updateButton(insertedCount === 0 ? 'Nenhuma nova mensagem visivel nesta pagina.' : '');
+                    } catch (error) {
+                        showLoadError('Erro inesperado ao carregar mais mensagens.');
+                        loadMoreBtn.disabled = false;
+                        loadMoreBtn.textContent = 'Tentar novamente';
+                    } finally {
+                        messageLoadInFlight = false;
+                    }
+                });
+
+                updateButton();
+
+                const refreshVisibleMessages = async () => {
+                    if (refreshInFlight || messageLoadInFlight) {
+                        return;
+                    }
+
+                    refreshInFlight = true;
+
+                    try {
+                        const params = new URLSearchParams();
+                        params.set('tab', 'chat');
+                        params.set('conv_id', container.dataset.convId || '');
+                        params.set('limit', '20');
+
+                        const response = await fetch(`${chatEndpoint}?${params.toString()}`, {
+                            headers: {
+                                'Accept': 'application/json',
+                            },
+                        });
+                        const payload = await response.json();
+
+                        if (!response.ok || payload.error) {
+                            throw new Error(payload.error || 'Falha ao atualizar o chat.');
+                        }
+
+                        const messages = Array.isArray(payload.messages) ? payload.messages : [];
+                        messages.slice().reverse().forEach((message) => appendMessage(message, { dedupe: true }));
+
+                        if (payload.assistant_lead_updated_at) {
+                            knownAssistantLeadUpdatedAt = payload.assistant_lead_updated_at;
+                            container.dataset.assistantLeadUpdatedAt = knownAssistantLeadUpdatedAt;
+                        }
+                    } finally {
+                        refreshInFlight = false;
+                    }
+                };
+
+                const setPollTimerText = (text) => {
+                    if (!pollTimerEl) {
+                        return;
+                    }
+
+                    pollTimerEl.textContent = text;
+                };
+
+                const updatePollCountdown = () => {
+                    if (!pollTimerEl) {
+                        return;
+                    }
+
+                    if (document.hidden) {
+                        setPollTimerText('Verificação pausada até a aba ficar ativa');
+                        return;
+                    }
+
+                    if (pollTimerMode === 'checking') {
+                        setPollTimerText('Verificando novas mensagens...');
+                        return;
+                    }
+
+                    if (!nextPollAt) {
+                        setPollTimerText(pollTimerEl.dataset.defaultLabel || 'Próxima verificação em 15s');
+                        return;
+                    }
+
+                    const seconds = Math.max(0, Math.ceil((nextPollAt - Date.now()) / 1000));
+                    const prefix = pollTimerMode === 'retry' ? 'Nova tentativa em' : 'Próxima verificação em';
+                    setPollTimerText(`${prefix} ${seconds}s`);
+                };
+
+                const schedulePoll = (delay = pollDelay, mode = 'scheduled') => {
+                    window.clearTimeout(chatPanelState?.pollTimer);
+                    pollTimerMode = mode;
+                    nextPollAt = Date.now() + delay;
                     updatePollCountdown();
+                    chatPanelState.pollTimer = window.setTimeout(pollChatState, delay);
+                };
+
+                const pollChatState = async () => {
+                    if (!container.dataset.convId || document.hidden || messageLoadInFlight || refreshInFlight || pollInFlight) {
+                        schedulePoll();
+                        return;
+                    }
+
+                    pollInFlight = true;
+                    pollTimerMode = 'checking';
+                    updatePollCountdown();
+
+                    try {
+                        const params = new URLSearchParams();
+                        params.set('tab', 'chat');
+                        params.set('conv_id', container.dataset.convId || '');
+                        params.set('poll_state', '1');
+
+                        const response = await fetch(`${chatEndpoint}?${params.toString()}`, {
+                            headers: {
+                                'Accept': 'application/json',
+                            },
+                        });
+                        const payload = await response.json();
+
+                        if (!response.ok || payload.error) {
+                            throw new Error(payload.error || 'Falha ao verificar atualizações.');
+                        }
+
+                        const updatedAt = payload.assistant_lead_updated_at || '';
+                        if (updatedAt !== '' && updatedAt !== knownAssistantLeadUpdatedAt) {
+                            knownAssistantLeadUpdatedAt = updatedAt;
+                            container.dataset.assistantLeadUpdatedAt = updatedAt;
+                            await refreshVisibleMessages();
+                        }
+
+                        pollDelay = 15000;
+                    } catch (error) {
+                        pollDelay = Math.min(pollDelay * 2, 60000);
+                    } finally {
+                        const nextMode = pollDelay > 15000 ? 'retry' : 'scheduled';
+                        pollInFlight = false;
+                        schedulePoll(pollDelay, nextMode);
+                    }
+                };
+
+                const visibilityHandler = () => {
+                    if (!document.hidden) {
+                        triggerEarlyChatPoll();
+                    } else {
+                        updatePollCountdown();
+                    }
+                };
+
+                chatPanelState = {
+                    pollTimer: null,
+                    countdownTimer: window.setInterval(updatePollCountdown, 1000),
+                    visibilityHandler,
+                };
+
+                triggerEarlyChatPoll = () => {
+                    pollDelay = 15000;
+                    schedulePoll(3000, 'scheduled');
+                };
+
+                document.addEventListener('visibilitychange', visibilityHandler);
+                schedulePoll();
+            };
+
+            const renderChatPanelError = (message) => {
+                const panel = document.getElementById('cliente-chat-panel');
+                if (!panel) {
+                    return;
                 }
+
+                panel.innerHTML = `<div class="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">${escapeHtml(message || 'Falha ao carregar conversa.')}</div>`;
+            };
+
+            const loadClienteChatPanel = async (url, pushHistory = true) => {
+                const currentPanel = document.getElementById('cliente-chat-panel');
+                if (!currentPanel) {
+                    window.location.href = url;
+                    return;
+                }
+
+                const requestUrl = new URL(url, window.location.origin);
+                requestUrl.searchParams.set('tab', 'chat');
+                requestUrl.searchParams.set('panel_only', '1');
+                requestUrl.searchParams.delete('after');
+                requestUrl.searchParams.delete('limit');
+                requestUrl.searchParams.delete('poll_state');
+                requestUrl.searchParams.delete('cards_only');
+
+                currentPanel.classList.add('opacity-60');
+
+                try {
+                    const response = await fetch(requestUrl.toString(), {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (!payload.html) {
+                        throw new Error(payload.error || 'Falha ao carregar conversa.');
+                    }
+
+                    destroyChatPanelState();
+                    currentPanel.outerHTML = payload.html;
+                    initializeClienteChatPanel();
+
+                    if (!payload.error) {
+                        setActiveConversation(payload.conv_id || requestUrl.searchParams.get('conv_id') || '');
+                    }
+
+                    if (pushHistory && !payload.error) {
+                        const historyUrl = new URL(requestUrl.toString());
+                        historyUrl.searchParams.delete('panel_only');
+                        window.history.pushState({ clienteChatConvId: payload.conv_id || null }, '', historyUrl.toString());
+                    }
+                } catch (error) {
+                    destroyChatPanelState();
+                    currentPanel.classList.remove('opacity-60');
+                    renderChatPanelError(error.message || 'Falha ao carregar conversa.');
+                }
+            };
+
+            document.addEventListener('click', (event) => {
+                const link = event.target.closest('[data-chat-conversation-link]');
+                if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                    return;
+                }
+
+                event.preventDefault();
+                loadClienteChatPanel(link.href, true);
             });
 
-            window.setInterval(updatePollCountdown, 1000);
-            schedulePoll();
+            window.addEventListener('popstate', () => {
+                const url = new URL(window.location.href);
+                if (url.searchParams.get('tab') !== 'chat') {
+                    return;
+                }
+
+                loadClienteChatPanel(url.toString(), false);
+            });
+
+            initializeClienteChatPanel();
         });
     </script>
 @endpush

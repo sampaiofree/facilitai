@@ -76,6 +76,10 @@ class ClienteLeadController extends Controller
                     return $this->jsonClienteChatCardsResponse($chatData);
                 }
 
+                if ($request->boolean('panel_only')) {
+                    return $this->jsonClienteChatPanelResponse($chatData);
+                }
+
                 if ($request->boolean('poll_state')) {
                     return $this->jsonClienteChatPollStateResponse($chatData);
                 }
@@ -780,6 +784,7 @@ class ClienteLeadController extends Controller
                 'assistant',
                 'lead.cliente',
                 'lead.tags',
+                'lead.sequenceChats.sequence',
                 'lead.customFieldValues.customField',
             ])
             ->orderByDesc('updated_at')
@@ -852,7 +857,9 @@ class ClienteLeadController extends Controller
 
             $items = is_array($data['chatResult']['data'] ?? null) ? $data['chatResult']['data'] : [];
             $messages = OpenAIConversationFormatter::normalizeItems($items);
-            $data['chatMessages'] = $request->wantsJson() ? $messages : array_reverse($messages);
+            $data['chatMessages'] = ($request->wantsJson() && !$request->boolean('panel_only'))
+                ? $messages
+                : array_reverse($messages);
             $data['chatHasMore'] = (bool) ($data['chatResult']['has_more'] ?? false);
             $data['chatLastId'] = $data['chatResult']['last_id'] ?? null;
             $data['chatFirstId'] = $data['chatResult']['first_id'] ?? null;
@@ -1118,6 +1125,20 @@ class ClienteLeadController extends Controller
             'limit' => (int) $data['chatLeadCardsLimit'],
             'count' => $data['chatLeadCards']->count(),
         ]);
+    }
+
+    private function jsonClienteChatPanelResponse(array $data): JsonResponse
+    {
+        $statusCode = $data['chatError'] ? ($data['chatStatus'] ?: 400) : 200;
+
+        return response()->json([
+            'html' => view('cliente.conversas._chat_panel', $data)->render(),
+            'conv_id' => $data['chatConvId'],
+            'assistant_lead_id' => $data['chatAssistantLead']?->id,
+            'assistant_lead_updated_at' => $data['chatAssistantLeadUpdatedAt'],
+            'status' => $data['chatStatus'],
+            'error' => $data['chatError'],
+        ], $statusCode);
     }
 
     private function jsonClienteChatPollStateResponse(array $data): JsonResponse

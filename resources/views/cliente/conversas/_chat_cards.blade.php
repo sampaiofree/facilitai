@@ -8,6 +8,8 @@
         class="mb-3 rounded-2xl border px-4 py-3 {{ $hasActiveConversation ? 'border-emerald-300 bg-emerald-50 shadow-sm' : 'border-slate-100 bg-slate-50' }}"
         data-chat-card
         data-lead-id="{{ $card['lead_id'] }}"
+        data-active-card-class="border-emerald-300 bg-emerald-50 shadow-sm"
+        data-inactive-card-class="border-slate-100 bg-slate-50"
     >
         <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
@@ -22,9 +24,10 @@
                     {{ $card['last_message_text'] }}
                 </p>
             </div>
-            @if($hasActiveConversation)
-                <span class="rounded-full bg-emerald-500 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">Ativo</span>
-            @endif
+            <span
+                class="{{ $hasActiveConversation ? '' : 'hidden' }} rounded-full bg-emerald-500 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white"
+                data-chat-active-badge
+            >Ativo</span>
         </div>
 
         @if($conversations->isNotEmpty())
@@ -33,6 +36,10 @@
                     <a
                         href="{{ $conversation['url'] }}"
                         class="block rounded-xl border px-3 py-2 text-xs transition {{ $conversation['is_active'] ? 'border-emerald-300 bg-white text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300' }}"
+                        data-chat-conversation-link
+                        data-conv-id="{{ $conversation['conv_id'] }}"
+                        data-active-conversation-class="border-emerald-300 bg-white text-emerald-800"
+                        data-inactive-conversation-class="border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                     >
                         <div class="flex items-center justify-between gap-2">
                             <span class="font-semibold">{{ $conversation['assistant'] }}</span>

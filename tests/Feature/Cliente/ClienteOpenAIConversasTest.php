@@ -6,6 +6,8 @@ use App\Models\Cliente;
 use App\Models\ClienteLead;
 use App\Models\Conexao;
 use App\Models\Credential;
+use App\Models\Sequence;
+use App\Models\SequenceChat;
 use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -93,6 +95,32 @@ function clienteOpenAiConversasMakeTag(User $user, Cliente $cliente, array $attr
         'name' => 'Tag ' . fake()->unique()->numerify('###'),
         'color' => null,
         'description' => null,
+    ], $attributes));
+}
+
+function clienteOpenAiConversasMakeSequence(User $user, Cliente $cliente, ?Conexao $conexao = null, array $attributes = []): Sequence
+{
+    return Sequence::create(array_merge([
+        'user_id' => $user->id,
+        'cliente_id' => $cliente->id,
+        'conexao_id' => $conexao?->id,
+        'name' => 'Sequencia ' . fake()->unique()->numerify('###'),
+        'description' => null,
+        'active' => true,
+        'tags_incluir' => [],
+        'tags_excluir' => [],
+    ], $attributes));
+}
+
+function clienteOpenAiConversasMakeSequenceChat(ClienteLead $lead, Sequence $sequence, ?Assistant $assistant = null, ?Conexao $conexao = null, array $attributes = []): SequenceChat
+{
+    return SequenceChat::create(array_merge([
+        'sequence_id' => $sequence->id,
+        'cliente_lead_id' => $lead->id,
+        'assistant_id' => $assistant?->id,
+        'conexao_id' => $conexao?->id,
+        'status' => 'em_andamento',
+        'criado_por' => 'system',
     ], $attributes));
 }
 
@@ -254,6 +282,130 @@ test('aba chat renderiza mensagens visiveis e oculta itens tecnicos', function (
     $response->assertDontSee('Itens técnicos');
 });
 
+test('card superior do chat mostra etiquetas e sequencias do lead', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    $lead = clienteOpenAiConversasMakeLead($cliente, ['name' => 'Lead Com Contexto']);
+    $assistantLead = clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_header_contexto']);
+    $conexao = clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+
+    $tagVip = clienteOpenAiConversasMakeTag($user, $cliente, ['name' => 'VIP']);
+    $tagRetorno = clienteOpenAiConversasMakeTag($user, $cliente, ['name' => 'Retorno']);
+    $lead->tags()->sync([$tagVip->id, $tagRetorno->id]);
+
+    $sequenceA = clienteOpenAiConversasMakeSequence($user, $cliente, $conexao, ['name' => 'Sequencia Inicial']);
+    $sequenceB = clienteOpenAiConversasMakeSequence($user, $cliente, $conexao, ['name' => 'Sequencia Reativacao', 'active' => false]);
+    clienteOpenAiConversasMakeSequenceChat($lead, $sequenceA, $assistant, $conexao);
+    clienteOpenAiConversasMakeSequenceChat($lead, $sequenceB, $assistant, $conexao, ['status' => 'cancelada']);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponse(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->get(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $assistantLead->conv_id,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('Lead Com Contexto');
+    $response->assertSee('Etiquetas');
+    $response->assertSee('VIP');
+    $response->assertSee('Retorno');
+    $response->assertSee('Sequências');
+    $response->assertSee('Sequencia Inicial');
+    $response->assertSee('Sequencia Reativacao');
+});
+
+test('card superior do chat mostra fallbacks sem etiquetas e sequencias', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    $lead = clienteOpenAiConversasMakeLead($cliente, ['name' => 'Lead Sem Contexto']);
+    $assistantLead = clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_header_fallbacks']);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponse(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->get(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $assistantLead->conv_id,
+    ]));
+
+    $response->assertOk();
+    $response->assertSee('Lead Sem Contexto');
+    $response->assertSee('Sem etiquetas');
+    $response->assertSee('Sem sequências');
+});
+
+test('panel only retorna html do painel da conversa sem cards laterais nem itens tecnicos', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    $lead = clienteOpenAiConversasMakeLead($cliente, ['name' => 'Lead Painel Ajax']);
+    $assistantLead = clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_panel_ajax']);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponse(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->getJson(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $assistantLead->conv_id,
+        'panel_only' => 1,
+    ]));
+
+    $response->assertOk();
+    $response->assertJsonPath('conv_id', 'conv_panel_ajax');
+    $response->assertJsonPath('assistant_lead_id', $assistantLead->id);
+    $response->assertJsonMissingPath('messages');
+    $response->assertJsonMissingPath('data');
+
+    $html = $response->json('html');
+    expect($html)->toContain('id="cliente-chat-panel"');
+    expect($html)->toContain('Lead Painel Ajax');
+    expect($html)->toContain('Tenho interesse.');
+    expect($html)->toContain('<strong>Joana</strong>');
+    expect($html)->not->toContain('data-chat-card');
+    expect($html)->not->toContain('Contexto interno oculto');
+    expect($html)->not->toContain('reasoning');
+    expect($html)->not->toContain('function_call');
+});
+
+test('panel only bloqueia conv_id de outro cliente sem consultar openai', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $outroCliente = clienteOpenAiConversasMakeCliente($user, ['email' => fake()->unique()->safeEmail()]);
+    $credential = clienteOpenAiConversasMakeCredential($user, $outroCliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $outroCliente, $credential);
+    $lead = clienteOpenAiConversasMakeLead($outroCliente);
+    $assistantLead = clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_panel_outro_cliente']);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponse(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->getJson(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $assistantLead->conv_id,
+        'panel_only' => 1,
+    ]));
+
+    $response->assertStatus(400);
+    $response->assertJsonPath('error', 'Conv_id "conv_panel_outro_cliente" nao encontrado para este cliente.');
+    expect($response->json('html'))->toContain('Conv_id &quot;conv_panel_outro_cliente&quot; nao encontrado para este cliente.');
+    $response->assertJsonMissingPath('messages');
+    $response->assertJsonMissingPath('data');
+    Http::assertNothingSent();
+});
+
 test('aba chat alinha lead a esquerda e assistente a direita', function () {
     $user = User::factory()->create();
     $cliente = clienteOpenAiConversasMakeCliente($user);
@@ -381,7 +533,7 @@ test('aba chat carrega somente vinte cards na primeira pagina', function () {
     ]));
 
     $response->assertOk();
-    expect(substr_count($response->getContent(), 'data-chat-card'))->toBe(20);
+    expect(substr_count($response->getContent(), 'data-active-card-class='))->toBe(20);
     $response->assertSee('Lead Pag 01');
     $response->assertSee('Lead Pag 20');
     $response->assertDontSee('Lead Pag 21');
@@ -445,7 +597,7 @@ test('card ativo fora do primeiro lote fica fixado e nao duplica no proximo lote
     ]));
 
     $response->assertOk();
-    expect(substr_count($response->getContent(), 'data-chat-card'))->toBe(20);
+    expect(substr_count($response->getContent(), 'data-active-card-class='))->toBe(20);
     $content = $response->getContent();
     expect(strpos($content, 'Lead Pin 25'))->toBeLessThan(strpos($content, 'Lead Pin 01'));
     $response->assertSee('Lead Pin 25');
@@ -652,6 +804,32 @@ test('botao carregar mais fica dentro do chat antes das mensagens', function () 
     $response->assertSee('Carregar mais');
 });
 
+test('area de mensagens do chat tem overflow interno e envio fica fora dela', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    $lead = clienteOpenAiConversasMakeLead($cliente);
+    $assistantLead = clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_layout_overflow']);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponse(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->get(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $assistantLead->conv_id,
+    ]));
+
+    $response->assertOk();
+    $content = $response->getContent();
+    expect($content)->toContain('lg:h-[calc(100vh-26rem)]');
+    expect($content)->toContain('min-h-0 flex-1 space-y-3 overflow-y-auto');
+    expect(strpos($content, 'id="cliente-chat-items"'))->toBeLessThan(strpos($content, 'data-chat-send-form'));
+    expect(strpos($content, 'Nenhuma mensagem de lead ou assistente retornada.'))->toBeFalse();
+});
+
 test('card enviar mensagem renderiza timer de verificacao do chat', function () {
     $user = User::factory()->create();
     $cliente = clienteOpenAiConversasMakeCliente($user);
@@ -699,10 +877,19 @@ test('javascript do chat insere antigas no topo e mantem refresh no final', func
     expect($content)->toContain('const prependMessages = (messages) =>');
     expect($content)->toContain('container.insertBefore(wrapper, anchor);');
     expect($content)->toContain('const insertedCount = prependMessages(messages.slice().reverse());');
-    expect($content)->toContain('window.scrollTo({');
+    expect($content)->toContain('const scrollBefore = container.scrollTop;');
+    expect($content)->toContain('const heightBefore = container.scrollHeight;');
+    expect($content)->toContain('container.scrollTop = scrollBefore + (heightAfter - heightBefore);');
     expect($content)->toContain("messages.slice().reverse().forEach((message) => appendMessage(message, { dedupe: true }));");
     expect($content)->toContain('window.setInterval(updatePollCountdown, 1000)');
     expect($content)->toContain('Verificando novas mensagens...');
     expect($content)->toContain('Verificação pausada até a aba ficar ativa');
     expect($content)->toContain('Nova tentativa em');
+    expect($content)->toContain('data-chat-conversation-link');
+    expect($content)->toContain("requestUrl.searchParams.set('panel_only', '1')");
+    expect($content)->toContain('loadClienteChatPanel(link.href, true);');
+    expect($content)->toContain('window.history.pushState');
+    expect($content)->toContain("window.addEventListener('popstate'");
+    expect($content)->toContain('initializeClienteChatPanel();');
+    expect($content)->toContain('destroyChatPanelState();');
 });
