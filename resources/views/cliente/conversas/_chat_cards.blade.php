@@ -17,12 +17,7 @@
                     <span class="truncate text-sm font-semibold text-slate-800">{{ $card['name'] }}</span>
                     <span class="text-xs text-slate-400">-</span>
                     <span class="truncate text-xs text-slate-500">{{ $card['phone'] }}</span>
-                    <span class="text-xs text-slate-400">-</span>
-                    <span class="text-[11px] text-slate-400">{{ $card['last_message_at_label'] }}</span>
                 </div>
-                <p class="mt-2 truncate text-xs leading-relaxed text-slate-600">
-                    {{ $card['last_message_text'] }}
-                </p>
             </div>
             <span
                 class="{{ $hasActiveConversation ? '' : 'hidden' }} rounded-full bg-emerald-500 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white"
@@ -45,6 +40,9 @@
                             <span class="font-semibold">{{ $conversation['assistant'] }}</span>
                             <span class="text-[10px] text-slate-400">{{ $conversation['updated_at_label'] }}</span>
                         </div>
+                        <p class="mt-1 truncate text-[11px] leading-relaxed text-slate-500">
+                            {{ $conversation['last_message_text'] }}
+                        </p>
                     </a>
                 @endforeach
             </div>

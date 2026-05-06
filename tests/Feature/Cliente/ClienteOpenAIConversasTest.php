@@ -648,7 +648,10 @@ test('cards da aba chat nao exibem tags nem bloco visual de conv id', function (
     $lead = clienteOpenAiConversasMakeLead($cliente, ['name' => 'Lead Sem Tecnico']);
     $tag = clienteOpenAiConversasMakeTag($user, $cliente, ['name' => 'Tag Que Nao Deve Aparecer No Card']);
     $lead->tags()->sync([$tag->id]);
-    clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_visual_oculto']);
+    clienteOpenAiConversasMakeAssistantLead($lead, $assistant, [
+        'conv_id' => 'conv_visual_oculto',
+        'webhook_payload' => ['text' => 'Resumo no assistente via cards only'],
+    ]);
 
     $response = $this->actingAs($cliente, 'client')->getJson(route('cliente.conversas.index', [
         'tab' => 'chat',
@@ -659,6 +662,7 @@ test('cards da aba chat nao exibem tags nem bloco visual de conv id', function (
     $html = $response->json('html');
     expect($html)->toContain('Lead Sem Tecnico');
     expect($html)->toContain('Assistente Sem Tecnico');
+    expect($html)->toContain('Resumo no assistente via cards only');
     expect($html)->not->toContain('Tag Que Nao Deve Aparecer No Card');
     expect($html)->not->toContain('font-mono');
 });
@@ -698,7 +702,7 @@ test('listagem de conversas mostra botao chat somente para leads com conv_id', f
     $response->assertSee('tab=chat&amp;conv_id=conv_botao_chat', false);
 });
 
-test('card da aba chat mostra ultima mensagem do webhook payload mais recente', function () {
+test('card da aba chat mostra payload no card do respectivo assistente', function () {
     $user = User::factory()->create();
     $cliente = clienteOpenAiConversasMakeCliente($user);
     $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
@@ -728,14 +732,24 @@ test('card da aba chat mostra ultima mensagem do webhook payload mais recente', 
     ]));
 
     $response->assertOk();
+    $content = $response->getContent();
+
     $response->assertSee('Carla Resumo');
     $response->assertSee('5511991112222');
     $response->assertSee('01/05/2026 11:30');
     $response->assertSee('Mensagem mais recente do lead');
-    $response->assertDontSee('Mensagem antiga do lead');
+    $response->assertSee('Mensagem antiga do lead');
+
+    $cardHtml = substr($content, strpos($content, 'Carla Resumo'), 5000);
+
+    expect(strpos($cardHtml, '5511991112222'))->toBeLessThan(strpos($cardHtml, 'Assistente Novo'));
+    expect(strpos($cardHtml, 'Assistente Novo'))->toBeLessThan(strpos($cardHtml, '01/05/2026 11:30'));
+    expect(strpos($cardHtml, '01/05/2026 11:30'))->toBeLessThan(strpos($cardHtml, 'Mensagem mais recente do lead'));
+    expect(strpos($cardHtml, 'Assistente Antigo'))->toBeLessThan(strpos($cardHtml, '30/04/2026 09:15'));
+    expect(strpos($cardHtml, '30/04/2026 09:15'))->toBeLessThan(strpos($cardHtml, 'Mensagem antiga do lead'));
 });
 
-test('card da aba chat mostra fallback quando webhook payload nao tem texto', function () {
+test('card do assistente mostra fallback quando webhook payload nao tem texto', function () {
     $user = User::factory()->create();
     $cliente = clienteOpenAiConversasMakeCliente($user);
     $credential = clienteOpenAiConversasMakeCredential($user, $cliente);

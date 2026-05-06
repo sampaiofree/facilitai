@@ -929,20 +929,13 @@ class ClienteLeadController extends Controller
         return [
             'cards' => $leads
             ->map(function (ClienteLead $lead) use ($request, $openAiConexoes, $sendOptions, $activeConvId) {
-                $lastAssistantLead = $lead->assistantLeads
-                    ->sortByDesc(fn (AssistantLead $assistantLead) => sprintf(
-                        '%010d:%010d',
-                        $assistantLead->updated_at?->getTimestamp() ?? 0,
-                        (int) $assistantLead->id
-                    ))
-                    ->first();
-                $lastMessageText = $this->extractLeadWebhookText($lastAssistantLead);
                 $conversations = $lead->assistantLeads
                     ->filter(fn (AssistantLead $assistantLead) => trim((string) ($assistantLead->conv_id ?? '')) !== '')
                     ->sortByDesc(fn (AssistantLead $assistantLead) => $assistantLead->updated_at?->getTimestamp() ?? 0)
                     ->map(function (AssistantLead $assistantLead) use ($request, $openAiConexoes, $activeConvId) {
                         $convId = trim((string) ($assistantLead->conv_id ?? ''));
                         $conexao = $this->resolveClienteOpenAIConexaoForAssistantLead($assistantLead, $openAiConexoes);
+                        $lastMessageText = $this->extractLeadWebhookText($assistantLead);
 
                         return [
                             'assistant_lead_id' => (int) $assistantLead->id,
@@ -953,6 +946,7 @@ class ClienteLeadController extends Controller
                             'conexao_id' => $conexao?->id,
                             'conexao' => $conexao?->name ?: ($conexao ? 'Conexao #' . $conexao->id : null),
                             'updated_at_label' => $assistantLead->updated_at?->format('d/m/Y H:i') ?: '-',
+                            'last_message_text' => $lastMessageText !== '' ? $lastMessageText : 'Sem última mensagem do lead',
                             'url' => route('cliente.conversas.index', $this->buildClienteChatRouteQuery($request, [
                                 'conv_id' => $convId,
                             ])),
@@ -965,9 +959,6 @@ class ClienteLeadController extends Controller
                     'lead_id' => (int) $lead->id,
                     'name' => trim((string) ($lead->name ?? '')) ?: 'Lead sem nome',
                     'phone' => trim((string) ($lead->phone ?? '')) ?: '-',
-                    'last_message_text' => $lastMessageText !== '' ? $lastMessageText : 'Sem última mensagem do lead',
-                    'last_message_at_label' => $lastAssistantLead?->updated_at?->format('d/m/Y H:i') ?: '-',
-                    'last_assistant_lead_id' => $lastAssistantLead?->id ? (int) $lastAssistantLead->id : null,
                     'conversations' => $conversations,
                     'send_options' => $sendOptions,
                 ];
