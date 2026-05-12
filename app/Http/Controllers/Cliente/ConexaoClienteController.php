@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Cliente;
 
 use App\Http\Controllers\Controller;
+use App\Models\Assistant;
 use App\Models\Conexao;
 use App\Models\Iamodelo;
 use App\Services\UazapiService;
@@ -19,23 +20,29 @@ class ConexaoClienteController extends Controller
 
     public function index(Request $request)
     {
-        $clienteId = auth('client')->id();
+        $clienteId = $request->user('client')->id;
 
-        $conexoes = Conexao::with(['whatsappApi', 'credential', 'iamodelo'])
+        $conexoes = Conexao::with(['whatsappApi', 'credential', 'iamodelo', 'assistant'])
             ->where('cliente_id', $clienteId)
             ->latest()
+            ->get();
+
+        $assistants = Assistant::query()
+            ->where('cliente_id', $clienteId)
+            ->orderBy('name')
             ->get();
 
         $iamodelos = Iamodelo::query()
             ->orderBy('nome')
             ->get();
 
-        return view('cliente.conexoes.index', compact('conexoes', 'iamodelos'));
+        return view('cliente.conexoes.index', compact('conexoes', 'assistants', 'iamodelos'));
     }
 
     public function update(Request $request, Conexao $conexao)
     {
         $this->ensureOwner($conexao);
+        $clienteId = $request->user('client')->id;
 
         if (!$conexao->permitiredicao) {
             abort(403);
@@ -46,6 +53,10 @@ class ConexaoClienteController extends Controller
         $credentialPlatformId = $conexao->credential?->iaplataforma_id;
 
         $data = $request->validate([
+            'assistant_id' => [
+                'required',
+                Rule::exists('assistants', 'id')->where('cliente_id', $clienteId),
+            ],
             'model' => [
                 'required',
                 Rule::exists('iamodelos', 'id'),
@@ -67,6 +78,7 @@ class ConexaoClienteController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
 
+        $conexao->assistant_id = (int) $data['assistant_id'];
         $conexao->model = (int) $data['model'];
         $conexao->is_active = $request->has('is_active')
             ? $request->boolean('is_active')

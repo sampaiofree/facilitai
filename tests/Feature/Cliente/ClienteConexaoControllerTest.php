@@ -128,17 +128,47 @@ test('cliente ve botao de editar apenas quando permitiredicao estiver ativo', fu
     expect(substr_count($response->getContent(), '>Editar</button>'))->toBe(1);
 });
 
-test('cliente pode editar apenas modelo e conexao ativa quando permitiredicao estiver ativo', function () {
+test('cliente ve assistente conectado no card e apenas assistentes proprios no seletor', function () {
+    $user = User::factory()->create();
+    $cliente = clienteConexaoEditMakeCliente($user);
+    $outroCliente = clienteConexaoEditMakeCliente($user);
+    $platform = clienteConexaoEditMakePlatform(['nome' => 'OpenAI']);
+    $model = clienteConexaoEditMakeModel($platform, ['nome' => 'gpt-4.1-mini']);
+    $credential = clienteConexaoEditMakeCredential($user, $platform);
+    $assistant = clienteConexaoEditMakeAssistant($user, $cliente, [
+        'name' => 'Assistente principal',
+    ]);
+    clienteConexaoEditMakeAssistant($user, $outroCliente, [
+        'name' => 'Assistente de outro cliente',
+    ]);
+    $api = clienteConexaoEditMakeWhatsappApi();
+
+    clienteConexaoEditMakeConexao($cliente, $credential, $assistant, $model, $api, [
+        'name' => 'Conexao com assistente',
+        'permitiredicao' => true,
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->get(route('cliente.conexoes.index'));
+
+    $response
+        ->assertOk()
+        ->assertSeeText('Assistente: Assistente principal')
+        ->assertSeeText('Assistente principal')
+        ->assertDontSeeText('Assistente de outro cliente');
+});
+
+test('cliente pode editar assistente modelo e conexao ativa quando permitiredicao estiver ativo', function () {
     $user = User::factory()->create();
     $cliente = clienteConexaoEditMakeCliente($user);
     $platform = clienteConexaoEditMakePlatform(['nome' => 'OpenAI']);
     $modelA = clienteConexaoEditMakeModel($platform, ['nome' => 'gpt-4.1-mini']);
     $modelB = clienteConexaoEditMakeModel($platform, ['nome' => 'gpt-4.1']);
     $credential = clienteConexaoEditMakeCredential($user, $platform);
-    $assistant = clienteConexaoEditMakeAssistant($user, $cliente);
+    $assistantA = clienteConexaoEditMakeAssistant($user, $cliente);
+    $assistantB = clienteConexaoEditMakeAssistant($user, $cliente);
     $api = clienteConexaoEditMakeWhatsappApi();
 
-    $conexao = clienteConexaoEditMakeConexao($cliente, $credential, $assistant, $modelA, $api, [
+    $conexao = clienteConexaoEditMakeConexao($cliente, $credential, $assistantA, $modelA, $api, [
         'name' => 'Conexao do cliente',
         'is_active' => true,
         'permitiredicao' => true,
@@ -148,7 +178,7 @@ test('cliente pode editar apenas modelo e conexao ativa quando permitiredicao es
         ->from(route('cliente.conexoes.index'))
         ->patch(route('cliente.conexoes.update', $conexao), [
             'name' => 'Nome nao deveria mudar',
-            'assistant_id' => $assistant->id,
+            'assistant_id' => $assistantB->id,
             'cliente_id' => $cliente->id,
             'model' => $modelB->id,
             'is_active' => '0',
@@ -163,8 +193,59 @@ test('cliente pode editar apenas modelo e conexao ativa quando permitiredicao es
     expect($conexao->model)->toBe($modelB->id);
     expect($conexao->is_active)->toBeFalse();
     expect($conexao->name)->toBe('Conexao do cliente');
-    expect($conexao->assistant_id)->toBe($assistant->id);
+    expect($conexao->assistant_id)->toBe($assistantB->id);
     expect($conexao->cliente_id)->toBe($cliente->id);
+});
+
+test('cliente nao pode vincular assistente de outro cliente na conexao', function () {
+    $user = User::factory()->create();
+    $cliente = clienteConexaoEditMakeCliente($user);
+    $outroCliente = clienteConexaoEditMakeCliente($user);
+    $platform = clienteConexaoEditMakePlatform(['nome' => 'OpenAI']);
+    $model = clienteConexaoEditMakeModel($platform, ['nome' => 'gpt-4.1-mini']);
+    $credential = clienteConexaoEditMakeCredential($user, $platform);
+    $assistant = clienteConexaoEditMakeAssistant($user, $cliente);
+    $assistantDeOutroCliente = clienteConexaoEditMakeAssistant($user, $outroCliente);
+    $api = clienteConexaoEditMakeWhatsappApi();
+
+    $conexao = clienteConexaoEditMakeConexao($cliente, $credential, $assistant, $model, $api, [
+        'permitiredicao' => true,
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')
+        ->from(route('cliente.conexoes.index'))
+        ->patch(route('cliente.conexoes.update', $conexao), [
+            'assistant_id' => $assistantDeOutroCliente->id,
+            'model' => $model->id,
+            'is_active' => '1',
+        ]);
+
+    $response
+        ->assertRedirect(route('cliente.conexoes.index'))
+        ->assertSessionHasErrors('assistant_id');
+
+    expect($conexao->fresh()->assistant_id)->toBe($assistant->id);
+});
+
+test('cliente ve badge vermelho quando status da conexao esta disconnected', function () {
+    $user = User::factory()->create();
+    $cliente = clienteConexaoEditMakeCliente($user);
+    $platform = clienteConexaoEditMakePlatform(['nome' => 'OpenAI']);
+    $model = clienteConexaoEditMakeModel($platform, ['nome' => 'gpt-4.1-mini']);
+    $credential = clienteConexaoEditMakeCredential($user, $platform);
+    $assistant = clienteConexaoEditMakeAssistant($user, $cliente);
+    $api = clienteConexaoEditMakeWhatsappApi();
+
+    clienteConexaoEditMakeConexao($cliente, $credential, $assistant, $model, $api, [
+        'status' => 'disconnected',
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->get(route('cliente.conexoes.index'));
+
+    $response
+        ->assertOk()
+        ->assertSeeText('disconnected')
+        ->assertSee('bg-rose-100 text-rose-700', false);
 });
 
 test('cliente nao pode editar conexao quando permitiredicao estiver inativo', function () {

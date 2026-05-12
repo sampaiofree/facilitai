@@ -17,18 +17,27 @@
     @else
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             @foreach ($conexoes as $conexao)
+                @php
+                    $statusValue = strtolower(trim((string) ($conexao->status ?? '')));
+                    $statusClasses = match ($statusValue) {
+                        'connected' => 'bg-emerald-100 text-emerald-700',
+                        'disconnected' => 'bg-rose-100 text-rose-700',
+                        default => 'bg-slate-100 text-slate-600',
+                    };
+                @endphp
                 <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div class="flex items-start justify-between gap-2">
                         <div>
                             <p class="text-sm font-semibold text-slate-900">{{ $conexao->name ?? 'Conexao' }}</p>
                             <p class="text-xs text-slate-500">Phone: {{ $conexao->phone ?? '-' }}</p>
+                            <p class="text-xs text-slate-500">Assistente: {{ $conexao->assistant?->name ?? '-' }}</p>
                             <p class="text-xs text-slate-500">Modelo: {{ $conexao->iamodelo?->nome ?? '-' }}</p>
                             <span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $conexao->is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700' }}">
                                 {{ $conexao->is_active ? 'Ativa' : 'Inativa' }}
                             </span>
                         </div>
                         <span
-                            class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold transition {{ $conexao->status === 'connected' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' }}"
+                            class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold transition {{ $statusClasses }}"
                             data-conexao-status
                             data-conexao-id="{{ $conexao->id }}"
                         >
@@ -53,6 +62,7 @@
                                 data-open-edit
                                 data-id="{{ $conexao->id }}"
                                 data-name="{{ $conexao->name }}"
+                                data-assistant-id="{{ $conexao->assistant_id }}"
                                 data-model-id="{{ $conexao->model }}"
                                 data-iaplataforma-id="{{ $conexao->credential?->iaplataforma_id ?? '' }}"
                                 data-is-active="{{ $conexao->is_active ? '1' : '0' }}"
@@ -75,6 +85,16 @@
                 @csrf
                 @method('PATCH')
                 <input type="hidden" name="editing_id" id="conexaoEditingId" value="{{ old('editing_id') }}">
+
+                <div>
+                    <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="conexaoEditAssistant">Assistente</label>
+                    <select id="conexaoEditAssistant" name="assistant_id" required class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <option value="" selected>Escolha um assistente</option>
+                        @foreach ($assistants as $assistant)
+                            <option value="{{ $assistant->id }}" @selected(old('assistant_id') == $assistant->id)>{{ $assistant->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
 
                 <div>
                     <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="conexaoEditModel">Modelo</label>
@@ -139,12 +159,14 @@
 
         const hasErrors = @json($errors->any());
         const sessionEditingId = @json(old('editing_id'));
+        const oldAssistantId = @json(old('assistant_id'));
         const oldModelId = @json(old('model'));
         const oldIsActive = @json(old('is_active', '1'));
 
         const editModal = document.getElementById('conexaoEditModal');
         const editForm = document.getElementById('conexaoEditForm');
         const editTitle = document.getElementById('conexaoEditModalTitle');
+        const editAssistantSelect = document.getElementById('conexaoEditAssistant');
         const editModelSelect = document.getElementById('conexaoEditModel');
         const editModelOptions = Array.from(editModelSelect.querySelectorAll('option'));
         const editModelPlaceholder = editModelOptions.find((option) => option.value === '');
@@ -214,6 +236,7 @@
             editForm.action = '';
             editingInput.value = '';
             editTitle.textContent = 'Editar conexao';
+            editAssistantSelect.value = '';
             filterModelOptions('');
             editModelSelect.value = '';
             editActiveInput.checked = true;
@@ -226,6 +249,7 @@
                 editForm.action = `${baseUrl}/${id}`;
                 editingInput.value = id;
                 editTitle.textContent = `Editar conexao: ${button.dataset.name || 'Conexao'}`;
+                editAssistantSelect.value = button.dataset.assistantId || '';
                 filterModelOptions(button.dataset.iaplataformaId || '');
                 editModelSelect.value = button.dataset.modelId || '';
                 editActiveInput.checked = button.dataset.isActive !== '0';
@@ -249,12 +273,14 @@
             editForm.action = `${baseUrl}/${sessionEditingId}`;
             editingInput.value = sessionEditingId;
             editTitle.textContent = `Editar conexao: ${sourceButton?.dataset.name || 'Conexao'}`;
+            editAssistantSelect.value = oldAssistantId ?? sourceButton?.dataset.assistantId ?? '';
             filterModelOptions(sourceButton?.dataset.iaplataformaId || '');
             editModelSelect.value = oldModelId ?? '';
             editActiveInput.checked = oldIsActive === '1' || oldIsActive === 1 || oldIsActive === true;
             openEditModal();
-        } else if (hasErrors && oldModelId) {
+        } else if (hasErrors && (oldAssistantId || oldModelId)) {
             resetEditForm();
+            editAssistantSelect.value = oldAssistantId ?? '';
             filterModelOptions('');
             editModelSelect.value = oldModelId ?? '';
             editActiveInput.checked = oldIsActive === '1' || oldIsActive === 1 || oldIsActive === true;
@@ -307,10 +333,14 @@
             if (el) {
                 el.textContent = status;
                 const isConnected = normalized === 'connected';
+                const isDisconnected = normalized === 'disconnected';
+                const isNeutral = !isConnected && !isDisconnected;
                 el.classList.toggle('bg-emerald-100', isConnected);
                 el.classList.toggle('text-emerald-700', isConnected);
-                el.classList.toggle('bg-slate-100', !isConnected);
-                el.classList.toggle('text-slate-600', !isConnected);
+                el.classList.toggle('bg-rose-100', isDisconnected);
+                el.classList.toggle('text-rose-700', isDisconnected);
+                el.classList.toggle('bg-slate-100', isNeutral);
+                el.classList.toggle('text-slate-600', isNeutral);
             }
 
             const btn = connectButtons.find((element) => element.dataset.conexaoId === String(id));
