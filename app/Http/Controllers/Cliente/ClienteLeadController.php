@@ -830,7 +830,7 @@ class ClienteLeadController extends Controller
 
         try {
             $openAi = new OpenAIService($credential->token);
-            $query = [];
+            $query = ['order' => 'desc'];
             if ($after !== '') {
                 $query['after'] = $after;
             }

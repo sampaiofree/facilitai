@@ -818,6 +818,37 @@ test('botao carregar mais fica dentro do chat antes das mensagens', function () 
     $response->assertSee('Carregar mais');
 });
 
+test('chat do cliente consulta itens da conversa em ordem decrescente para paginar antigas', function () {
+    $user = User::factory()->create();
+    $cliente = clienteOpenAiConversasMakeCliente($user);
+    $credential = clienteOpenAiConversasMakeCredential($user, $cliente);
+    $assistant = clienteOpenAiConversasMakeAssistant($user, $cliente, $credential);
+    $lead = clienteOpenAiConversasMakeLead($cliente);
+    $assistantLead = clienteOpenAiConversasMakeAssistantLead($lead, $assistant, ['conv_id' => 'conv_order_desc']);
+    clienteOpenAiConversasMakeConexao($cliente, $credential, $assistant);
+
+    Http::fake([
+        'https://api.openai.com/v1/conversations/*/items*' => Http::response(clienteOpenAiConversasFakeResponseWithMore(), 200),
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')->getJson(route('cliente.conversas.index', [
+        'tab' => 'chat',
+        'conv_id' => $assistantLead->conv_id,
+        'after' => 'msg_user_1',
+        'limit' => 20,
+    ]));
+
+    $response->assertOk();
+    Http::assertSent(function ($request) {
+        parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return str_contains($request->url(), '/v1/conversations/conv_order_desc/items')
+            && ($query['order'] ?? null) === 'desc'
+            && ($query['after'] ?? null) === 'msg_user_1'
+            && ($query['limit'] ?? null) === '20';
+    });
+});
+
 test('area de mensagens do chat tem overflow interno e envio fica fora dela', function () {
     $user = User::factory()->create();
     $cliente = clienteOpenAiConversasMakeCliente($user);
