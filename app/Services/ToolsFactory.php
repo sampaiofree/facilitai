@@ -104,14 +104,15 @@ TXT,
                 'type' => 'function',
                 'name' => 'buscar_get',
                 'description' => <<<TXT
-Faz uma requisição HTTP GET para a URL informada e retorna o conteúdo (texto/HTML/JSON) para consulta. Use apenas quando houver uma URL específica a ser lida.
+Faz uma requisição HTTP GET para a URL informada e retorna o conteúdo da resposta (texto/HTML/JSON).
+Use quando houver uma URL específica a ser consultada ou quando for necessário enviar dados por GET, incluindo os dados como parâmetros de query string na própria URL.
 TXT,
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'url' => [
                             'type' => 'string',
-                            'description' => 'A URL completa da fonte da informação.',
+                            'description' => 'A URL completa da requisição, incluindo parâmetros de query string quando houver dados a enviar por GET.',
                         ],
                     ],
                     'required' => ['url'],
