@@ -823,6 +823,10 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         $providerSlug = $this->resolveWhatsappProviderSlug();
 
         if ($providerSlug === 'uazapi') {
+            if ($this->shouldSkipLeadSendBecauseBotDisabled($phone, $logContext)) {
+                return;
+            }
+
             $providerToken = $token ?: $this->conexao?->whatsapp_api_key;
             if (!$providerToken) {
                 Log::channel('process_job')->warning('Token ausente para envio via Uazapi.', $this->logContext($logContext));
@@ -877,6 +881,69 @@ class ProcessIncomingMessageJob implements ShouldQueue, ShouldBeUniqueUntilProce
         Log::channel('process_job')->warning('Provedor WhatsApp não suportado para envio de texto.', $this->logContext(array_merge($logContext, [
             'provider_slug' => $providerSlug,
         ])));
+    }
+
+    private function shouldSkipLeadSendBecauseBotDisabled(string $phone, array $logContext): bool
+    {
+        if ($this->isInternalSend($logContext)) {
+            return false;
+        }
+
+        $lead = $this->resolveLeadForSendGuard($logContext);
+        if (!$lead) {
+            return false;
+        }
+
+        $normalizer = app(PhoneNumberNormalizer::class);
+        $targetPhone = $normalizer->normalizeLeadPhone($phone);
+        if (!$targetPhone) {
+            return false;
+        }
+
+        $leadPhoneCandidates = $normalizer->buildLeadPhoneLookupCandidates((string) $lead->phone);
+        if (!in_array($targetPhone, $leadPhoneCandidates, true)) {
+            return false;
+        }
+
+        $botEnabled = ClienteLead::query()
+            ->whereKey($lead->id)
+            ->value('bot_enabled');
+
+        if ((bool) $botEnabled) {
+            return false;
+        }
+
+        $this->logSilentReturn('bot_desativado_antes_envio', array_merge($logContext, [
+            'lead_id' => $lead->id,
+            'phone' => $targetPhone,
+        ]));
+
+        return true;
+    }
+
+    private function isInternalSend(array $logContext): bool
+    {
+        foreach (['tool', 'notification_target', 'admin_id', 'dev_phone', 'user_id'] as $key) {
+            if (array_key_exists($key, $logContext)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function resolveLeadForSendGuard(array $logContext): ?ClienteLead
+    {
+        if ($this->clienteLead instanceof ClienteLead) {
+            return $this->clienteLead;
+        }
+
+        $leadId = $logContext['lead_id'] ?? $this->payload['lead_id'] ?? null;
+        if (!$leadId) {
+            return null;
+        }
+
+        return ClienteLead::find($leadId);
     }
 
     private function notifyUazapiSendFailure(?string $token, string $phone, array $sendResult, array $logContext): void
