@@ -23,7 +23,7 @@
     <style>[x-cloak] { display: none !important; }</style>
     @stack('head')
 </head>
-<body class="bg-slate-100 text-slate-900">
+<body class="{{ auth('client')->check() ? 'h-[100dvh] overflow-hidden' : 'min-h-screen' }} bg-slate-100 text-slate-900">
     @php
         $menuBg = $agencySettings?->primary_color ?: '#0f172a';
         $logoUrl = $agencySettings?->logo_path
@@ -66,7 +66,7 @@
         <div
             x-data="{ clienteSidebarOpen: false, clienteToolsOpen: {{ $toolsActive ? 'true' : 'false' }}, clienteAccountOpen: false }"
             x-on:keydown.escape.window="clienteSidebarOpen = false; clienteToolsOpen = false; clienteAccountOpen = false"
-            class="min-h-screen lg:flex"
+            class="flex h-[100dvh] min-h-0 flex-col overflow-hidden lg:flex-row"
         >
             <header class="sticky top-0 z-30 border-b border-white/10 px-4 py-3 text-white lg:hidden" style="background-color: {{ $menuBg }};">
                 <div class="flex items-center justify-between gap-3">
@@ -107,7 +107,7 @@
 
             <aside
                 x-cloak
-                class="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col text-white shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:shadow-none"
+                class="fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-72 max-w-[85vw] flex-col text-white shadow-2xl transition-transform duration-200 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:shadow-none"
                 x-bind:class="clienteSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
                 style="background-color: {{ $menuBg }};"
             >
@@ -305,7 +305,7 @@
                 </div>
             </aside>
 
-            <main class="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+            <main class="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
                 <div class="mx-auto">
                     @hasSection('header')
                         <header class="mb-6 rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
