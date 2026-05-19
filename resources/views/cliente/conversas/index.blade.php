@@ -1136,7 +1136,7 @@
                     return;
                 }
 
-                const pageLink = event.target.closest('a[href]');
+                const pageLink = event.target.closest('nav a[href]');
                 if (pageLink && leadTableContainer.contains(pageLink)) {
                     if (pageLink.getAttribute('aria-disabled') === 'true' || isModifiedClick(event)) {
                         return;
