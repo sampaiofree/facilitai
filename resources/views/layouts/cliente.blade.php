@@ -306,7 +306,7 @@
             </aside>
 
             <main class="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-                <div class="mx-auto max-w-6xl">
+                <div class="mx-auto">
                     @hasSection('header')
                         <header class="mb-6 rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
                             @yield('header')
