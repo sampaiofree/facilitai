@@ -169,6 +169,38 @@
 
                     <div>
                         <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="assistantInstructions">Instruções</label>
+                        <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3" data-instruction-topics>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    class="instruction-topic-button rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition"
+                                    data-topic-view-all
+                                >
+                                    Ver tudo
+                                </button>
+                                <div class="flex flex-wrap items-center gap-2" data-topic-buttons></div>
+                                <button
+                                    type="button"
+                                    class="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
+                                    data-topic-add-toggle
+                                >
+                                    + Adicionar tópico
+                                </button>
+                            </div>
+                            <div class="mt-3 hidden items-end gap-2" data-topic-add-form>
+                                <div class="min-w-0 flex-1">
+                                    <label class="text-[11px] font-semibold uppercase tracking-wide text-slate-500" for="newInstructionTopicName">Nome do tópico</label>
+                                    <input
+                                        id="newInstructionTopicName"
+                                        type="text"
+                                        class="mt-1 w-full rounded-lg border-slate-200 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                        data-topic-add-name
+                                    >
+                                </div>
+                                <button type="button" class="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700" data-topic-add-confirm>Adicionar</button>
+                                <button type="button" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-white" data-topic-add-cancel>Cancelar</button>
+                            </div>
+                        </div>
                         <textarea
                             id="assistantInstructions"
                             name="instructions"
@@ -211,9 +243,23 @@
             const sectionToggles = Array.from(document.querySelectorAll('[data-ph-section-toggle]'));
             const sectionContents = Array.from(document.querySelectorAll('[data-ph-section-content]'));
             const promptItems = Array.from(document.querySelectorAll('[data-prompt-help-item]'));
+            const viewAllButton = document.querySelector('[data-topic-view-all]');
+            const topicButtonsWrap = document.querySelector('[data-topic-buttons]');
+            const addTopicToggle = document.querySelector('[data-topic-add-toggle]');
+            const addTopicForm = document.querySelector('[data-topic-add-form]');
+            const addTopicName = document.querySelector('[data-topic-add-name]');
+            const addTopicConfirm = document.querySelector('[data-topic-add-confirm]');
+            const addTopicCancel = document.querySelector('[data-topic-add-cancel]');
             const activeTypeClasses = ['border-blue-600', 'bg-blue-600'];
             const activeSectionClasses = ['bg-slate-100', 'text-slate-900'];
+            const activeTopicClasses = ['border-blue-600', 'bg-blue-600', 'text-white'];
+            const inactiveTopicClasses = ['border-slate-200', 'bg-white', 'text-slate-700'];
             let activeTypeId = null;
+            let fullInstructions = '';
+            let activeTopicIndex = null;
+            let activeTopicStart = null;
+            let activeTopicEnd = null;
+            let topicSyncing = false;
 
             const parseDataValue = (value) => {
                 if (value === undefined || value === null || value === '') {
@@ -244,7 +290,8 @@
                 if (delayInput) {
                     delayInput.value = '';
                 }
-                instructionsInput.value = '';
+                hideAddTopicForm();
+                setInstructionsValue('');
             };
 
             const insertAtCursor = (field, text) => {
@@ -258,6 +305,225 @@
                 const cursor = (before + addSeparator + text).length;
                 field.setSelectionRange(cursor, cursor);
                 field.focus();
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+            };
+
+            const parseTopics = (markdown) => {
+                const topics = [];
+                const headingPattern = /^# (.*)$/gm;
+                let match;
+
+                while ((match = headingPattern.exec(markdown)) !== null) {
+                    topics.push({
+                        start: match.index,
+                        end: markdown.length,
+                        title: (match[1] || '').trim() || 'Sem título',
+                    });
+                }
+
+                topics.forEach((topic, index) => {
+                    topic.end = topics[index + 1]?.start ?? markdown.length;
+                });
+
+                return topics;
+            };
+
+            const setTopicButtonState = () => {
+                if (!viewAllButton) return;
+                const isAllActive = activeTopicIndex === null;
+                activeTopicClasses.forEach(cls => viewAllButton.classList.toggle(cls, isAllActive));
+                inactiveTopicClasses.forEach(cls => viewAllButton.classList.toggle(cls, !isAllActive));
+
+                topicButtonsWrap?.querySelectorAll('[data-topic-index]').forEach(button => {
+                    const isActive = Number(button.dataset.topicIndex) === activeTopicIndex;
+                    activeTopicClasses.forEach(cls => button.classList.toggle(cls, isActive));
+                    inactiveTopicClasses.forEach(cls => button.classList.toggle(cls, !isActive));
+                });
+            };
+
+            const renderTopicButtons = () => {
+                if (!topicButtonsWrap) return;
+                const topics = parseTopics(fullInstructions);
+                topicButtonsWrap.innerHTML = '';
+
+                topics.forEach((topic, index) => {
+                    const group = document.createElement('div');
+                    group.className = 'inline-flex max-w-full items-center overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm';
+
+                    const moveBeforeButton = document.createElement('button');
+                    moveBeforeButton.type = 'button';
+                    moveBeforeButton.className = 'px-2 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white';
+                    moveBeforeButton.textContent = '←';
+                    moveBeforeButton.title = 'Mover tópico para antes';
+                    moveBeforeButton.disabled = index === 0;
+                    moveBeforeButton.addEventListener('click', () => {
+                        moveTopic(index, -1);
+                    });
+
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.dataset.topicIndex = String(index);
+                    button.className = 'instruction-topic-button max-w-[220px] truncate border-x border-slate-200 px-3 py-2 text-xs font-semibold transition hover:text-blue-700';
+                    button.textContent = topic.title;
+                    button.addEventListener('click', () => {
+                        showTopic(index);
+                    });
+
+                    const moveAfterButton = document.createElement('button');
+                    moveAfterButton.type = 'button';
+                    moveAfterButton.className = 'px-2 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-white';
+                    moveAfterButton.textContent = '→';
+                    moveAfterButton.title = 'Mover tópico para depois';
+                    moveAfterButton.disabled = index === topics.length - 1;
+                    moveAfterButton.addEventListener('click', () => {
+                        moveTopic(index, 1);
+                    });
+
+                    group.appendChild(moveBeforeButton);
+                    group.appendChild(button);
+                    group.appendChild(moveAfterButton);
+                    topicButtonsWrap.appendChild(group);
+                });
+
+                if (activeTopicIndex !== null && activeTopicIndex >= topics.length) {
+                    activeTopicIndex = null;
+                    activeTopicStart = null;
+                    activeTopicEnd = null;
+                    instructionsInput.value = fullInstructions;
+                }
+
+                setTopicButtonState();
+            };
+
+            const moveTopic = (index, direction) => {
+                syncActiveTopic();
+                const topics = parseTopics(fullInstructions);
+                const targetIndex = index + direction;
+
+                if (!topics[index] || !topics[targetIndex]) {
+                    return;
+                }
+
+                const selectedOriginalIndex = activeTopicIndex;
+                const prefix = topics.length ? fullInstructions.slice(0, topics[0].start) : fullInstructions;
+                const blocks = topics.map((topic, topicIndex) => ({
+                    originalIndex: topicIndex,
+                    content: fullInstructions.slice(topic.start, topic.end),
+                }));
+
+                [blocks[index], blocks[targetIndex]] = [blocks[targetIndex], blocks[index]];
+                fullInstructions = prefix + blocks.map(block => block.content).join('');
+
+                if (selectedOriginalIndex === null) {
+                    topicSyncing = true;
+                    instructionsInput.value = fullInstructions;
+                    topicSyncing = false;
+                    renderTopicButtons();
+                    return;
+                }
+
+                const selectedNewIndex = blocks.findIndex(block => block.originalIndex === selectedOriginalIndex);
+                activeTopicIndex = null;
+                activeTopicStart = null;
+                activeTopicEnd = null;
+                showTopic(selectedNewIndex === -1 ? targetIndex : selectedNewIndex);
+            };
+
+            const syncActiveTopic = () => {
+                if (topicSyncing || activeTopicIndex === null) return;
+                if (activeTopicStart === null || activeTopicEnd === null) {
+                    activeTopicIndex = null;
+                    activeTopicStart = null;
+                    activeTopicEnd = null;
+                    fullInstructions = instructionsInput.value;
+                    renderTopicButtons();
+                    return;
+                }
+
+                fullInstructions = `${fullInstructions.slice(0, activeTopicStart)}${instructionsInput.value}${fullInstructions.slice(activeTopicEnd)}`;
+                activeTopicEnd = activeTopicStart + instructionsInput.value.length;
+                const topics = parseTopics(fullInstructions);
+                activeTopicIndex = topics.findIndex(topic => topic.start === activeTopicStart);
+                if (activeTopicIndex === -1) {
+                    activeTopicIndex = null;
+                    activeTopicStart = null;
+                    activeTopicEnd = null;
+                    topicSyncing = true;
+                    instructionsInput.value = fullInstructions;
+                    topicSyncing = false;
+                }
+                renderTopicButtons();
+            };
+
+            const setInstructionsValue = (value) => {
+                fullInstructions = value || '';
+                activeTopicIndex = null;
+                activeTopicStart = null;
+                activeTopicEnd = null;
+                topicSyncing = true;
+                instructionsInput.value = fullInstructions;
+                topicSyncing = false;
+                renderTopicButtons();
+            };
+
+            const showAllInstructions = () => {
+                syncActiveTopic();
+                activeTopicIndex = null;
+                activeTopicStart = null;
+                activeTopicEnd = null;
+                topicSyncing = true;
+                instructionsInput.value = fullInstructions;
+                topicSyncing = false;
+                renderTopicButtons();
+                instructionsInput.focus();
+            };
+
+            function showTopic(index) {
+                syncActiveTopic();
+                const topics = parseTopics(fullInstructions);
+                const topic = topics[index];
+                if (!topic) {
+                    showAllInstructions();
+                    return;
+                }
+
+                activeTopicIndex = index;
+                activeTopicStart = topic.start;
+                activeTopicEnd = topic.end;
+                topicSyncing = true;
+                instructionsInput.value = fullInstructions.slice(topic.start, topic.end);
+                topicSyncing = false;
+                renderTopicButtons();
+                instructionsInput.focus();
+            }
+
+            const hideAddTopicForm = () => {
+                addTopicForm?.classList.add('hidden');
+                addTopicForm?.classList.remove('flex');
+                if (addTopicName) {
+                    addTopicName.value = '';
+                }
+            };
+
+            const showAddTopicForm = () => {
+                addTopicForm?.classList.remove('hidden');
+                addTopicForm?.classList.add('flex');
+                addTopicName?.focus();
+            };
+
+            const addTopic = () => {
+                const topicName = (addTopicName?.value || '').trim();
+                if (!topicName) {
+                    addTopicName?.focus();
+                    return;
+                }
+
+                syncActiveTopic();
+                const separator = fullInstructions.trim().length > 0 ? '\n\n' : '';
+                fullInstructions = `${fullInstructions.trimEnd()}${separator}# ${topicName}\n\nDigite as instruções aqui...`;
+                hideAddTopicForm();
+                renderTopicButtons();
+                showTopic(parseTopics(fullInstructions).length - 1);
             };
 
             const closeDropdown = () => {
@@ -310,7 +576,7 @@
                     if (delayInput) {
                         delayInput.value = button.dataset.delay ?? '';
                     }
-                    instructionsInput.value = parseDataValue(button.dataset.instructions);
+                    setInstructionsValue(parseDataValue(button.dataset.instructions));
                     openModal();
                 });
             });
@@ -323,7 +589,7 @@
                 if (delayInput) {
                     delayInput.value = oldDelay ?? '';
                 }
-                instructionsInput.value = oldInstructions ?? '';
+                setInstructionsValue(oldInstructions ?? '');
                 openModal();
             } else if (hasErrors) {
                 resetForm();
@@ -331,9 +597,40 @@
                 if (delayInput) {
                     delayInput.value = oldDelay ?? '';
                 }
-                instructionsInput.value = oldInstructions ?? '';
+                setInstructionsValue(oldInstructions ?? '');
                 openModal();
             }
+
+            instructionsInput.addEventListener('input', () => {
+                if (topicSyncing) return;
+                if (activeTopicIndex === null) {
+                    fullInstructions = instructionsInput.value;
+                    renderTopicButtons();
+                    return;
+                }
+
+                syncActiveTopic();
+            });
+
+            form.addEventListener('submit', () => {
+                syncActiveTopic();
+                instructionsInput.value = fullInstructions;
+            });
+
+            viewAllButton?.addEventListener('click', showAllInstructions);
+            addTopicToggle?.addEventListener('click', showAddTopicForm);
+            addTopicCancel?.addEventListener('click', hideAddTopicForm);
+            addTopicConfirm?.addEventListener('click', addTopic);
+            addTopicName?.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addTopic();
+                }
+
+                if (event.key === 'Escape') {
+                    hideAddTopicForm();
+                }
+            });
 
             if (typeButtons.length && dropdownMenu) {
                 typeButtons.forEach(button => {
