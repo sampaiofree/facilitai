@@ -175,6 +175,304 @@ class GrupoConjuntoMensagemService
         return $mensagem->fresh();
     }
 
+    /**
+     * @return array{mensagem: GrupoConjuntoMensagem, deferred: bool, delay_seconds: int, completed: bool}
+     */
+    public function dispatchRecipientAndPersist(
+        GrupoConjuntoMensagem $mensagem,
+        int $recipientIndex,
+        int $attempt = 1
+    ): array {
+        $mensagem->loadMissing(['conexao.whatsappApi', 'conjunto']);
+
+        $attemptValue = max((int) $mensagem->attempts, $attempt);
+        $nowUtc = Carbon::now('UTC');
+
+        $conexao = $mensagem->conexao;
+        $providerSlug = strtolower((string) ($conexao?->whatsappApi?->slug ?? ''));
+        $token = trim((string) ($conexao?->whatsapp_api_key ?? ''));
+
+        if (!$conexao || $providerSlug !== 'uazapi' || $token === '') {
+            return $this->completedRecipientResult($this->markMensagemAsFailed(
+                $mensagem,
+                'Conexao invalida para envio de mensagens em grupo.',
+                $nowUtc,
+                $attemptValue
+            ));
+        }
+
+        $recipients = $this->normalizeRecipients((array) ($mensagem->recipients ?? []));
+
+        if ($recipients === []) {
+            return $this->completedRecipientResult($this->markMensagemAsFailed(
+                $mensagem,
+                'Nenhum destinatario valido encontrado para este conjunto.',
+                $nowUtc,
+                $attemptValue
+            ));
+        }
+
+        $recipientIndex = max(0, $recipientIndex);
+        if (!isset($recipients[$recipientIndex])) {
+            return $this->finishRecipientDispatch($mensagem, $nowUtc, $attemptValue);
+        }
+
+        $resolvedAction = $this->resolveActionData($mensagem);
+        if (!$resolvedAction['ok']) {
+            return $this->completedRecipientResult($this->markMensagemAsFailed(
+                $mensagem,
+                (string) ($resolvedAction['message'] ?? 'Ação inválida para envio em grupo.'),
+                $nowUtc,
+                $attemptValue
+            ));
+        }
+
+        $actionType = (string) $resolvedAction['action_type'];
+        $actionPayload = (array) $resolvedAction['payload'];
+        $recipient = $recipients[$recipientIndex];
+        $jid = (string) $recipient['jid'];
+        $isLastRecipient = $recipientIndex >= count($recipients) - 1;
+
+        if ($this->recipientAlreadyProcessed($mensagem, $jid, $actionType)) {
+            return $isLastRecipient
+                ? $this->finishRecipientDispatch($mensagem, $nowUtc, $attemptValue)
+                : [
+                    'mensagem' => $mensagem->fresh(),
+                    'deferred' => false,
+                    'delay_seconds' => 0,
+                    'completed' => false,
+                ];
+        }
+
+        $waitSeconds = $this->timingService()->reserveDispatchSlot(
+            (int) $mensagem->user_id,
+            (int) $mensagem->conexao_id,
+            $jid,
+            $actionType
+        );
+
+        if ($waitSeconds > 0) {
+            return [
+                'mensagem' => $mensagem->fresh(),
+                'deferred' => true,
+                'delay_seconds' => max(1, (int) ceil($waitSeconds)),
+                'completed' => false,
+            ];
+        }
+
+        try {
+            $response = $this->dispatchRecipientAction($token, $jid, $actionType, $actionPayload);
+        } catch (\Throwable $exception) {
+            $response = [
+                'error' => true,
+                'status' => 0,
+                'body' => $exception->getMessage(),
+            ];
+        }
+
+        $this->timingService()->registerRemoteStatus(
+            (int) $mensagem->conexao_id,
+            (int) ($response['status'] ?? 0)
+        );
+
+        if (empty($response['error'])) {
+            return $this->persistRecipientResult($mensagem, [
+                'jid' => $jid,
+                'name' => (string) $recipient['name'],
+                'action_type' => $actionType,
+                'status' => 'sent',
+                'http_status' => (int) ($response['status'] ?? 200),
+            ], $isLastRecipient, $nowUtc, $attemptValue);
+        }
+
+        $httpStatus = (int) ($response['status'] ?? 0);
+        $message = Arr::get($response, 'body.message')
+            ?? Arr::get($response, 'message')
+            ?? (is_string($response['body'] ?? null) ? $response['body'] : 'Falha ao enviar para o grupo.');
+
+        return $this->persistRecipientResult($mensagem, [
+            'jid' => $jid,
+            'name' => (string) $recipient['name'],
+            'action_type' => $actionType,
+            'status' => 'failed',
+            'http_status' => $httpStatus,
+            'error' => trim((string) $message),
+        ], $isLastRecipient, $nowUtc, $attemptValue);
+    }
+
+    private function completedRecipientResult(GrupoConjuntoMensagem $mensagem): array
+    {
+        return [
+            'mensagem' => $mensagem,
+            'deferred' => false,
+            'delay_seconds' => 0,
+            'completed' => true,
+        ];
+    }
+
+    private function markMensagemAsFailed(
+        GrupoConjuntoMensagem $mensagem,
+        string $errorMessage,
+        Carbon $nowUtc,
+        int $attemptValue
+    ): GrupoConjuntoMensagem {
+        $mensagem->update([
+            'status' => 'failed',
+            'failed_at' => $nowUtc,
+            'sent_at' => null,
+            'error_message' => Str::limit($errorMessage, 1900),
+            'attempts' => $attemptValue,
+        ]);
+
+        return $mensagem->fresh();
+    }
+
+    private function finishRecipientDispatch(
+        GrupoConjuntoMensagem $mensagem,
+        Carbon $nowUtc,
+        int $attemptValue
+    ): array {
+        $rows = $this->resultRows($mensagem);
+        $sentCount = $this->countResultRowsByStatus($rows, 'sent');
+        $failedCount = $this->countResultRowsByStatus($rows, 'failed');
+        $isSuccess = $failedCount === 0 && $sentCount > 0;
+
+        $mensagem->update([
+            'status' => $isSuccess ? 'sent' : 'failed',
+            'sent_count' => $sentCount,
+            'failed_count' => $failedCount,
+            'result' => [
+                'items' => $rows,
+                'sent_count' => $sentCount,
+                'failed_count' => $failedCount,
+            ],
+            'sent_at' => $isSuccess ? $nowUtc : null,
+            'failed_at' => $isSuccess ? null : $nowUtc,
+            'error_message' => $isSuccess ? null : Str::limit($this->firstResultError($rows) ?: 'Falha no envio para um ou mais grupos.', 1900),
+            'attempts' => $attemptValue,
+        ]);
+
+        return $this->completedRecipientResult($mensagem->fresh());
+    }
+
+    private function persistRecipientResult(
+        GrupoConjuntoMensagem $mensagem,
+        array $resultRow,
+        bool $isLastRecipient,
+        Carbon $nowUtc,
+        int $attemptValue
+    ): array {
+        $rows = $this->replaceResultRow($this->resultRows($mensagem), $resultRow);
+        $sentCount = $this->countResultRowsByStatus($rows, 'sent');
+        $failedCount = $this->countResultRowsByStatus($rows, 'failed');
+
+        $payload = [
+            'status' => 'queued',
+            'sent_count' => $sentCount,
+            'failed_count' => $failedCount,
+            'result' => [
+                'items' => $rows,
+                'sent_count' => $sentCount,
+                'failed_count' => $failedCount,
+            ],
+            'sent_at' => null,
+            'failed_at' => null,
+            'error_message' => null,
+            'attempts' => $attemptValue,
+        ];
+
+        if ($isLastRecipient) {
+            $isSuccess = $failedCount === 0 && $sentCount > 0;
+
+            $payload['status'] = $isSuccess ? 'sent' : 'failed';
+            $payload['sent_at'] = $isSuccess ? $nowUtc : null;
+            $payload['failed_at'] = $isSuccess ? null : $nowUtc;
+            $payload['error_message'] = $isSuccess
+                ? null
+                : Str::limit($this->firstResultError($rows) ?: 'Falha no envio para um ou mais grupos.', 1900);
+        }
+
+        $mensagem->update($payload);
+
+        return [
+            'mensagem' => $mensagem->fresh(),
+            'deferred' => false,
+            'delay_seconds' => 0,
+            'completed' => $isLastRecipient,
+        ];
+    }
+
+    private function resultRows(GrupoConjuntoMensagem $mensagem): array
+    {
+        $items = data_get($mensagem->result, 'items', []);
+
+        if (!is_array($items)) {
+            return [];
+        }
+
+        return array_values(array_filter($items, static fn ($item): bool => is_array($item)));
+    }
+
+    private function replaceResultRow(array $rows, array $newRow): array
+    {
+        $jid = (string) ($newRow['jid'] ?? '');
+        $actionType = (string) ($newRow['action_type'] ?? '');
+        $replaced = false;
+
+        foreach ($rows as $index => $row) {
+            if ((string) ($row['jid'] ?? '') === $jid && (string) ($row['action_type'] ?? '') === $actionType) {
+                $rows[$index] = $newRow;
+                $replaced = true;
+                break;
+            }
+        }
+
+        if (!$replaced) {
+            $rows[] = $newRow;
+        }
+
+        return array_values($rows);
+    }
+
+    private function recipientAlreadyProcessed(GrupoConjuntoMensagem $mensagem, string $jid, string $actionType): bool
+    {
+        foreach ($this->resultRows($mensagem) as $row) {
+            if ((string) ($row['jid'] ?? '') !== $jid) {
+                continue;
+            }
+
+            if ((string) ($row['action_type'] ?? '') !== $actionType) {
+                continue;
+            }
+
+            if (in_array((string) ($row['status'] ?? ''), ['sent', 'failed'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function countResultRowsByStatus(array $rows, string $status): int
+    {
+        return count(array_filter(
+            $rows,
+            static fn (array $row): bool => (string) ($row['status'] ?? '') === $status
+        ));
+    }
+
+    private function firstResultError(array $rows): ?string
+    {
+        foreach ($rows as $row) {
+            $error = trim((string) ($row['error'] ?? ''));
+            if ($error !== '') {
+                return $error;
+            }
+        }
+
+        return null;
+    }
+
     private function resolveActionData(GrupoConjuntoMensagem $mensagem): array
     {
         $actionType = $mensagem->resolveActionType();

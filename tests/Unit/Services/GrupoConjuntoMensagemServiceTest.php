@@ -312,6 +312,159 @@ class GrupoConjuntoMensagemServiceTest extends TestCase
         $this->assertSame(0, (int) $updated->failed_count);
     }
 
+    public function test_dispatch_recipient_and_persist_processes_only_one_group_and_keeps_batch_queued(): void
+    {
+        [$user, $conexao, $conjunto] = $this->makeConjuntoContext('token-recipient');
+
+        $mensagem = GrupoConjuntoMensagem::create([
+            'user_id' => $user->id,
+            'created_by_user_id' => $user->id,
+            'grupo_conjunto_id' => $conjunto->id,
+            'conexao_id' => $conexao->id,
+            'mensagem' => 'Texto por grupo',
+            'action_type' => GrupoConjuntoMensagem::ACTION_SEND_TEXT,
+            'payload' => ['text' => 'Texto por grupo'],
+            'dispatch_type' => 'now',
+            'status' => 'queued',
+            'recipients' => [
+                ['jid' => '120363153742561022@g.us', 'name' => 'Grupo A'],
+                ['jid' => '120363339858396166@g.us', 'name' => 'Grupo B'],
+            ],
+            'queued_at' => now('UTC'),
+        ]);
+
+        $mock = \Mockery::mock(UazapiGruposService::class);
+        $mock->shouldReceive('sendTextToGroup')
+            ->once()
+            ->with('token-recipient', '120363153742561022@g.us', 'Texto por grupo')
+            ->andReturn(['ok' => true, 'status' => 200]);
+
+        $timing = \Mockery::mock(GrupoConjuntoActionTimingService::class);
+        $timing->shouldReceive('reserveDispatchSlot')
+            ->once()
+            ->with($user->id, $conexao->id, '120363153742561022@g.us', GrupoConjuntoMensagem::ACTION_SEND_TEXT)
+            ->andReturn(0.0);
+        $timing->shouldReceive('registerRemoteStatus')
+            ->once()
+            ->with($conexao->id, 200);
+
+        $service = new GrupoConjuntoMensagemService($mock, $timing);
+        $result = $service->dispatchRecipientAndPersist($mensagem, 0, 1);
+        $updated = $result['mensagem'];
+
+        $this->assertFalse($result['deferred']);
+        $this->assertFalse($result['completed']);
+        $this->assertSame('queued', $updated->status);
+        $this->assertSame(1, (int) $updated->sent_count);
+        $this->assertSame(0, (int) $updated->failed_count);
+        $this->assertCount(1, data_get($updated->result, 'items', []));
+    }
+
+    public function test_dispatch_recipient_and_persist_finalizes_batch_on_last_group(): void
+    {
+        [$user, $conexao, $conjunto] = $this->makeConjuntoContext('token-recipient-final');
+
+        $mensagem = GrupoConjuntoMensagem::create([
+            'user_id' => $user->id,
+            'created_by_user_id' => $user->id,
+            'grupo_conjunto_id' => $conjunto->id,
+            'conexao_id' => $conexao->id,
+            'mensagem' => 'Texto final',
+            'action_type' => GrupoConjuntoMensagem::ACTION_SEND_TEXT,
+            'payload' => ['text' => 'Texto final'],
+            'dispatch_type' => 'now',
+            'status' => 'queued',
+            'recipients' => [
+                ['jid' => '120363153742561022@g.us', 'name' => 'Grupo A'],
+                ['jid' => '120363339858396166@g.us', 'name' => 'Grupo B'],
+            ],
+            'result' => [
+                'items' => [
+                    [
+                        'jid' => '120363153742561022@g.us',
+                        'name' => 'Grupo A',
+                        'action_type' => GrupoConjuntoMensagem::ACTION_SEND_TEXT,
+                        'status' => 'sent',
+                        'http_status' => 200,
+                    ],
+                ],
+                'sent_count' => 1,
+                'failed_count' => 0,
+            ],
+            'sent_count' => 1,
+            'failed_count' => 0,
+            'queued_at' => now('UTC'),
+        ]);
+
+        $mock = \Mockery::mock(UazapiGruposService::class);
+        $mock->shouldReceive('sendTextToGroup')
+            ->once()
+            ->with('token-recipient-final', '120363339858396166@g.us', 'Texto final')
+            ->andReturn(['ok' => true, 'status' => 200]);
+
+        $timing = \Mockery::mock(GrupoConjuntoActionTimingService::class);
+        $timing->shouldReceive('reserveDispatchSlot')
+            ->once()
+            ->with($user->id, $conexao->id, '120363339858396166@g.us', GrupoConjuntoMensagem::ACTION_SEND_TEXT)
+            ->andReturn(0.0);
+        $timing->shouldReceive('registerRemoteStatus')
+            ->once()
+            ->with($conexao->id, 200);
+
+        $service = new GrupoConjuntoMensagemService($mock, $timing);
+        $result = $service->dispatchRecipientAndPersist($mensagem, 1, 1);
+        $updated = $result['mensagem'];
+
+        $this->assertFalse($result['deferred']);
+        $this->assertTrue($result['completed']);
+        $this->assertSame('sent', $updated->status);
+        $this->assertSame(2, (int) $updated->sent_count);
+        $this->assertSame(0, (int) $updated->failed_count);
+        $this->assertCount(2, data_get($updated->result, 'items', []));
+    }
+
+    public function test_dispatch_recipient_and_persist_defers_without_calling_uazapi_when_timing_requires_wait(): void
+    {
+        [$user, $conexao, $conjunto] = $this->makeConjuntoContext('token-recipient-wait');
+
+        $mensagem = GrupoConjuntoMensagem::create([
+            'user_id' => $user->id,
+            'created_by_user_id' => $user->id,
+            'grupo_conjunto_id' => $conjunto->id,
+            'conexao_id' => $conexao->id,
+            'mensagem' => 'Texto aguardando',
+            'action_type' => GrupoConjuntoMensagem::ACTION_SEND_TEXT,
+            'payload' => ['text' => 'Texto aguardando'],
+            'dispatch_type' => 'now',
+            'status' => 'queued',
+            'recipients' => [
+                ['jid' => '120363153742561022@g.us', 'name' => 'Grupo A'],
+            ],
+            'queued_at' => now('UTC'),
+        ]);
+
+        $mock = \Mockery::mock(UazapiGruposService::class);
+        $mock->shouldNotReceive('sendTextToGroup');
+
+        $timing = \Mockery::mock(GrupoConjuntoActionTimingService::class);
+        $timing->shouldReceive('reserveDispatchSlot')
+            ->once()
+            ->with($user->id, $conexao->id, '120363153742561022@g.us', GrupoConjuntoMensagem::ACTION_SEND_TEXT)
+            ->andReturn(12.4);
+        $timing->shouldNotReceive('registerRemoteStatus');
+
+        $service = new GrupoConjuntoMensagemService($mock, $timing);
+        $result = $service->dispatchRecipientAndPersist($mensagem, 0, 1);
+        $updated = $result['mensagem'];
+
+        $this->assertTrue($result['deferred']);
+        $this->assertSame(13, $result['delay_seconds']);
+        $this->assertFalse($result['completed']);
+        $this->assertSame('queued', $updated->status);
+        $this->assertSame(0, (int) $updated->sent_count);
+        $this->assertSame(0, (int) $updated->failed_count);
+    }
+
     /**
      * @return array{0:User,1:Conexao,2:GrupoConjunto}
      */

@@ -18,10 +18,12 @@ class ExecuteGrupoConjuntoMensagemJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 4;
-    public int $timeout = 3600;
+    public int $timeout = 360;
 
-    public function __construct(private readonly int $grupoConjuntoMensagemId)
-    {
+    public function __construct(
+        private readonly int $grupoConjuntoMensagemId,
+        private readonly int $recipientIndex = 0
+    ) {
     }
 
     public function backoff(): array
@@ -41,10 +43,27 @@ class ExecuteGrupoConjuntoMensagemJob implements ShouldQueue
             return;
         }
 
-        $mensagem->attempts = max((int) $mensagem->attempts, $this->attempts());
-        $mensagem->save();
+        $result = $service->dispatchRecipientAndPersist(
+            $mensagem,
+            max(0, $this->recipientIndex),
+            $this->attempts()
+        );
 
-        $service->dispatchAndPersist($mensagem, $this->attempts());
+        if (!empty($result['deferred'])) {
+            self::dispatch($this->grupoConjuntoMensagemId, max(0, $this->recipientIndex))
+                ->delay(now()->addSeconds((int) ($result['delay_seconds'] ?? 1)))
+                ->onQueue('processarconversa');
+
+            return;
+        }
+
+        if (!empty($result['completed'])) {
+            return;
+        }
+
+        self::dispatch($this->grupoConjuntoMensagemId, max(0, $this->recipientIndex) + 1)
+            ->delay(now()->addSeconds(random_int(5, 30)))
+            ->onQueue('processarconversa');
     }
 
     public function failed(\Throwable $exception): void

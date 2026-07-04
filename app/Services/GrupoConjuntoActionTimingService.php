@@ -86,6 +86,20 @@ class GrupoConjuntoActionTimingService
         }
     }
 
+    public function reserveDispatchSlot(int $userId, int $conexaoId, string $groupJid, string $actionType): float
+    {
+        if ($this->shouldBypass()) {
+            return 0.0;
+        }
+
+        return $this->computeWaitAndReserveSlot(
+            $conexaoId,
+            $groupJid,
+            $actionType,
+            $this->resolveRulesForUser($userId)
+        );
+    }
+
     public function registerRemoteStatus(int $conexaoId, int $httpStatus): void
     {
         if ($this->shouldBypass() || $httpStatus <= 0) {
@@ -250,7 +264,7 @@ class GrupoConjuntoActionTimingService
     private function resolveMaxWaitSeconds(): float
     {
         if (app()->runningInConsole()) {
-            $value = (float) config('services.group_actions_timing.max_wait_seconds_worker', 45);
+            $value = (float) config('services.group_actions_timing.max_wait_seconds_worker', 20);
             return max(0.5, $value);
         }
 
