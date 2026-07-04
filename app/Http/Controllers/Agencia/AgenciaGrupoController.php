@@ -31,19 +31,18 @@ class AgenciaGrupoController extends Controller
 
     public function index(Request $request): View
     {
-        $user = $request->user();
-        $userId = (int) $user->id;
+        $userId = $this->resolveGrupoOwnerUserId($request);
+        $clienteScopeId = $this->resolveGrupoClienteScopeId($request);
         $requestedConjuntoId = $request->filled('conjunto_id') ? (int) $request->input('conjunto_id') : null;
         $activeTab = $request->input('tab') === 'messages' ? 'messages' : 'groups';
 
-        $conjuntos = GrupoConjunto::query()
+        $conjuntos = $this->scopedConjuntosQuery($userId, $clienteScopeId)
             ->with([
                 'conexao:id,name,cliente_id',
                 'conexao.cliente:id,nome',
                 'items:id,grupo_conjunto_id,group_jid,group_name',
             ])
             ->withCount('items')
-            ->where('user_id', $userId)
             ->orderBy('name')
             ->get();
 
@@ -56,13 +55,13 @@ class AgenciaGrupoController extends Controller
             $selectedConjunto = $conjuntos->first();
         }
 
-        $conexoes = $this->queryAllowedConnections($userId)
+        $conexoes = $this->queryAllowedConnections($userId, $clienteScopeId)
             ->select('id', 'name', 'cliente_id')
             ->with('cliente:id,nome')
             ->orderBy('name')
             ->get();
 
-        $timezone = $this->scheduledMessageService->resolveTimezoneForUser($user);
+        $timezone = $this->resolveGrupoTimezone($request);
         $mensagens = collect();
 
         if ($selectedConjunto) {
@@ -82,13 +81,16 @@ class AgenciaGrupoController extends Controller
             });
         }
 
-        return view('agencia.grupos.index', [
+        return view('shared.grupos.index', [
             'conjuntos' => $conjuntos,
             'selectedConjunto' => $selectedConjunto,
             'conexoes' => $conexoes,
             'activeTab' => $activeTab,
             'timezone' => $timezone,
             'mensagens' => $mensagens,
+            'layout' => $this->grupoViewLayout(),
+            'routePrefix' => $this->grupoRoutePrefix(),
+            'showClienteInfo' => $this->showGrupoClienteInfo(),
         ]);
     }
 
@@ -98,7 +100,8 @@ class AgenciaGrupoController extends Controller
             $request->merge(['grupo_conjunto_id' => null]);
         }
 
-        $userId = (int) $request->user()->id;
+        $userId = $this->resolveGrupoOwnerUserId($request);
+        $clienteScopeId = $this->resolveGrupoClienteScopeId($request);
         $grupoConjuntoId = $request->filled('grupo_conjunto_id') ? (int) $request->input('grupo_conjunto_id') : null;
 
         $nameUniqueRule = Rule::unique('grupo_conjuntos', 'name')->where(function ($query) use ($request, $userId) {
@@ -120,7 +123,7 @@ class AgenciaGrupoController extends Controller
             'groups.*.name' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $conexao = $this->resolveOwnedConnection($userId, (int) $data['conexao_id']);
+        $conexao = $this->resolveOwnedConnection($userId, (int) $data['conexao_id'], $clienteScopeId);
         if (!$conexao) {
             abort(404);
         }
@@ -135,9 +138,9 @@ class AgenciaGrupoController extends Controller
         $isUpdate = !empty($data['grupo_conjunto_id']);
         $savedConjuntoId = null;
 
-        DB::transaction(function () use ($data, $groups, $userId, $isUpdate, $grupoConjuntoId, $conexao, &$savedConjuntoId): void {
+        DB::transaction(function () use ($data, $groups, $userId, $clienteScopeId, $isUpdate, $grupoConjuntoId, $conexao, &$savedConjuntoId): void {
             $conjunto = $isUpdate
-                ? GrupoConjunto::where('user_id', $userId)->findOrFail($grupoConjuntoId)
+                ? $this->findOwnedConjunto($userId, $clienteScopeId, (int) $grupoConjuntoId)
                 : new GrupoConjunto(['user_id' => $userId]);
 
             $conjunto->fill([
@@ -163,16 +166,18 @@ class AgenciaGrupoController extends Controller
         });
 
         return redirect()
-            ->route('agencia.grupos.index', ['conjunto_id' => $savedConjuntoId])
+            ->route($this->grupoRoutePrefix() . '.index', ['conjunto_id' => $savedConjuntoId])
             ->with('success', $isUpdate ? 'Conjunto atualizado com sucesso.' : 'Conjunto criado com sucesso.');
     }
 
     public function destroy(Request $request, GrupoConjunto $grupoConjunto): RedirectResponse
     {
-        abort_unless((int) $grupoConjunto->user_id === (int) $request->user()->id, 404);
+        $userId = $this->resolveGrupoOwnerUserId($request);
+        $clienteScopeId = $this->resolveGrupoClienteScopeId($request);
 
-        $nextConjuntoId = GrupoConjunto::query()
-            ->where('user_id', (int) $request->user()->id)
+        $this->ensureConjuntoOwnership($grupoConjunto, $userId, $clienteScopeId);
+
+        $nextConjuntoId = $this->scopedConjuntosQuery($userId, $clienteScopeId)
             ->where('id', '!=', (int) $grupoConjunto->id)
             ->orderBy('name')
             ->value('id');
@@ -182,14 +187,15 @@ class AgenciaGrupoController extends Controller
         $routeParams = $nextConjuntoId ? ['conjunto_id' => (int) $nextConjuntoId] : [];
 
         return redirect()
-            ->route('agencia.grupos.index', $routeParams)
+            ->route($this->grupoRoutePrefix() . '.index', $routeParams)
             ->with('success', 'Conjunto removido com sucesso.');
     }
 
     public function storeMessage(Request $request, GrupoConjunto $grupoConjunto): RedirectResponse
     {
-        $user = $request->user();
-        $this->ensureConjuntoOwnership($grupoConjunto, (int) $user->id);
+        $userId = $this->resolveGrupoOwnerUserId($request);
+        $clienteScopeId = $this->resolveGrupoClienteScopeId($request);
+        $this->ensureConjuntoOwnership($grupoConjunto, $userId, $clienteScopeId);
 
         $messageInput = $this->validateMessageActionInput($request);
 
@@ -199,7 +205,7 @@ class AgenciaGrupoController extends Controller
                 ->with('error', 'Este conjunto não possui grupos válidos para envio.');
         }
 
-        $timezone = $this->scheduledMessageService->resolveTimezoneForUser($user);
+        $timezone = $this->resolveGrupoTimezone($request);
         $sendType = (string) $messageInput['send_type'];
 
         $scheduledForUtc = null;
@@ -219,8 +225,8 @@ class AgenciaGrupoController extends Controller
         $nowUtc = Carbon::now('UTC');
 
         $registro = GrupoConjuntoMensagem::create([
-            'user_id' => (int) $user->id,
-            'created_by_user_id' => (int) $user->id,
+            'user_id' => $userId,
+            'created_by_user_id' => $userId,
             'grupo_conjunto_id' => (int) $grupoConjunto->id,
             'conexao_id' => (int) $grupoConjunto->conexao_id,
             'mensagem' => (string) $messageInput['summary'],
@@ -254,9 +260,10 @@ class AgenciaGrupoController extends Controller
         GrupoConjunto $grupoConjunto,
         GrupoConjuntoMensagem $grupoConjuntoMensagem
     ): RedirectResponse {
-        $user = $request->user();
-        $this->ensureConjuntoOwnership($grupoConjunto, (int) $user->id);
-        $this->ensureMensagemOwnership($grupoConjuntoMensagem, $grupoConjunto, (int) $user->id);
+        $userId = $this->resolveGrupoOwnerUserId($request);
+        $clienteScopeId = $this->resolveGrupoClienteScopeId($request);
+        $this->ensureConjuntoOwnership($grupoConjunto, $userId, $clienteScopeId);
+        $this->ensureMensagemOwnership($grupoConjuntoMensagem, $grupoConjunto, $userId);
 
         if (!in_array((string) $grupoConjuntoMensagem->status, ['pending', 'failed'], true)) {
             return $this->redirectToMessagesTab($grupoConjunto)
@@ -265,7 +272,7 @@ class AgenciaGrupoController extends Controller
 
         $messageInput = $this->validateMessageActionInput($request);
 
-        $timezone = $this->scheduledMessageService->resolveTimezoneForUser($user);
+        $timezone = $this->resolveGrupoTimezone($request);
         $sendType = (string) $messageInput['send_type'];
 
         $scheduledForUtc = null;
@@ -322,8 +329,10 @@ class AgenciaGrupoController extends Controller
         GrupoConjunto $grupoConjunto,
         GrupoConjuntoMensagem $grupoConjuntoMensagem
     ): RedirectResponse {
-        $this->ensureConjuntoOwnership($grupoConjunto, (int) $request->user()->id);
-        $this->ensureMensagemOwnership($grupoConjuntoMensagem, $grupoConjunto, (int) $request->user()->id);
+        $userId = $this->resolveGrupoOwnerUserId($request);
+        $clienteScopeId = $this->resolveGrupoClienteScopeId($request);
+        $this->ensureConjuntoOwnership($grupoConjunto, $userId, $clienteScopeId);
+        $this->ensureMensagemOwnership($grupoConjuntoMensagem, $grupoConjunto, $userId);
 
         $grupoConjuntoMensagem->delete();
 
@@ -333,7 +342,11 @@ class AgenciaGrupoController extends Controller
 
     public function connectionGroups(Request $request, Conexao $conexao): JsonResponse
     {
-        $ownedConexao = $this->resolveOwnedConnection((int) $request->user()->id, (int) $conexao->id);
+        $ownedConexao = $this->resolveOwnedConnection(
+            $this->resolveGrupoOwnerUserId($request),
+            (int) $conexao->id,
+            $this->resolveGrupoClienteScopeId($request)
+        );
         if (!$ownedConexao) {
             abort(404);
         }
@@ -378,7 +391,11 @@ class AgenciaGrupoController extends Controller
 
     public function connectionGroupInviteInfo(Request $request, Conexao $conexao): JsonResponse
     {
-        $ownedConexao = $this->resolveOwnedConnection((int) $request->user()->id, (int) $conexao->id);
+        $ownedConexao = $this->resolveOwnedConnection(
+            $this->resolveGrupoOwnerUserId($request),
+            (int) $conexao->id,
+            $this->resolveGrupoClienteScopeId($request)
+        );
         if (!$ownedConexao) {
             abort(404);
         }
@@ -422,27 +439,85 @@ class AgenciaGrupoController extends Controller
         ]);
     }
 
-    private function queryAllowedConnections(int $userId)
+    protected function resolveGrupoOwnerUserId(Request $request): int
     {
-        return Conexao::query()
+        return (int) $request->user()->id;
+    }
+
+    protected function resolveGrupoClienteScopeId(Request $request): ?int
+    {
+        return null;
+    }
+
+    protected function resolveGrupoTimezone(Request $request): string
+    {
+        return $this->scheduledMessageService->resolveTimezoneForUser($request->user());
+    }
+
+    protected function grupoRoutePrefix(): string
+    {
+        return 'agencia.grupos';
+    }
+
+    protected function grupoViewLayout(): string
+    {
+        return 'layouts.agencia';
+    }
+
+    protected function showGrupoClienteInfo(): bool
+    {
+        return true;
+    }
+
+    protected function scopedConjuntosQuery(int $userId, ?int $clienteScopeId = null)
+    {
+        $query = GrupoConjunto::query()
+            ->where('user_id', $userId);
+
+        if ($clienteScopeId !== null) {
+            $query->whereHas('conexao', fn ($q) => $q->where('cliente_id', $clienteScopeId));
+        }
+
+        return $query;
+    }
+
+    protected function findOwnedConjunto(int $userId, ?int $clienteScopeId, int $grupoConjuntoId): GrupoConjunto
+    {
+        return $this->scopedConjuntosQuery($userId, $clienteScopeId)->findOrFail($grupoConjuntoId);
+    }
+
+    protected function queryAllowedConnections(int $userId, ?int $clienteScopeId = null)
+    {
+        $query = Conexao::query()
             ->where('is_active', true)
             ->whereNotNull('whatsapp_api_key')
             ->where('whatsapp_api_key', '!=', '')
             ->whereHas('whatsappApi', fn ($query) => $query->where('slug', 'uazapi'))
             ->whereHas('cliente', fn ($query) => $query->where('user_id', $userId));
+
+        if ($clienteScopeId !== null) {
+            $query->where('cliente_id', $clienteScopeId);
+        }
+
+        return $query;
     }
 
-    private function resolveOwnedConnection(int $userId, int $conexaoId): ?Conexao
+    protected function resolveOwnedConnection(int $userId, int $conexaoId, ?int $clienteScopeId = null): ?Conexao
     {
-        return $this->queryAllowedConnections($userId)->find($conexaoId);
+        return $this->queryAllowedConnections($userId, $clienteScopeId)->find($conexaoId);
     }
 
-    private function ensureConjuntoOwnership(GrupoConjunto $grupoConjunto, int $userId): void
+    protected function ensureConjuntoOwnership(GrupoConjunto $grupoConjunto, int $userId, ?int $clienteScopeId = null): void
     {
         abort_unless((int) $grupoConjunto->user_id === $userId, 404);
+
+        if ($clienteScopeId !== null) {
+            $grupoConjunto->loadMissing('conexao');
+            abort_unless((int) ($grupoConjunto->conexao?->cliente_id ?? 0) === $clienteScopeId, 404);
+        }
     }
 
-    private function ensureMensagemOwnership(
+    protected function ensureMensagemOwnership(
         GrupoConjuntoMensagem $grupoConjuntoMensagem,
         GrupoConjunto $grupoConjunto,
         int $userId
@@ -451,9 +526,9 @@ class AgenciaGrupoController extends Controller
         abort_unless((int) $grupoConjuntoMensagem->grupo_conjunto_id === (int) $grupoConjunto->id, 404);
     }
 
-    private function redirectToMessagesTab(GrupoConjunto $grupoConjunto): RedirectResponse
+    protected function redirectToMessagesTab(GrupoConjunto $grupoConjunto): RedirectResponse
     {
-        return redirect()->route('agencia.grupos.index', [
+        return redirect()->route($this->grupoRoutePrefix() . '.index', [
             'conjunto_id' => (int) $grupoConjunto->id,
             'tab' => 'messages',
         ]);

@@ -21,12 +21,14 @@ class Cliente extends Authenticatable
         'telefone',
         'password',
         'is_active',
+        'can_access_groups',
         'last_login_at',
         'metadata',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'can_access_groups' => 'boolean',
         'last_login_at' => 'datetime',
         'metadata' => 'array',
         'password' => 'hashed',

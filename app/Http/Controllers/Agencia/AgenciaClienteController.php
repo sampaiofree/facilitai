@@ -47,6 +47,7 @@ class AgenciaClienteController extends Controller
             ],
             'telefone' => ['nullable', 'string', 'max:30'],
             'is_active' => ['nullable', 'boolean'],
+            'can_access_groups' => ['nullable', 'boolean'],
             'password' => ['required', 'string', 'min:6'],
         ]);
 
@@ -56,6 +57,7 @@ class AgenciaClienteController extends Controller
         $cliente->email = $data['email'];
         $cliente->telefone = $data['telefone'] ?? null;
         $cliente->is_active = isset($data['is_active']) ? (bool) $data['is_active'] : true;
+        $cliente->can_access_groups = $request->boolean('can_access_groups');
         $cliente->password = Hash::make($data['password']);
         $cliente->save();
 
@@ -80,6 +82,7 @@ class AgenciaClienteController extends Controller
             ],
             'telefone' => ['nullable', 'string', 'max:30'],
             'is_active' => ['nullable', 'boolean'],
+            'can_access_groups' => ['nullable', 'boolean'],
             'password' => ['nullable', 'string', 'min:6'],
         ]);
 
@@ -87,6 +90,7 @@ class AgenciaClienteController extends Controller
         $cliente->email = $data['email'];
         $cliente->telefone = $data['telefone'] ?? null;
         $cliente->is_active = isset($data['is_active']) ? (bool) $data['is_active'] : false;
+        $cliente->can_access_groups = $request->boolean('can_access_groups');
 
         if (!empty($data['password'])) {
             $cliente->password = Hash::make($data['password']);

@@ -25,6 +25,7 @@
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Email</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Telefone</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Status</th>
+                    <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Grupos</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Conexões</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Último login</th>
                     <th class="px-5 py-3 text-left font-semibold uppercase tracking-wide text-xs">Registro</th>
@@ -42,6 +43,13 @@
                                 <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Ativo</span>
                             @else
                                 <span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">Inativo</span>
+                            @endif
+                        </td>
+                        <td class="px-5 py-4">
+                            @if($cliente->can_access_groups)
+                                <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">Liberado</span>
+                            @else
+                                <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Bloqueado</span>
                             @endif
                         </td>
                         <td class="px-5 py-4 text-slate-600">
@@ -76,6 +84,7 @@
                                         data-email="{{ $cliente->email }}"
                                         data-telefone="{{ $cliente->telefone }}"
                                         data-active="{{ $cliente->is_active ? '1' : '0' }}"
+                                        data-can-access-groups="{{ $cliente->can_access_groups ? '1' : '0' }}"
                                     >Editar</button>
                                     <form method="POST" action="{{ route('agencia.clientes.destroy', $cliente) }}" onsubmit="return confirm('Deseja excluir este cliente?');">
                                         @csrf
@@ -88,7 +97,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="px-5 py-6 text-center text-slate-500">Nenhum cliente cadastrado.</td>
+                        <td colspan="9" class="px-5 py-6 text-center text-slate-500">Nenhum cliente cadastrado.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -126,6 +135,11 @@
                     <label for="clienteAtivo" class="text-sm text-slate-600">Cliente ativo</label>
                 </div>
 
+                <div class="flex items-center gap-2">
+                    <input id="clienteCanAccessGroups" name="can_access_groups" type="checkbox" value="1" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <label for="clienteCanAccessGroups" class="text-sm text-slate-600">Liberar acesso à área de Grupos</label>
+                </div>
+
                 <div>
                     <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide" for="clienteSenha">Senha</label>
                     <input id="clienteSenha" name="password" type="password" class="mt-1 w-full rounded-lg border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Preencha apenas para criar ou alterar">
@@ -152,6 +166,7 @@
             const email = document.getElementById('clienteEmail');
             const telefone = document.getElementById('clienteTelefone');
             const ativo = document.getElementById('clienteAtivo');
+            const canAccessGroups = document.getElementById('clienteCanAccessGroups');
             const senha = document.getElementById('clienteSenha');
 
             const openModal = () => {
@@ -171,6 +186,7 @@
                 email.value = '';
                 telefone.value = '';
                 ativo.checked = true;
+                canAccessGroups.checked = false;
                 senha.value = '';
             };
 
@@ -197,6 +213,7 @@
                     email.value = button.dataset.email || '';
                     telefone.value = button.dataset.telefone || '';
                     ativo.checked = button.dataset.active === '1';
+                    canAccessGroups.checked = button.dataset.canAccessGroups === '1';
                     senha.value = '';
                     openModal();
                 });

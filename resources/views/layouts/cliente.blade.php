@@ -32,10 +32,12 @@
         $clienteAuth = auth('client')->user();
         $clientName = $clienteAuth?->nome ?: 'Cliente';
         $clientInitial = trim($clientName) !== '' ? mb_strtoupper(mb_substr(trim($clientName), 0, 1)) : 'C';
+        $canAccessGroups = (bool) ($clienteAuth?->can_access_groups ?? false);
         $accountActive = request()->routeIs('cliente.password.*');
         $toolsActive = request()->routeIs('cliente.mensagens-agendadas.*')
             || request()->routeIs('cliente.campos-personalizados.*')
             || request()->routeIs('cliente.webhook-links.*')
+            || ($canAccessGroups && request()->routeIs('cliente.grupos.*'))
             || request()->routeIs('cliente.sequences.*')
             || request()->routeIs('cliente.images.*')
             || request()->routeIs('cliente.tags.*');
@@ -223,6 +225,14 @@
                                 </svg>
                                 Webhook links
                             </a>
+                            @if($canAccessGroups)
+                                <a href="{{ route('cliente.grupos.index') }}" x-on:click="clienteSidebarOpen = false" class="{{ $submenuLink(request()->routeIs('cliente.grupos.*')) }}">
+                                    <svg class="{{ $submenuIcon(request()->routeIs('cliente.grupos.*')) }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm10 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.5 20v-1.5A4.5 4.5 0 0 1 8 14h1a4.5 4.5 0 0 1 4.5 4.5V20M13.5 14H16a4.5 4.5 0 0 1 4.5 4.5V20"/>
+                                    </svg>
+                                    Grupos
+                                </a>
+                            @endif
                             @if($hasAssistants)
                                 <a href="{{ route('cliente.sequences.index') }}" x-on:click="clienteSidebarOpen = false" class="{{ $submenuLink(request()->routeIs('cliente.sequences.*')) }}">
                                     <svg class="{{ $submenuIcon(request()->routeIs('cliente.sequences.*')) }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
