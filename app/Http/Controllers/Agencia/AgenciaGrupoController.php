@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Agencia;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ExecuteGrupoConjuntoMensagemJob;
 use App\Models\Conexao;
 use App\Models\GrupoConjunto;
 use App\Models\GrupoConjuntoMensagem;
-use App\Services\GrupoConjuntoMensagemService;
 use App\Services\ScheduledMessageService;
 use App\Services\UazapiGruposService;
 use Illuminate\Http\JsonResponse;
@@ -24,7 +24,6 @@ class AgenciaGrupoController extends Controller
 {
     public function __construct(
         protected UazapiGruposService $uazapiGruposService,
-        protected GrupoConjuntoMensagemService $grupoConjuntoMensagemService,
         protected ScheduledMessageService $scheduledMessageService
     ) {
     }
@@ -244,15 +243,11 @@ class AgenciaGrupoController extends Controller
                 ->with('success', 'Ação programada com sucesso.');
         }
 
-        $registro = $this->grupoConjuntoMensagemService->dispatchAndPersist($registro, 1);
-
-        if ((string) $registro->status === 'sent') {
-            return $this->redirectToMessagesTab($grupoConjunto)
-                ->with('success', 'Ação executada com sucesso para os grupos do conjunto.');
-        }
+        ExecuteGrupoConjuntoMensagemJob::dispatch((int) $registro->id)
+            ->onQueue('processarconversa');
 
         return $this->redirectToMessagesTab($grupoConjunto)
-            ->with('error', $registro->error_message ?: 'Falha ao executar ação para um ou mais grupos.');
+            ->with('success', 'Ação enviada para a fila de processamento.');
     }
 
     public function updateMessage(
@@ -313,15 +308,11 @@ class AgenciaGrupoController extends Controller
                 ->with('success', 'Ação programada atualizada com sucesso.');
         }
 
-        $grupoConjuntoMensagem = $this->grupoConjuntoMensagemService->dispatchAndPersist($grupoConjuntoMensagem, 1);
-
-        if ((string) $grupoConjuntoMensagem->status === 'sent') {
-            return $this->redirectToMessagesTab($grupoConjunto)
-                ->with('success', 'Ação executada com sucesso para os grupos do conjunto.');
-        }
+        ExecuteGrupoConjuntoMensagemJob::dispatch((int) $grupoConjuntoMensagem->id)
+            ->onQueue('processarconversa');
 
         return $this->redirectToMessagesTab($grupoConjunto)
-            ->with('error', $grupoConjuntoMensagem->error_message ?: 'Falha ao executar ação para um ou mais grupos.');
+            ->with('success', 'Ação enviada para a fila de processamento.');
     }
 
     public function destroyMessage(

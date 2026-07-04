@@ -11,28 +11,22 @@ class GrupoConjuntoActionTimingService
 {
     private const PRESET_RULES = [
         'fast' => [
-            'send_interval_seconds' => 1,
-            'update_interval_seconds' => 4,
-            'jitter_min_seconds' => 0,
-            'jitter_max_seconds' => 1,
+            'action_interval_min_seconds' => 5,
+            'action_interval_max_seconds' => 30,
             'group_cooldown_seconds' => 15,
             'group_image_cooldown_seconds' => 30,
             'connection_max_per_minute' => 30,
         ],
         'standard' => [
-            'send_interval_seconds' => 3,
-            'update_interval_seconds' => 8,
-            'jitter_min_seconds' => 0,
-            'jitter_max_seconds' => 2,
+            'action_interval_min_seconds' => 5,
+            'action_interval_max_seconds' => 30,
             'group_cooldown_seconds' => 30,
             'group_image_cooldown_seconds' => 60,
             'connection_max_per_minute' => 15,
         ],
         'conservative' => [
-            'send_interval_seconds' => 5,
-            'update_interval_seconds' => 12,
-            'jitter_min_seconds' => 1,
-            'jitter_max_seconds' => 4,
+            'action_interval_min_seconds' => 5,
+            'action_interval_max_seconds' => 30,
             'group_cooldown_seconds' => 45,
             'group_image_cooldown_seconds' => 90,
             'connection_max_per_minute' => 10,
@@ -178,20 +172,13 @@ class GrupoConjuntoActionTimingService
                 return $wait;
             }
 
-            $baseInterval = in_array($actionType, [
-                GrupoConjuntoMensagem::ACTION_SEND_TEXT,
-                GrupoConjuntoMensagem::ACTION_SEND_MEDIA,
-            ], true)
-                ? max(0, (int) ($rules['send_interval_seconds'] ?? 3))
-                : max(0, (int) ($rules['update_interval_seconds'] ?? 8));
-
-            $jitterMin = max(0, (int) ($rules['jitter_min_seconds'] ?? 0));
-            $jitterMax = max($jitterMin, (int) ($rules['jitter_max_seconds'] ?? 0));
-            $jitter = $jitterMax > 0 ? random_int($jitterMin, $jitterMax) : 0;
+            $intervalMin = max(1, (int) ($rules['action_interval_min_seconds'] ?? 5));
+            $intervalMax = max($intervalMin, (int) ($rules['action_interval_max_seconds'] ?? 30));
+            $actionInterval = random_int($intervalMin, $intervalMax);
 
             $history[] = $now;
             $state['history'] = $history;
-            $state['next_action_at'] = $now + $baseInterval + $jitter;
+            $state['next_action_at'] = $now + $actionInterval;
             $state['error_streak'] = 0;
 
             $this->persistConnectionState($conexaoId, $state);
@@ -263,7 +250,7 @@ class GrupoConjuntoActionTimingService
     private function resolveMaxWaitSeconds(): float
     {
         if (app()->runningInConsole()) {
-            $value = (float) config('services.group_actions_timing.max_wait_seconds_worker', 20);
+            $value = (float) config('services.group_actions_timing.max_wait_seconds_worker', 45);
             return max(0.5, $value);
         }
 

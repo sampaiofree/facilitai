@@ -81,7 +81,7 @@ return [
         'preset' => env('GROUP_ACTION_TIMING_PRESET', 'standard'),
         'skip_in_tests' => (bool) env('GROUP_ACTION_TIMING_SKIP_IN_TESTS', true),
         'max_wait_seconds_web' => (float) env('GROUP_ACTION_TIMING_MAX_WAIT_SECONDS_WEB', 2.5),
-        'max_wait_seconds_worker' => (float) env('GROUP_ACTION_TIMING_MAX_WAIT_SECONDS_WORKER', 20),
+        'max_wait_seconds_worker' => (float) env('GROUP_ACTION_TIMING_MAX_WAIT_SECONDS_WORKER', 45),
     ],
     'dev' => [
         'whatsapp' => env('DEV_WHATSAPP'),

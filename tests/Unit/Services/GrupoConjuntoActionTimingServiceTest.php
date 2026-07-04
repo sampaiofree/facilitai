@@ -3,9 +3,11 @@
 namespace Tests\Unit\Services;
 
 use App\Models\AgencySetting;
+use App\Models\GrupoConjuntoMensagem;
 use App\Models\User;
 use App\Services\GrupoConjuntoActionTimingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
@@ -27,7 +29,8 @@ class GrupoConjuntoActionTimingServiceTest extends TestCase
 
         $this->assertSame('conservative', $service->resolvePresetForUser((int) $user->id));
         $rules = $service->resolveRulesForUser((int) $user->id);
-        $this->assertSame(12, $rules['update_interval_seconds']);
+        $this->assertSame(5, $rules['action_interval_min_seconds']);
+        $this->assertSame(30, $rules['action_interval_max_seconds']);
         $this->assertSame(10, $rules['connection_max_per_minute']);
     }
 
@@ -40,7 +43,8 @@ class GrupoConjuntoActionTimingServiceTest extends TestCase
 
         $this->assertSame('fast', $service->resolvePresetForUser((int) $user->id));
         $rules = $service->resolveRulesForUser((int) $user->id);
-        $this->assertSame(1, $rules['send_interval_seconds']);
+        $this->assertSame(5, $rules['action_interval_min_seconds']);
+        $this->assertSame(30, $rules['action_interval_max_seconds']);
         $this->assertSame(30, $rules['connection_max_per_minute']);
     }
 
@@ -56,5 +60,31 @@ class GrupoConjuntoActionTimingServiceTest extends TestCase
 
         $service = new GrupoConjuntoActionTimingService();
         $this->assertSame('standard', $service->resolvePresetForUser((int) $user->id));
+    }
+
+    public function test_all_group_action_types_reserve_interval_between_five_and_thirty_seconds(): void
+    {
+        Config::set('services.group_actions_timing.enabled', true);
+        Config::set('services.group_actions_timing.skip_in_tests', false);
+        Config::set('services.group_actions_timing.preset', 'standard');
+        Cache::flush();
+
+        $service = new GrupoConjuntoActionTimingService();
+
+        foreach (GrupoConjuntoMensagem::ACTION_TYPES as $index => $actionType) {
+            $conexaoId = 9000 + $index;
+            $groupJid = "12036315374256102{$index}@g.us";
+
+            $before = microtime(true);
+            $this->assertTrue($service->acquireDispatchSlot(1, $conexaoId, $groupJid, $actionType));
+            $after = microtime(true);
+
+            $state = Cache::get("gcm_timing:conn:{$conexaoId}:state");
+            $this->assertIsArray($state);
+
+            $nextActionAt = (float) ($state['next_action_at'] ?? 0);
+            $this->assertGreaterThanOrEqual(4.5, $nextActionAt - $after);
+            $this->assertLessThanOrEqual(30.5, $nextActionAt - $before);
+        }
     }
 }

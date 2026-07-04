@@ -7,8 +7,10 @@ use App\Models\GrupoConjuntoItem;
 use App\Models\GrupoConjuntoMensagem;
 use App\Models\User;
 use App\Models\WhatsappApi;
+use App\Jobs\ExecuteGrupoConjuntoMensagemJob;
 use App\Services\UazapiGruposService;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Queue;
 use Mockery\MockInterface;
 
 function clienteGruposMakeCliente(User $user, array $attributes = []): Cliente
@@ -283,6 +285,45 @@ test('cliente agenda acao registrando user e criador como dono da agencia', func
     expect($registro->status)->toBe('pending');
     expect($registro->dispatch_type)->toBe('scheduled');
     expect(data_get($registro->payload, 'text'))->toBe('Mensagem programada pelo cliente');
+});
+
+test('cliente envia acao imediata para fila usando owner user da agencia', function () {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $provider = clienteGruposMakeUazapiProvider();
+    $cliente = clienteGruposMakeCliente($user);
+    $conexao = clienteGruposMakeUazapiConexao($cliente, $provider, ['whatsapp_api_key' => 'token-cliente']);
+    $conjunto = clienteGruposMakeConjunto($user, $conexao, ['name' => 'Conjunto Imediato']);
+    clienteGruposAddItem($conjunto, ['group_name' => 'Grupo Imediato']);
+
+    $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
+        $mock->shouldReceive('sendTextToGroup')
+            ->never();
+    });
+
+    $response = $this->actingAs($cliente, 'client')->post(route('cliente.grupos.mensagens.store', $conjunto), [
+        'action_type' => 'send_text',
+        'text' => 'Mensagem imediata pelo cliente',
+        'send_type' => 'now',
+    ]);
+
+    $response->assertRedirect(route('cliente.grupos.index', [
+        'conjunto_id' => $conjunto->id,
+        'tab' => 'messages',
+    ]));
+
+    $registro = GrupoConjuntoMensagem::query()
+        ->where('grupo_conjunto_id', $conjunto->id)
+        ->firstOrFail();
+
+    expect((int) $registro->user_id)->toBe((int) $user->id);
+    expect((int) $registro->created_by_user_id)->toBe((int) $user->id);
+    expect($registro->status)->toBe('queued');
+    expect($registro->dispatch_type)->toBe('now');
+    expect($registro->queued_at)->not->toBeNull();
+    expect(data_get($registro->payload, 'text'))->toBe('Mensagem imediata pelo cliente');
+    Queue::assertPushedOn('processarconversa', ExecuteGrupoConjuntoMensagemJob::class);
 });
 
 test('cliente sem permissao nao ve menu nem acessa grupos diretamente', function () {

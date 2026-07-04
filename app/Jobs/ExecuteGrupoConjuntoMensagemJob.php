@@ -18,7 +18,7 @@ class ExecuteGrupoConjuntoMensagemJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 4;
-    public int $timeout = 360;
+    public int $timeout = 3600;
 
     public function __construct(private readonly int $grupoConjuntoMensagemId)
     {

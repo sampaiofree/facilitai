@@ -8,9 +8,11 @@ use App\Models\GrupoConjuntoItem;
 use App\Models\GrupoConjuntoMensagem;
 use App\Models\User;
 use App\Models\WhatsappApi;
+use App\Jobs\ExecuteGrupoConjuntoMensagemJob;
 use App\Services\UazapiGruposService;
 use Illuminate\Support\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Mockery\MockInterface;
 
 uses(RefreshDatabase::class);
@@ -587,6 +589,8 @@ test('endpoint de convite da conexao retorna erro consistente quando uazapi falh
 });
 
 test('cria acao imediata send_text para conjunto e registra envio', function () {
+    Queue::fake();
+
     $user = User::factory()->create();
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-xyz']);
@@ -611,13 +615,7 @@ test('cria acao imediata send_text para conjunto e registra envio', function () 
 
     $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
         $mock->shouldReceive('sendTextToGroup')
-            ->times(2)
-            ->withArgs(function (string $token, string $jid, string $text): bool {
-                return $token === 'token-xyz'
-                    && in_array($jid, ['120363153742561022@g.us', '120363339858396166@g.us'], true)
-                    && $text === 'Mensagem imediata para grupos';
-            })
-            ->andReturn(['ok' => true, 'status' => 200]);
+            ->never();
     });
 
     $response = $this->actingAs($user)->post(route('agencia.grupos.mensagens.store', $conjunto), [
@@ -637,14 +635,18 @@ test('cria acao imediata send_text para conjunto e registra envio', function () 
         ->firstOrFail();
 
     expect($registro->dispatch_type)->toBe('now');
-    expect($registro->status)->toBe('sent');
+    expect($registro->status)->toBe('queued');
     expect($registro->action_type)->toBe('send_text');
     expect(data_get($registro->payload, 'text'))->toBe('Mensagem imediata para grupos');
-    expect($registro->sent_count)->toBe(2);
+    expect($registro->queued_at)->not->toBeNull();
+    expect($registro->sent_count)->toBe(0);
     expect($registro->failed_count)->toBe(0);
+    Queue::assertPushedOn('processarconversa', ExecuteGrupoConjuntoMensagemJob::class);
 });
 
 test('cria acao send_text com marcar todos e envia mentions all', function () {
+    Queue::fake();
+
     $user = User::factory()->create();
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-mentions']);
@@ -663,14 +665,7 @@ test('cria acao send_text com marcar todos e envia mentions all', function () {
 
     $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
         $mock->shouldReceive('sendTextToGroup')
-            ->once()
-            ->with(
-                'token-mentions',
-                '120363153742561022@g.us',
-                'Aviso para todos',
-                ['mentions' => 'all']
-            )
-            ->andReturn(['ok' => true, 'status' => 200]);
+            ->never();
     });
 
     $response = $this->actingAs($user)->post(route('agencia.grupos.mensagens.store', $conjunto), [
@@ -690,8 +685,9 @@ test('cria acao send_text com marcar todos e envia mentions all', function () {
         ->latest('id')
         ->firstOrFail();
 
-    expect($registro->status)->toBe('sent');
+    expect($registro->status)->toBe('queued');
     expect(data_get($registro->payload, 'mention_all'))->toBeTrue();
+    Queue::assertPushedOn('processarconversa', ExecuteGrupoConjuntoMensagemJob::class);
 });
 
 test('index da aba mensagens exibe historico unificado de acoes', function () {
@@ -752,6 +748,8 @@ test('index da aba mensagens exibe historico unificado de acoes', function () {
 });
 
 test('cria acao imediata send_media com legenda opcional', function () {
+    Queue::fake();
+
     $user = User::factory()->create();
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-mid']);
@@ -770,15 +768,7 @@ test('cria acao imediata send_media com legenda opcional', function () {
 
     $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
         $mock->shouldReceive('sendMediaToGroup')
-            ->once()
-            ->with(
-                'token-mid',
-                '120363153742561022@g.us',
-                'image',
-                'https://example.com/banner.jpg',
-                ['text' => 'Legenda da imagem']
-            )
-            ->andReturn(['ok' => true, 'status' => 200]);
+            ->never();
     });
 
     $response = $this->actingAs($user)->post(route('agencia.grupos.mensagens.store', $conjunto), [
@@ -803,10 +793,13 @@ test('cria acao imediata send_media com legenda opcional', function () {
     expect(data_get($registro->payload, 'media_type'))->toBe('image');
     expect(data_get($registro->payload, 'media_url'))->toBe('https://example.com/banner.jpg');
     expect(data_get($registro->payload, 'caption'))->toBe('Legenda da imagem');
-    expect($registro->status)->toBe('sent');
+    expect($registro->status)->toBe('queued');
+    Queue::assertPushedOn('processarconversa', ExecuteGrupoConjuntoMensagemJob::class);
 });
 
 test('cria acoes imediatas de update de grupo chamando endpoints corretos', function () {
+    Queue::fake();
+
     $user = User::factory()->create();
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-upd']);
@@ -825,19 +818,13 @@ test('cria acoes imediatas de update de grupo chamando endpoints corretos', func
 
     $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
         $mock->shouldReceive('updateGroupName')
-            ->once()
-            ->with('token-upd', '120363153742561022@g.us', 'Novo Titulo')
-            ->andReturn(['ok' => true, 'status' => 200]);
+            ->never();
 
         $mock->shouldReceive('updateGroupDescription')
-            ->once()
-            ->with('token-upd', '120363153742561022@g.us', 'Nova descricao oficial')
-            ->andReturn(['ok' => true, 'status' => 200]);
+            ->never();
 
         $mock->shouldReceive('updateGroupImage')
-            ->once()
-            ->with('token-upd', '120363153742561022@g.us', 'https://example.com/new-photo.png')
-            ->andReturn(['ok' => true, 'status' => 200]);
+            ->never();
     });
 
     $this->actingAs($user)->post(route('agencia.grupos.mensagens.store', $conjunto), [
@@ -861,18 +848,20 @@ test('cria acoes imediatas de update de grupo chamando endpoints corretos', func
     $this->assertDatabaseHas('grupo_conjunto_mensagens', [
         'grupo_conjunto_id' => $conjunto->id,
         'action_type' => 'update_group_name',
-        'status' => 'sent',
+        'status' => 'queued',
     ]);
     $this->assertDatabaseHas('grupo_conjunto_mensagens', [
         'grupo_conjunto_id' => $conjunto->id,
         'action_type' => 'update_group_description',
-        'status' => 'sent',
+        'status' => 'queued',
     ]);
     $this->assertDatabaseHas('grupo_conjunto_mensagens', [
         'grupo_conjunto_id' => $conjunto->id,
         'action_type' => 'update_group_image',
-        'status' => 'sent',
+        'status' => 'queued',
     ]);
+    Queue::assertPushedOn('processarconversa', ExecuteGrupoConjuntoMensagemJob::class);
+    Queue::assertPushed(ExecuteGrupoConjuntoMensagemJob::class, 3);
 });
 
 test('cria acoes programadas com timezone de agency setting', function () {
@@ -940,6 +929,8 @@ test('cria acoes programadas com timezone de agency setting', function () {
 });
 
 test('edita acao pendente e envia agora usando o mesmo modal', function () {
+    Queue::fake();
+
     $user = User::factory()->create();
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-xyz']);
@@ -971,15 +962,7 @@ test('edita acao pendente e envia agora usando o mesmo modal', function () {
 
     $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
         $mock->shouldReceive('sendMediaToGroup')
-            ->once()
-            ->with(
-                'token-xyz',
-                '120363153742561022@g.us',
-                'document',
-                'https://example.com/novo-arquivo.pdf',
-                ['text' => 'Confira o arquivo']
-            )
-            ->andReturn(['ok' => true, 'status' => 200]);
+            ->never();
     });
 
     $response = $this->actingAs($user)->patch(route('agencia.grupos.mensagens.update', [
@@ -1002,8 +985,9 @@ test('edita acao pendente e envia agora usando o mesmo modal', function () {
         'id' => $mensagem->id,
         'action_type' => 'send_media',
         'dispatch_type' => 'now',
-        'status' => 'sent',
+        'status' => 'queued',
     ]);
+    Queue::assertPushedOn('processarconversa', ExecuteGrupoConjuntoMensagemJob::class);
 });
 
 test('retorna erro de validacao por tipo de acao', function () {
