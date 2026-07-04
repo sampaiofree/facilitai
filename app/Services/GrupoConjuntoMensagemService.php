@@ -38,7 +38,7 @@ class GrupoConjuntoMensagemService
                 'attempts' => $attemptValue,
             ]);
 
-            return $mensagem->fresh();
+            return $this->freshMensagem($mensagem);
         }
 
         $recipients = $this->normalizeRecipients((array) ($mensagem->recipients ?? []));
@@ -52,7 +52,7 @@ class GrupoConjuntoMensagemService
                 'attempts' => $attemptValue,
             ]);
 
-            return $mensagem->fresh();
+            return $this->freshMensagem($mensagem);
         }
 
         $resolvedAction = $this->resolveActionData($mensagem);
@@ -65,7 +65,7 @@ class GrupoConjuntoMensagemService
                 'attempts' => $attemptValue,
             ]);
 
-            return $mensagem->fresh();
+            return $this->freshMensagem($mensagem);
         }
 
         $actionType = (string) $resolvedAction['action_type'];
@@ -172,7 +172,7 @@ class GrupoConjuntoMensagemService
             'attempts' => $attemptValue,
         ]);
 
-        return $mensagem->fresh();
+        return $this->freshMensagem($mensagem);
     }
 
     /**
@@ -237,7 +237,7 @@ class GrupoConjuntoMensagemService
             return $isLastRecipient
                 ? $this->finishRecipientDispatch($mensagem, $nowUtc, $attemptValue)
                 : [
-                    'mensagem' => $mensagem->fresh(),
+                    'mensagem' => $this->freshMensagem($mensagem),
                     'deferred' => false,
                     'delay_seconds' => 0,
                     'completed' => false,
@@ -253,7 +253,7 @@ class GrupoConjuntoMensagemService
 
         if ($waitSeconds > 0) {
             return [
-                'mensagem' => $mensagem->fresh(),
+                'mensagem' => $this->freshMensagem($mensagem),
                 'deferred' => true,
                 'delay_seconds' => max(1, (int) ceil($waitSeconds)),
                 'completed' => false,
@@ -324,7 +324,7 @@ class GrupoConjuntoMensagemService
             'attempts' => $attemptValue,
         ]);
 
-        return $mensagem->fresh();
+        return $this->freshMensagem($mensagem);
     }
 
     private function finishRecipientDispatch(
@@ -352,7 +352,7 @@ class GrupoConjuntoMensagemService
             'attempts' => $attemptValue,
         ]);
 
-        return $this->completedRecipientResult($mensagem->fresh());
+        return $this->completedRecipientResult($this->freshMensagem($mensagem));
     }
 
     private function persistRecipientResult(
@@ -395,7 +395,7 @@ class GrupoConjuntoMensagemService
         $mensagem->update($payload);
 
         return [
-            'mensagem' => $mensagem->fresh(),
+            'mensagem' => $this->freshMensagem($mensagem),
             'deferred' => false,
             'delay_seconds' => 0,
             'completed' => $isLastRecipient,
@@ -471,6 +471,11 @@ class GrupoConjuntoMensagemService
         }
 
         return null;
+    }
+
+    private function freshMensagem(GrupoConjuntoMensagem $mensagem): GrupoConjuntoMensagem
+    {
+        return $mensagem->fresh() ?? $mensagem;
     }
 
     private function resolveActionData(GrupoConjuntoMensagem $mensagem): array

@@ -312,6 +312,52 @@ class GrupoConjuntoMensagemServiceTest extends TestCase
         $this->assertSame(0, (int) $updated->failed_count);
     }
 
+    public function test_dispatch_and_persist_never_returns_null_when_fresh_model_is_missing(): void
+    {
+        [$user, $conexao, $conjunto] = $this->makeConjuntoContext('token-missing-fresh');
+
+        $mensagem = GrupoConjuntoMensagem::create([
+            'user_id' => $user->id,
+            'created_by_user_id' => $user->id,
+            'grupo_conjunto_id' => $conjunto->id,
+            'conexao_id' => $conexao->id,
+            'mensagem' => 'Texto sem fresh',
+            'action_type' => GrupoConjuntoMensagem::ACTION_SEND_TEXT,
+            'payload' => ['text' => 'Texto sem fresh'],
+            'dispatch_type' => 'now',
+            'status' => 'queued',
+            'recipients' => [
+                ['jid' => '120363153742561022@g.us', 'name' => 'Grupo A'],
+            ],
+            'queued_at' => now('UTC'),
+        ]);
+
+        GrupoConjuntoMensagem::query()
+            ->whereKey($mensagem->id)
+            ->delete();
+
+        $mock = \Mockery::mock(UazapiGruposService::class);
+        $mock->shouldReceive('sendTextToGroup')
+            ->once()
+            ->with('token-missing-fresh', '120363153742561022@g.us', 'Texto sem fresh')
+            ->andReturn(['ok' => true, 'status' => 200]);
+
+        $timing = \Mockery::mock(GrupoConjuntoActionTimingService::class);
+        $timing->shouldReceive('acquireDispatchSlot')
+            ->once()
+            ->andReturn(true);
+        $timing->shouldReceive('registerRemoteStatus')
+            ->once()
+            ->with($conexao->id, 200);
+
+        $service = new GrupoConjuntoMensagemService($mock, $timing);
+        $updated = $service->dispatchAndPersist($mensagem, 1);
+
+        $this->assertInstanceOf(GrupoConjuntoMensagem::class, $updated);
+        $this->assertSame('sent', $updated->status);
+        $this->assertSame(1, (int) $updated->sent_count);
+    }
+
     public function test_dispatch_recipient_and_persist_processes_only_one_group_and_keeps_batch_queued(): void
     {
         [$user, $conexao, $conjunto] = $this->makeConjuntoContext('token-recipient');
