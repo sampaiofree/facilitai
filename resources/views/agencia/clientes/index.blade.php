@@ -75,6 +75,12 @@
                                         <button type="submit" class="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700">Excluir definitivamente</button>
                                     </form>
                                 @else
+                                    @if($cliente->is_active)
+                                        <a
+                                            href="{{ route('agencia.clientes.dashboard', $cliente) }}"
+                                            class="rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-900"
+                                        >Dashboard</a>
+                                    @endif
                                     <button
                                         type="button"
                                         class="rounded-lg bg-indigo-500 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-600"

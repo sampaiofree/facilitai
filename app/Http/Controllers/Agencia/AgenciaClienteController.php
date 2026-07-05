@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Agencia;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -101,6 +102,28 @@ class AgenciaClienteController extends Controller
         return redirect()
             ->route('agencia.clientes.index')
             ->with('success', 'Cliente atualizado com sucesso.');
+    }
+
+    public function dashboard(Request $request, Cliente $cliente)
+    {
+        $this->ensureOwner($request, $cliente);
+
+        if (!$cliente->is_active) {
+            return redirect()
+                ->route('agencia.clientes.index')
+                ->with('error', 'Nao e possivel acessar a dashboard de um cliente inativo.');
+        }
+
+        Auth::guard('client')->logout();
+        $request->session()->regenerate();
+
+        Auth::guard('client')->login($cliente);
+
+        $cliente->forceFill([
+            'last_login_at' => now(),
+        ])->save();
+
+        return redirect()->route('cliente.dashboard');
     }
 
     public function destroy(Request $request, Cliente $cliente)

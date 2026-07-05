@@ -361,6 +361,7 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
     })->name('dashboard.asaas-subscription-link');
     Route::get('clientes', [AgenciaClienteController::class, 'index'])->name('clientes.index');
     Route::post('clientes', [AgenciaClienteController::class, 'store'])->name('clientes.store');
+    Route::get('clientes/{cliente}/dashboard', [AgenciaClienteController::class, 'dashboard'])->name('clientes.dashboard');
     Route::patch('clientes/{cliente}', [AgenciaClienteController::class, 'update'])->name('clientes.update');
     Route::patch('clientes/{cliente}/restore', [AgenciaClienteController::class, 'restore'])->name('clientes.restore');
     Route::delete('clientes/{cliente}/force', [AgenciaClienteController::class, 'forceDelete'])->name('clientes.forceDelete');
