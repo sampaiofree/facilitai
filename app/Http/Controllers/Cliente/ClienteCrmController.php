@@ -42,11 +42,10 @@ class ClienteCrmController extends Controller
         $searchValue = trim((string) $request->input('q', ''));
         $searchTerm = $this->resolveSearchTerm($searchValue);
         $columns = $this->pipelineColumns($crmPipeline);
-        $availableTags = $this->availableTags($cliente);
         $board = $columns
             ->values()
             ->map(function (ClienteCrmPipelineColumn $column, int $index) use ($cliente, $columns, $searchTerm): array {
-                $viewData = $this->buildColumnViewData($cliente, $columns, $column, $searchTerm);
+                $viewData = $this->buildColumnViewData($cliente, $column, $searchTerm);
                 $viewData['can_move_left'] = $index > 0;
                 $viewData['can_move_right'] = $index < ($columns->count() - 1);
 
@@ -59,7 +58,6 @@ class ClienteCrmController extends Controller
             'crmPipeline' => $crmPipeline,
             'board' => $board,
             'columns' => $columns,
-            'availableTags' => $availableTags,
             'searchValue' => $searchValue,
             'searchTerm' => $searchTerm,
             'leadsPerColumn' => self::LEADS_PER_COLUMN,
@@ -184,30 +182,8 @@ class ClienteCrmController extends Controller
         $this->ensurePipelineBelongsToCliente($crmPipeline, $cliente);
 
         $data = $request->validate([
-            'tag_id' => ['required', 'integer'],
+            'name' => ['required', 'string', 'max:191'],
         ]);
-
-        $tag = Tag::query()
-            ->where('id', (int) $data['tag_id'])
-            ->where('cliente_id', $cliente->id)
-            ->where('user_id', $cliente->user_id)
-            ->first();
-
-        if (!$tag) {
-            throw ValidationException::withMessages([
-                'tag_id' => ['Selecione uma tag válida do cliente.'],
-            ]);
-        }
-
-        $alreadyExists = ClienteCrmPipelineColumn::query()
-            ->where('tag_id', $tag->id)
-            ->exists();
-
-        if ($alreadyExists) {
-            throw ValidationException::withMessages([
-                'tag_id' => ['Esta tag já está em uso em outra pipeline do CRM.'],
-            ]);
-        }
 
         $position = (int) ClienteCrmPipelineColumn::query()
             ->where('pipeline_id', $crmPipeline->id)
@@ -215,7 +191,7 @@ class ClienteCrmController extends Controller
 
         $column = ClienteCrmPipelineColumn::query()->create([
             'pipeline_id' => $crmPipeline->id,
-            'tag_id' => $tag->id,
+            'name' => trim((string) $data['name']),
             'position' => max(1, $position),
         ]);
 
@@ -354,7 +330,7 @@ class ClienteCrmController extends Controller
         $searchTerm = $this->resolveSearchTerm((string) ($data['q'] ?? ''));
         $columns = $this->pipelineColumns($crmPipeline);
 
-        $query = $this->visibleLeadsQuery($cliente, $columns, $crmColumn, $searchTerm);
+        $query = $this->visibleLeadsQuery($cliente, $crmColumn, $searchTerm);
         $total = (clone $query)->count();
         $items = (clone $query)
             ->offset($offset)
@@ -462,7 +438,7 @@ class ClienteCrmController extends Controller
 
         $columns = $this->pipelineColumns($crmPipeline);
         $previousColumn = $this->resolveVisibleColumnForLead($clienteLead, $columns);
-        $newTagIds = $this->assignLeadToColumn($clienteLead, $columns, $crmColumn);
+        $this->assignLeadToColumn($clienteLead, $crmColumn);
         $clienteLead->load('tags');
 
         return response()->json([
@@ -470,7 +446,7 @@ class ClienteCrmController extends Controller
             'lead_id' => (int) $clienteLead->id,
             'column_id' => (int) $crmColumn->id,
             'previous_column_id' => $previousColumn?->id ? (int) $previousColumn->id : null,
-            'tag_ids' => $newTagIds,
+            'tag_ids' => $clienteLead->tags->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
             'lead' => $this->mapLeadCard($clienteLead),
         ]);
     }
@@ -497,14 +473,14 @@ class ClienteCrmController extends Controller
 
         $clienteLead->loadMissing('tags');
         $previousColumn = $this->resolveVisibleColumnForLead($clienteLead, $columns);
-        $newTagIds = $this->assignLeadToColumn($clienteLead, $columns, $targetColumn);
+        $this->assignLeadToColumn($clienteLead, $targetColumn);
         $clienteLead->load('tags');
 
         return response()->json([
             'message' => 'Lead movido com sucesso.',
             'column_id' => (int) $targetColumn->id,
             'previous_column_id' => $previousColumn?->id ? (int) $previousColumn->id : null,
-            'tag_ids' => $newTagIds,
+            'tag_ids' => $clienteLead->tags->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
             'lead' => $this->mapLeadCard($clienteLead),
         ]);
     }
@@ -518,14 +494,14 @@ class ClienteCrmController extends Controller
         $columns = $this->pipelineColumns($crmPipeline);
         $clienteLead->loadMissing('tags');
         $previousColumn = $this->resolveVisibleColumnForLead($clienteLead, $columns);
-        $newTagIds = $this->removeLeadFromPipelineTags($clienteLead, $columns);
+        $this->removeLeadFromPipelineStage($clienteLead, $crmPipeline);
         $clienteLead->load('tags');
 
         return response()->json([
             'message' => 'Lead removido da pipeline com sucesso.',
             'lead_id' => (int) $clienteLead->id,
             'previous_column_id' => $previousColumn?->id ? (int) $previousColumn->id : null,
-            'tag_ids' => $newTagIds,
+            'tag_ids' => $clienteLead->tags->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
         ]);
     }
 
@@ -550,26 +526,15 @@ class ClienteCrmController extends Controller
     private function pipelineColumns(ClienteCrmPipeline $crmPipeline): Collection
     {
         return ClienteCrmPipelineColumn::query()
-            ->with('tag')
             ->where('pipeline_id', $crmPipeline->id)
             ->orderBy('position')
             ->orderBy('id')
             ->get();
     }
 
-    private function availableTags(Cliente $cliente): Collection
+    private function buildColumnViewData(Cliente $cliente, ClienteCrmPipelineColumn $column, string $searchTerm): array
     {
-        return Tag::query()
-            ->where('cliente_id', $cliente->id)
-            ->where('user_id', $cliente->user_id)
-            ->whereDoesntHave('crmPipelineColumn')
-            ->orderBy('name')
-            ->get();
-    }
-
-    private function buildColumnViewData(Cliente $cliente, Collection $columns, ClienteCrmPipelineColumn $column, string $searchTerm): array
-    {
-        $query = $this->visibleLeadsQuery($cliente, $columns, $column, $searchTerm);
+        $query = $this->visibleLeadsQuery($cliente, $column, $searchTerm);
         $count = (clone $query)->count();
         $items = (clone $query)
             ->limit(self::LEADS_PER_COLUMN)
@@ -579,9 +544,7 @@ class ClienteCrmController extends Controller
         return [
             'id' => (int) $column->id,
             'position' => (int) $column->position,
-            'tag_id' => (int) $column->tag_id,
-            'tag_name' => trim((string) ($column->tag?->name ?? 'Sem tag')),
-            'tag_color' => trim((string) ($column->tag?->color ?? '')),
+            'name' => trim((string) ($column->name ?: 'Etapa sem nome')),
             'count' => $count,
             'has_more' => $count > count($leads),
             'next_offset' => count($leads),
@@ -589,22 +552,18 @@ class ClienteCrmController extends Controller
         ];
     }
 
-    private function visibleLeadsQuery(Cliente $cliente, Collection $columns, ClienteCrmPipelineColumn $column, string $searchTerm): Builder
+    private function visibleLeadsQuery(Cliente $cliente, ClienteCrmPipelineColumn $column, string $searchTerm): Builder
     {
-        $rightTagIds = $columns
-            ->filter(fn (ClienteCrmPipelineColumn $candidate) => (int) $candidate->position > (int) $column->position)
-            ->pluck('tag_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
         $query = ClienteLead::query()
             ->with('tags')
             ->where('cliente_id', $cliente->id)
-            ->whereHas('tags', fn (Builder $builder) => $builder->where('tags.id', $column->tag_id));
-
-        if ($rightTagIds !== []) {
-            $query->whereDoesntHave('tags', fn (Builder $builder) => $builder->whereIn('tags.id', $rightTagIds));
-        }
+            ->whereExists(function ($subQuery) use ($column): void {
+                $subQuery->selectRaw('1')
+                    ->from('cliente_crm_pipeline_leads')
+                    ->whereColumn('cliente_crm_pipeline_leads.cliente_lead_id', 'cliente_lead.id')
+                    ->where('cliente_crm_pipeline_leads.pipeline_id', (int) $column->pipeline_id)
+                    ->where('cliente_crm_pipeline_leads.column_id', (int) $column->id);
+            });
 
         $this->applySearchTerm($query, $searchTerm);
 
@@ -747,52 +706,65 @@ class ClienteCrmController extends Controller
 
         return array_merge($card, [
             'current_column_id' => $visibleColumn?->id ? (int) $visibleColumn->id : null,
-            'current_column_name' => $visibleColumn?->tag?->name ?: null,
+            'current_column_name' => $visibleColumn?->name ?: null,
             'same_column' => (int) ($visibleColumn?->id ?? 0) === (int) $targetColumn->id,
         ]);
     }
 
     private function resolveVisibleColumnForLead(ClienteLead $lead, Collection $columns): ?ClienteCrmPipelineColumn
     {
-        $tagIds = $lead->tags->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $pipelineId = (int) ($columns->first()?->pipeline_id ?? 0);
 
-        if ($tagIds === []) {
+        if ($pipelineId <= 0) {
+            return null;
+        }
+
+        $columnId = DB::table('cliente_crm_pipeline_leads')
+            ->where('pipeline_id', $pipelineId)
+            ->where('cliente_lead_id', $lead->id)
+            ->value('column_id');
+
+        if (!$columnId) {
             return null;
         }
 
         /** @var ClienteCrmPipelineColumn|null $column */
-        $column = $columns
-            ->filter(fn (ClienteCrmPipelineColumn $candidate) => in_array((int) $candidate->tag_id, $tagIds, true))
-            ->sortByDesc('position')
-            ->first();
+        $column = $columns->firstWhere('id', (int) $columnId);
 
         return $column;
     }
 
-    private function assignLeadToColumn(ClienteLead $clienteLead, Collection $columns, ClienteCrmPipelineColumn $targetColumn): array
+    private function assignLeadToColumn(ClienteLead $clienteLead, ClienteCrmPipelineColumn $targetColumn): void
     {
-        $pipelineTagIds = $columns->pluck('tag_id')->map(fn ($id) => (int) $id)->all();
-        $currentTagIds = $clienteLead->tags->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $preservedNonPipelineTags = array_values(array_diff($currentTagIds, $pipelineTagIds));
-        $newTagIds = array_values(array_unique(array_merge(
-            $preservedNonPipelineTags,
-            [(int) $targetColumn->tag_id],
-        )));
+        $now = now();
 
-        $clienteLead->tags()->sync($newTagIds);
+        $updated = DB::table('cliente_crm_pipeline_leads')
+            ->where('pipeline_id', $targetColumn->pipeline_id)
+            ->where('cliente_lead_id', $clienteLead->id)
+            ->update([
+                'column_id' => (int) $targetColumn->id,
+                'updated_at' => $now,
+            ]);
 
-        return $newTagIds;
+        if ($updated > 0) {
+            return;
+        }
+
+        DB::table('cliente_crm_pipeline_leads')->insert([
+            'pipeline_id' => (int) $targetColumn->pipeline_id,
+            'column_id' => (int) $targetColumn->id,
+            'cliente_lead_id' => (int) $clienteLead->id,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
     }
 
-    private function removeLeadFromPipelineTags(ClienteLead $clienteLead, Collection $columns): array
+    private function removeLeadFromPipelineStage(ClienteLead $clienteLead, ClienteCrmPipeline $crmPipeline): void
     {
-        $pipelineTagIds = $columns->pluck('tag_id')->map(fn ($id) => (int) $id)->all();
-        $currentTagIds = $clienteLead->tags->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $newTagIds = array_values(array_diff($currentTagIds, $pipelineTagIds));
-
-        $clienteLead->tags()->sync($newTagIds);
-
-        return $newTagIds;
+        DB::table('cliente_crm_pipeline_leads')
+            ->where('pipeline_id', $crmPipeline->id)
+            ->where('cliente_lead_id', $clienteLead->id)
+            ->delete();
     }
 
     private function normalizePipelinePositions(int $clienteId): void

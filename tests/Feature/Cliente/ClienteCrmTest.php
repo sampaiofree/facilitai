@@ -7,6 +7,7 @@ use App\Models\ClienteLead;
 use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -53,13 +54,28 @@ function clienteCrmMakePipeline(Cliente $cliente, array $attributes = []): Clien
     ], $attributes));
 }
 
-function clienteCrmMakeColumn(ClienteCrmPipeline $pipeline, Tag $tag, int $position): ClienteCrmPipelineColumn
+function clienteCrmMakeColumn(ClienteCrmPipeline $pipeline, string $name, int $position): ClienteCrmPipelineColumn
 {
     return ClienteCrmPipelineColumn::create([
         'pipeline_id' => $pipeline->id,
-        'tag_id' => $tag->id,
+        'name' => $name,
         'position' => $position,
     ]);
+}
+
+function clienteCrmPutLeadInColumn(ClienteLead $lead, ClienteCrmPipelineColumn $column): void
+{
+    DB::table('cliente_crm_pipeline_leads')->updateOrInsert(
+        [
+            'pipeline_id' => $column->pipeline_id,
+            'cliente_lead_id' => $lead->id,
+        ],
+        [
+            'column_id' => $column->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    );
 }
 
 test('crm lista pipelines do cliente e permite criar pipeline', function () {
@@ -135,93 +151,65 @@ test('crm renderiza o container do board mesmo quando a pipeline esta vazia', fu
     $user = User::factory()->create();
     $cliente = clienteCrmMakeCliente($user);
     $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
-    clienteCrmMakeTag($user, $cliente, ['name' => 'Contato']);
 
     $response = $this->actingAs($cliente, 'client')
         ->get(route('cliente.crm.show', $pipeline));
 
     $response->assertOk();
     $response->assertSee('data-crm-board', false);
-    $response->assertSee('Criar primeira coluna');
+    $response->assertSee('Criar primeira etapa');
 });
 
-test('crm mostra o nome completo da coluna no board do cliente', function () {
+test('crm mostra o nome completo da etapa no board do cliente', function () {
     $user = User::factory()->create();
     $cliente = clienteCrmMakeCliente($user);
     $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
-    $tag = clienteCrmMakeTag($user, $cliente, [
-        'name' => 'Coluna com nome muito grande para aparecer inteiro no cabeçalho do board',
-    ]);
-
-    $column = clienteCrmMakeColumn($pipeline, $tag, 1);
+    $column = clienteCrmMakeColumn($pipeline, 'Etapa com nome muito grande para aparecer inteiro no cabeçalho do board', 1);
 
     $response = $this->actingAs($cliente, 'client')
         ->get(route('cliente.crm.show', $pipeline));
 
     $response->assertOk();
-    $response->assertSee('Coluna com nome muito grande para aparecer inteiro no cabeçalho do board');
+    $response->assertSee('Etapa com nome muito grande para aparecer inteiro no cabeçalho do board');
     $response->assertSee('leading-snug whitespace-normal break-words', false);
-    $response->assertSee('Use as setas de cada coluna para reordenar prioridade', false);
+    $response->assertSee('Use as setas de cada etapa para reordenar o funil', false);
     $response->assertSee(route('cliente.crm.columns.move', [$pipeline, $column]), false);
 });
 
-test('crm cria coluna com tag valida e impede reuso da mesma tag em outra pipeline', function () {
+test('crm cria coluna por nome sem depender de tag', function () {
     $user = User::factory()->create();
     $cliente = clienteCrmMakeCliente($user);
-
-    $pipelineA = clienteCrmMakePipeline($cliente, ['name' => 'Vendas', 'position' => 1]);
-    $pipelineB = clienteCrmMakePipeline($cliente, ['name' => 'Onboarding', 'position' => 2]);
-    $tagValida = clienteCrmMakeTag($user, $cliente, ['name' => 'Contato Vendas']);
-    $tagAlternativa = clienteCrmMakeTag($user, $cliente, ['name' => 'Contato Onboarding']);
+    $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
 
     $this->actingAs($cliente, 'client')
-        ->from(route('cliente.crm.show', $pipelineA))
-        ->post(route('cliente.crm.columns.store', $pipelineA), [
-            'tag_id' => $tagValida->id,
+        ->from(route('cliente.crm.show', $pipeline))
+        ->post(route('cliente.crm.columns.store', $pipeline), [
+            'name' => 'Novo contato',
         ])
-        ->assertRedirect(route('cliente.crm.show', $pipelineA));
+        ->assertRedirect(route('cliente.crm.show', $pipeline));
 
     $column = ClienteCrmPipelineColumn::query()
-        ->where('pipeline_id', $pipelineA->id)
-        ->where('tag_id', $tagValida->id)
+        ->where('pipeline_id', $pipeline->id)
+        ->where('name', 'Novo contato')
         ->first();
 
     expect($column)->not->toBeNull();
-
-    $duplicateResponse = $this->actingAs($cliente, 'client')
-        ->from(route('cliente.crm.show', $pipelineB))
-        ->post(route('cliente.crm.columns.store', $pipelineB), [
-            'tag_id' => $tagValida->id,
-        ]);
-
-    $duplicateResponse->assertRedirect(route('cliente.crm.show', $pipelineB));
-    $duplicateResponse->assertSessionHasErrors('tag_id');
-
-    $this->actingAs($cliente, 'client')
-        ->from(route('cliente.crm.show', $pipelineB))
-        ->post(route('cliente.crm.columns.store', $pipelineB), [
-            'tag_id' => $tagAlternativa->id,
-        ])
-        ->assertRedirect(route('cliente.crm.show', $pipelineB));
-
-    expect(ClienteCrmPipelineColumn::query()->count())->toBe(2);
+    expect((int) $column->position)->toBe(1);
 });
 
-test('crm exibe o lead apenas na coluna mais a direita dentro da pipeline atual', function () {
+test('crm exibe lead apenas na etapa registrada na pipeline atual', function () {
     $user = User::factory()->create();
     $cliente = clienteCrmMakeCliente($user);
 
     $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
-    $tagNovo = clienteCrmMakeTag($user, $cliente, ['name' => 'Novo']);
-    $tagProposta = clienteCrmMakeTag($user, $cliente, ['name' => 'Proposta']);
-    $colunaNovo = clienteCrmMakeColumn($pipeline, $tagNovo, 1);
-    $colunaProposta = clienteCrmMakeColumn($pipeline, $tagProposta, 2);
+    $colunaNovo = clienteCrmMakeColumn($pipeline, 'Novo', 1);
+    $colunaProposta = clienteCrmMakeColumn($pipeline, 'Proposta', 2);
 
     $leadNovo = clienteCrmMakeLead($cliente, ['name' => 'Lead Novo']);
-    $leadNovo->tags()->sync([$tagNovo->id]);
+    clienteCrmPutLeadInColumn($leadNovo, $colunaNovo);
 
     $leadProposta = clienteCrmMakeLead($cliente, ['name' => 'Lead Proposta']);
-    $leadProposta->tags()->sync([$tagNovo->id, $tagProposta->id]);
+    clienteCrmPutLeadInColumn($leadProposta, $colunaProposta);
 
     $leadFora = clienteCrmMakeLead($cliente, ['name' => 'Lead Fora']);
 
@@ -242,18 +230,16 @@ test('crm exibe o lead apenas na coluna mais a direita dentro da pipeline atual'
     $page->assertDontSee('Lead Fora');
 });
 
-test('reordenar colunas altera a prioridade apenas da pipeline atual', function () {
+test('reordenar colunas nao altera etapa registrada do lead', function () {
     $user = User::factory()->create();
     $cliente = clienteCrmMakeCliente($user);
 
     $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
-    $tagA = clienteCrmMakeTag($user, $cliente, ['name' => 'A']);
-    $tagB = clienteCrmMakeTag($user, $cliente, ['name' => 'B']);
-    $colunaA = clienteCrmMakeColumn($pipeline, $tagA, 1);
-    $colunaB = clienteCrmMakeColumn($pipeline, $tagB, 2);
+    $colunaA = clienteCrmMakeColumn($pipeline, 'A', 1);
+    $colunaB = clienteCrmMakeColumn($pipeline, 'B', 2);
 
-    $lead = clienteCrmMakeLead($cliente, ['name' => 'Lead Multi']);
-    $lead->tags()->sync([$tagA->id, $tagB->id]);
+    $lead = clienteCrmMakeLead($cliente, ['name' => 'Lead B']);
+    clienteCrmPutLeadInColumn($lead, $colunaB);
 
     $this->actingAs($cliente, 'client')
         ->patchJson(route('cliente.crm.columns.reorder', $pipeline), [
@@ -267,8 +253,8 @@ test('reordenar colunas altera a prioridade apenas da pipeline atual', function 
     $responseB = $this->actingAs($cliente, 'client')
         ->getJson(route('cliente.crm.columns.leads', [$pipeline, $colunaB]));
 
-    expect($responseA->json('lead_ids'))->toBe([$lead->id]);
-    expect($responseB->json('lead_ids'))->toBe([]);
+    expect($responseA->json('lead_ids'))->toBe([]);
+    expect($responseB->json('lead_ids'))->toBe([$lead->id]);
 });
 
 test('cliente move coluna para a esquerda por acao explicita sem depender de arraste', function () {
@@ -276,13 +262,8 @@ test('cliente move coluna para a esquerda por acao explicita sem depender de arr
     $cliente = clienteCrmMakeCliente($user);
 
     $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
-    $tagA = clienteCrmMakeTag($user, $cliente, ['name' => 'A']);
-    $tagB = clienteCrmMakeTag($user, $cliente, ['name' => 'B']);
-    $colunaA = clienteCrmMakeColumn($pipeline, $tagA, 1);
-    $colunaB = clienteCrmMakeColumn($pipeline, $tagB, 2);
-
-    $lead = clienteCrmMakeLead($cliente, ['name' => 'Lead Multi']);
-    $lead->tags()->sync([$tagA->id, $tagB->id]);
+    $colunaA = clienteCrmMakeColumn($pipeline, 'A', 1);
+    $colunaB = clienteCrmMakeColumn($pipeline, 'B', 2);
 
     $this->actingAs($cliente, 'client')
         ->from(route('cliente.crm.show', $pipeline))
@@ -293,15 +274,6 @@ test('cliente move coluna para a esquerda por acao explicita sem depender de arr
 
     expect((int) $colunaB->fresh()->position)->toBe(1);
     expect((int) $colunaA->fresh()->position)->toBe(2);
-
-    $responseA = $this->actingAs($cliente, 'client')
-        ->getJson(route('cliente.crm.columns.leads', [$pipeline, $colunaA]));
-
-    $responseB = $this->actingAs($cliente, 'client')
-        ->getJson(route('cliente.crm.columns.leads', [$pipeline, $colunaB]));
-
-    expect($responseA->json('lead_ids'))->toBe([$lead->id]);
-    expect($responseB->json('lead_ids'))->toBe([]);
 });
 
 test('mesmo lead pode existir em duas pipelines e mover em uma nao altera a outra', function () {
@@ -311,18 +283,14 @@ test('mesmo lead pode existir em duas pipelines e mover em uma nao altera a outr
     $pipelineVendas = clienteCrmMakePipeline($cliente, ['name' => 'Vendas', 'position' => 1]);
     $pipelineOnboarding = clienteCrmMakePipeline($cliente, ['name' => 'Onboarding', 'position' => 2]);
 
-    $tagContato = clienteCrmMakeTag($user, $cliente, ['name' => 'Contato']);
-    $tagFechado = clienteCrmMakeTag($user, $cliente, ['name' => 'Fechado']);
-    $tagKickoff = clienteCrmMakeTag($user, $cliente, ['name' => 'Kickoff']);
-    $tagImplantacao = clienteCrmMakeTag($user, $cliente, ['name' => 'Implantação']);
-
-    $colunaContato = clienteCrmMakeColumn($pipelineVendas, $tagContato, 1);
-    $colunaFechado = clienteCrmMakeColumn($pipelineVendas, $tagFechado, 2);
-    $colunaKickoff = clienteCrmMakeColumn($pipelineOnboarding, $tagKickoff, 1);
-    $colunaImplantacao = clienteCrmMakeColumn($pipelineOnboarding, $tagImplantacao, 2);
+    $colunaContato = clienteCrmMakeColumn($pipelineVendas, 'Contato', 1);
+    $colunaFechado = clienteCrmMakeColumn($pipelineVendas, 'Fechado', 2);
+    $colunaKickoff = clienteCrmMakeColumn($pipelineOnboarding, 'Kickoff', 1);
+    $colunaImplantacao = clienteCrmMakeColumn($pipelineOnboarding, 'Implantacao', 2);
 
     $lead = clienteCrmMakeLead($cliente, ['name' => 'Lead Compartilhado']);
-    $lead->tags()->sync([$tagContato->id, $tagImplantacao->id]);
+    clienteCrmPutLeadInColumn($lead, $colunaContato);
+    clienteCrmPutLeadInColumn($lead, $colunaImplantacao);
 
     $this->actingAs($cliente, 'client')
         ->patchJson(route('cliente.crm.leads.column', [$pipelineVendas, $lead]), [
@@ -332,9 +300,17 @@ test('mesmo lead pode existir em duas pipelines e mover em uma nao altera a outr
         ->assertJsonPath('column_id', $colunaFechado->id)
         ->assertJsonPath('previous_column_id', $colunaContato->id);
 
-    $tagIds = $lead->fresh('tags')->tags->pluck('id')->sort()->values()->all();
+    $this->assertDatabaseHas('cliente_crm_pipeline_leads', [
+        'pipeline_id' => $pipelineVendas->id,
+        'column_id' => $colunaFechado->id,
+        'cliente_lead_id' => $lead->id,
+    ]);
 
-    expect($tagIds)->toBe(collect([$tagFechado->id, $tagImplantacao->id])->sort()->values()->all());
+    $this->assertDatabaseHas('cliente_crm_pipeline_leads', [
+        'pipeline_id' => $pipelineOnboarding->id,
+        'column_id' => $colunaImplantacao->id,
+        'cliente_lead_id' => $lead->id,
+    ]);
 
     $responseOnboarding = $this->actingAs($cliente, 'client')
         ->getJson(route('cliente.crm.columns.leads', [$pipelineOnboarding, $colunaImplantacao]));
@@ -349,22 +325,16 @@ test('mesmo lead pode existir em duas pipelines e mover em uma nao altera a outr
     expect($responseKickoff->json('lead_ids'))->not->toContain($lead->id);
 });
 
-test('crm adiciona lead pelo modal na pipeline atual preservando outras pipelines e tags normais', function () {
+test('crm adiciona lead pelo modal na pipeline atual preservando tags normais', function () {
     $user = User::factory()->create();
     $cliente = clienteCrmMakeCliente($user);
 
     $pipelineVendas = clienteCrmMakePipeline($cliente, ['name' => 'Vendas', 'position' => 1]);
-    $pipelineOnboarding = clienteCrmMakePipeline($cliente, ['name' => 'Onboarding', 'position' => 2]);
-
-    $tagProposta = clienteCrmMakeTag($user, $cliente, ['name' => 'Proposta']);
-    $tagKickoff = clienteCrmMakeTag($user, $cliente, ['name' => 'Kickoff']);
     $tagVip = clienteCrmMakeTag($user, $cliente, ['name' => 'VIP']);
-
-    $colunaProposta = clienteCrmMakeColumn($pipelineVendas, $tagProposta, 1);
-    clienteCrmMakeColumn($pipelineOnboarding, $tagKickoff, 1);
+    $colunaProposta = clienteCrmMakeColumn($pipelineVendas, 'Proposta', 1);
 
     $lead = clienteCrmMakeLead($cliente, ['name' => 'Lead sem Vendas']);
-    $lead->tags()->sync([$tagKickoff->id, $tagVip->id]);
+    $lead->tags()->sync([$tagVip->id]);
 
     $this->actingAs($cliente, 'client')
         ->postJson(route('cliente.crm.columns.leads.store', [$pipelineVendas, $colunaProposta]), [
@@ -374,9 +344,13 @@ test('crm adiciona lead pelo modal na pipeline atual preservando outras pipeline
         ->assertJsonPath('column_id', $colunaProposta->id)
         ->assertJsonPath('previous_column_id', null);
 
-    $tagIds = $lead->fresh('tags')->tags->pluck('id')->sort()->values()->all();
+    $this->assertDatabaseHas('cliente_crm_pipeline_leads', [
+        'pipeline_id' => $pipelineVendas->id,
+        'column_id' => $colunaProposta->id,
+        'cliente_lead_id' => $lead->id,
+    ]);
 
-    expect($tagIds)->toBe(collect([$tagProposta->id, $tagKickoff->id, $tagVip->id])->sort()->values()->all());
+    expect($lead->fresh('tags')->tags->pluck('id')->all())->toBe([$tagVip->id]);
 });
 
 test('crm remove lead apenas da pipeline atual preservando outras pipelines e tags normais', function () {
@@ -386,24 +360,30 @@ test('crm remove lead apenas da pipeline atual preservando outras pipelines e ta
     $pipelineVendas = clienteCrmMakePipeline($cliente, ['name' => 'Vendas', 'position' => 1]);
     $pipelineSucesso = clienteCrmMakePipeline($cliente, ['name' => 'Sucesso', 'position' => 2]);
 
-    $tagFechado = clienteCrmMakeTag($user, $cliente, ['name' => 'Fechado']);
-    $tagAtivo = clienteCrmMakeTag($user, $cliente, ['name' => 'Ativo']);
     $tagVip = clienteCrmMakeTag($user, $cliente, ['name' => 'VIP']);
-
-    $colunaFechado = clienteCrmMakeColumn($pipelineVendas, $tagFechado, 1);
-    clienteCrmMakeColumn($pipelineSucesso, $tagAtivo, 1);
+    $colunaFechado = clienteCrmMakeColumn($pipelineVendas, 'Fechado', 1);
+    $colunaAtivo = clienteCrmMakeColumn($pipelineSucesso, 'Ativo', 1);
 
     $lead = clienteCrmMakeLead($cliente, ['name' => 'Lead Removido']);
-    $lead->tags()->sync([$tagFechado->id, $tagAtivo->id, $tagVip->id]);
+    $lead->tags()->sync([$tagVip->id]);
+    clienteCrmPutLeadInColumn($lead, $colunaFechado);
+    clienteCrmPutLeadInColumn($lead, $colunaAtivo);
 
     $this->actingAs($cliente, 'client')
         ->deleteJson(route('cliente.crm.leads.destroy', [$pipelineVendas, $lead]))
         ->assertOk()
         ->assertJsonPath('previous_column_id', $colunaFechado->id);
 
-    $tagIds = $lead->fresh('tags')->tags->pluck('id')->sort()->values()->all();
-
-    expect($tagIds)->toBe(collect([$tagAtivo->id, $tagVip->id])->sort()->values()->all());
+    $this->assertDatabaseMissing('cliente_crm_pipeline_leads', [
+        'pipeline_id' => $pipelineVendas->id,
+        'cliente_lead_id' => $lead->id,
+    ]);
+    $this->assertDatabaseHas('cliente_crm_pipeline_leads', [
+        'pipeline_id' => $pipelineSucesso->id,
+        'column_id' => $colunaAtivo->id,
+        'cliente_lead_id' => $lead->id,
+    ]);
+    expect($lead->fresh('tags')->tags->pluck('id')->all())->toBe([$tagVip->id]);
 });
 
 test('crm busca leads por nome e telefone sem retornar leads de outro cliente', function () {
@@ -412,8 +392,7 @@ test('crm busca leads por nome e telefone sem retornar leads de outro cliente', 
     $outroCliente = clienteCrmMakeCliente($user, ['email' => fake()->unique()->safeEmail()]);
 
     $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
-    $tagEntrada = clienteCrmMakeTag($user, $cliente, ['name' => 'Entrada']);
-    $colunaEntrada = clienteCrmMakeColumn($pipeline, $tagEntrada, 1);
+    $colunaEntrada = clienteCrmMakeColumn($pipeline, 'Entrada', 1);
 
     $leadNome = clienteCrmMakeLead($cliente, ['name' => 'João Pipeline']);
     $leadTelefone = clienteCrmMakeLead($cliente, ['phone' => '5511912345678', 'name' => 'Telefone Pipeline']);
@@ -443,12 +422,11 @@ test('crm carrega leads em lotes de dez por coluna na pipeline atual', function 
     $cliente = clienteCrmMakeCliente($user);
 
     $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
-    $tag = clienteCrmMakeTag($user, $cliente, ['name' => 'Pipeline']);
-    $coluna = clienteCrmMakeColumn($pipeline, $tag, 1);
+    $coluna = clienteCrmMakeColumn($pipeline, 'Pipeline', 1);
 
     for ($i = 1; $i <= 12; $i++) {
         $lead = clienteCrmMakeLead($cliente, ['name' => 'Lead Lote ' . $i]);
-        $lead->tags()->sync([$tag->id]);
+        clienteCrmPutLeadInColumn($lead, $coluna);
     }
 
     $primeiraPagina = $this->actingAs($cliente, 'client')
@@ -466,25 +444,30 @@ test('crm carrega leads em lotes de dez por coluna na pipeline atual', function 
     expect($segundaPagina->json('has_more'))->toBeFalse();
 });
 
-test('crm exclui coluna sem excluir a tag e faz o lead sumir da pipeline', function () {
+test('crm exclui etapa e remove vinculo crm sem excluir lead nem tags', function () {
     $user = User::factory()->create();
     $cliente = clienteCrmMakeCliente($user);
 
     $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
     $tagNovo = clienteCrmMakeTag($user, $cliente, ['name' => 'Novo']);
-    $tagProposta = clienteCrmMakeTag($user, $cliente, ['name' => 'Proposta']);
-    $colunaNovo = clienteCrmMakeColumn($pipeline, $tagNovo, 1);
-    $colunaProposta = clienteCrmMakeColumn($pipeline, $tagProposta, 2);
+    $colunaNovo = clienteCrmMakeColumn($pipeline, 'Novo', 1);
+    $colunaProposta = clienteCrmMakeColumn($pipeline, 'Proposta', 2);
 
     $lead = clienteCrmMakeLead($cliente, ['name' => 'Lead Antigo']);
     $lead->tags()->sync([$tagNovo->id]);
+    clienteCrmPutLeadInColumn($lead, $colunaNovo);
 
     $this->actingAs($cliente, 'client')
         ->delete(route('cliente.crm.columns.destroy', [$pipeline, $colunaNovo]))
         ->assertRedirect(route('cliente.crm.show', $pipeline));
 
     expect(ClienteCrmPipelineColumn::query()->whereKey($colunaNovo->id)->exists())->toBeFalse();
+    expect(ClienteLead::query()->whereKey($lead->id)->exists())->toBeTrue();
     expect(Tag::query()->whereKey($tagNovo->id)->exists())->toBeTrue();
+    $this->assertDatabaseMissing('cliente_crm_pipeline_leads', [
+        'pipeline_id' => $pipeline->id,
+        'cliente_lead_id' => $lead->id,
+    ]);
 
     $response = $this->actingAs($cliente, 'client')
         ->getJson(route('cliente.crm.columns.leads', [$pipeline, $colunaProposta]));
@@ -493,15 +476,16 @@ test('crm exclui coluna sem excluir a tag e faz o lead sumir da pipeline', funct
     expect($response->json('lead_ids'))->not->toContain($lead->id);
 });
 
-test('crm exclui pipeline sem excluir tags nem limpar tags dos leads', function () {
+test('crm exclui pipeline sem excluir tags nem leads', function () {
     $user = User::factory()->create();
     $cliente = clienteCrmMakeCliente($user);
 
     $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
     $tag = clienteCrmMakeTag($user, $cliente, ['name' => 'Fechado']);
-    $column = clienteCrmMakeColumn($pipeline, $tag, 1);
+    $column = clienteCrmMakeColumn($pipeline, 'Fechado', 1);
     $lead = clienteCrmMakeLead($cliente, ['name' => 'Lead Fechado']);
     $lead->tags()->sync([$tag->id]);
+    clienteCrmPutLeadInColumn($lead, $column);
 
     $this->actingAs($cliente, 'client')
         ->delete(route('cliente.crm.pipelines.destroy', $pipeline))
@@ -509,6 +493,7 @@ test('crm exclui pipeline sem excluir tags nem limpar tags dos leads', function 
 
     expect(ClienteCrmPipeline::query()->whereKey($pipeline->id)->exists())->toBeFalse();
     expect(ClienteCrmPipelineColumn::query()->whereKey($column->id)->exists())->toBeFalse();
+    expect(ClienteLead::query()->whereKey($lead->id)->exists())->toBeTrue();
     expect(Tag::query()->whereKey($tag->id)->exists())->toBeTrue();
     expect($lead->fresh()->tags->pluck('id')->all())->toBe([$tag->id]);
 });
@@ -519,8 +504,7 @@ test('cliente nao pode adicionar, mover ou remover lead de outro cliente em uma 
     $outroCliente = clienteCrmMakeCliente($user, ['email' => fake()->unique()->safeEmail()]);
 
     $pipeline = clienteCrmMakePipeline($cliente, ['name' => 'Vendas']);
-    $tag = clienteCrmMakeTag($user, $cliente, ['name' => 'Etapa']);
-    $coluna = clienteCrmMakeColumn($pipeline, $tag, 1);
+    $coluna = clienteCrmMakeColumn($pipeline, 'Etapa', 1);
     $leadOutroCliente = clienteCrmMakeLead($outroCliente, ['name' => 'Lead Externo']);
 
     $this->actingAs($cliente, 'client')

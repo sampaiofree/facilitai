@@ -54,11 +54,6 @@ class Tag extends Model
         return $this->belongsToMany(ClienteLead::class, 'cliente_lead_tag')->withTimestamps();
     }
 
-    public function crmPipelineColumn()
-    {
-        return $this->hasOne(ClienteCrmPipelineColumn::class);
-    }
-
     public function getScopeLabelAttribute(): string
     {
         return TagScope::scopeLabel($this->cliente?->nome, $this->cliente_id ? (int) $this->cliente_id : null);

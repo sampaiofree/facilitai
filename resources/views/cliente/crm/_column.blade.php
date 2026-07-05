@@ -5,11 +5,8 @@
     <div class="flex flex-col gap-3">
         <div class="min-w-0">
             <div class="flex items-center gap-2">
-                <span
-                    class="h-3 w-3 shrink-0 rounded-full border border-white/60 shadow-sm"
-                    style="background-color: {{ $column['tag_color'] !== '' ? $column['tag_color'] : '#0f172a' }};"
-                ></span>
-                <h3 class="text-sm font-semibold leading-snug whitespace-normal break-words text-slate-900">{{ $column['tag_name'] }}</h3>
+                <span class="h-3 w-3 shrink-0 rounded-full border border-white/60 bg-slate-900 shadow-sm"></span>
+                <h3 class="text-sm font-semibold leading-snug whitespace-normal break-words text-slate-900">{{ $column['name'] }}</h3>
             </div>
             <p class="mt-1 text-xs text-slate-500">
                 <span data-column-count>{{ $column['count'] }}</span> lead(s)
@@ -58,7 +55,7 @@
                 class="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-semibold text-sky-700 hover:bg-sky-100"
                 data-open-add-lead-modal
                 data-column-id="{{ $column['id'] }}"
-                data-column-name="{{ $column['tag_name'] }}"
+                data-column-name="{{ $column['name'] }}"
                 data-search-url="{{ route('cliente.crm.columns.search-leads', [$crmPipeline, $column['id']]) }}"
                 data-add-url="{{ route('cliente.crm.columns.leads.store', [$crmPipeline, $column['id']]) }}"
             >
@@ -85,7 +82,7 @@
                 class="pointer-events-none flex min-h-[200px] flex-1 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/70 px-4 py-6 text-center text-xs text-slate-400 {{ count($column['leads']) > 0 ? 'hidden' : '' }}"
                 data-column-empty
             >
-                Nenhum lead visível nesta etapa.
+                Nenhum lead nesta etapa.
             </div>
         </div>
     </div>

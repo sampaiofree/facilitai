@@ -11,7 +11,7 @@
                         <p class="truncate text-sm font-semibold text-slate-900">{{ $lead['name'] }}</p>
                         <p class="mt-1 text-xs text-slate-500">{{ $lead['phone'] }}</p>
                         <p class="mt-2 text-[11px] uppercase tracking-wide text-slate-400">
-                            CRM atual:
+                            Etapa atual:
                             <span class="font-semibold text-slate-600">
                                 {{ $lead['current_column_name'] ?: 'Fora do CRM' }}
                             </span>

@@ -45,6 +45,11 @@ class ClienteLead extends Model
         return $this->belongsToMany(Tag::class, 'cliente_lead_tag')->withTimestamps();
     }
 
+    public function crmPipelineLeads()
+    {
+        return $this->hasMany(ClienteCrmPipelineLead::class, 'cliente_lead_id');
+    }
+
     public function sequenceChats()
     {
         return $this->hasMany(SequenceChat::class, 'cliente_lead_id');

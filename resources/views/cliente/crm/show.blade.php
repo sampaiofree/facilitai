@@ -13,22 +13,15 @@
                 ← Voltar para pipelines
             </a>
             <h2 class="mt-2 text-2xl font-semibold text-slate-900">{{ $crmPipeline->name }}</h2>
-            <p class="mt-1 text-sm text-slate-500">Board kanban da pipeline atual, com prioridade da esquerda para a direita.</p>
+            <p class="mt-1 text-sm text-slate-500">Board kanban da pipeline atual, organizado por etapas do funil.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-            <a
-                href="{{ route('cliente.tags.index') }}"
-                class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-                Gerenciar tags
-            </a>
             <button
                 type="button"
-                class="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 {{ $availableTags->isEmpty() ? 'cursor-not-allowed opacity-50' : '' }}"
+                class="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
                 data-open-column-modal
-                @disabled($availableTags->isEmpty())
             >
-                Adicionar coluna
+                Adicionar etapa
             </button>
         </div>
     </div>
@@ -63,30 +56,20 @@
         data-crm-board
         data-move-url-template="{{ route('cliente.crm.leads.column', ['crmPipeline' => $crmPipeline, 'clienteLead' => '__LEAD_ID__']) }}"
     >
-        @if($columns->isEmpty() && $availableTags->isEmpty())
+        @if($columns->isEmpty())
             <div class="rounded-3xl border border-dashed border-slate-300 bg-white px-8 py-12 text-center shadow-sm">
-                <h3 class="text-lg font-semibold text-slate-900">Não há tags disponíveis para montar colunas nesta pipeline.</h3>
-                <p class="mt-2 text-sm text-slate-500">Crie novas tags ou libere tags removendo-as de outras pipelines.</p>
-                <div class="mt-6">
-                    <a href="{{ route('cliente.tags.index') }}" class="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                        Ir para tags
-                    </a>
-                </div>
-            </div>
-        @elseif($columns->isEmpty())
-            <div class="rounded-3xl border border-dashed border-slate-300 bg-white px-8 py-12 text-center shadow-sm">
-                <h3 class="text-lg font-semibold text-slate-900">Configure as primeiras colunas desta pipeline.</h3>
-                <p class="mt-2 text-sm text-slate-500">Cada coluna escolhe uma tag exclusiva do CRM para representar a etapa.</p>
+                <h3 class="text-lg font-semibold text-slate-900">Configure as primeiras etapas deste funil.</h3>
+                <p class="mt-2 text-sm text-slate-500">Crie as colunas que representam o avanço dos leads nesta pipeline.</p>
                 <div class="mt-6">
                     <button type="button" data-open-column-modal class="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                        Criar primeira coluna
+                        Criar primeira etapa
                     </button>
                 </div>
             </div>
         @else
             <div class="mb-4 flex items-center justify-between gap-3">
-                <p class="text-sm text-slate-500">Use as setas de cada coluna para reordenar prioridade e arraste os cards entre etapas.</p>
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Direita = maior prioridade</p>
+                <p class="text-sm text-slate-500">Use as setas de cada etapa para reordenar o funil e arraste os cards entre etapas.</p>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Esquerda para direita</p>
             </div>
 
             <div class="overflow-x-auto pb-4">
@@ -107,8 +90,8 @@
         <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
             <div class="flex items-center justify-between gap-4">
                 <div>
-                    <h3 class="text-lg font-semibold text-slate-900">Nova coluna da pipeline</h3>
-                    <p class="mt-1 text-sm text-slate-500">Escolha uma tag exclusiva do CRM para representar esta etapa.</p>
+                    <h3 class="text-lg font-semibold text-slate-900">Nova etapa da pipeline</h3>
+                    <p class="mt-1 text-sm text-slate-500">Defina o nome da etapa que será exibida no funil.</p>
                 </div>
                 <button type="button" class="text-slate-500 hover:text-slate-700" data-close-column-modal>x</button>
             </div>
@@ -116,18 +99,16 @@
             <form method="POST" action="{{ route('cliente.crm.columns.store', $crmPipeline) }}" class="mt-6 space-y-4">
                 @csrf
                 <div>
-                    <label for="crmTagId" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tag</label>
-                    <select
-                        id="crmTagId"
-                        name="tag_id"
+                    <label for="crmColumnName" class="text-xs font-semibold uppercase tracking-wide text-slate-500">Nome da etapa</label>
+                    <input
+                        id="crmColumnName"
+                        name="name"
+                        type="text"
+                        maxlength="191"
                         class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                        placeholder="Ex.: Novo contato"
                         required
                     >
-                        <option value="">Selecione uma tag</option>
-                        @foreach($availableTags as $tag)
-                            <option value="{{ $tag->id }}">{{ $tag->name }}</option>
-                        @endforeach
-                    </select>
                 </div>
 
                 <div class="flex justify-end gap-3 pt-2">
@@ -135,7 +116,7 @@
                         Cancelar
                     </button>
                     <button type="submit" class="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-                        Criar coluna
+                        Criar etapa
                     </button>
                 </div>
             </form>

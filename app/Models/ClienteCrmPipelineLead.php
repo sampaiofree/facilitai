@@ -5,18 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class ClienteCrmPipelineColumn extends Model
+class ClienteCrmPipelineLead extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'pipeline_id',
-        'name',
-        'position',
-    ];
-
-    protected $casts = [
-        'position' => 'integer',
+        'column_id',
+        'cliente_lead_id',
     ];
 
     public function pipeline()
@@ -24,8 +20,13 @@ class ClienteCrmPipelineColumn extends Model
         return $this->belongsTo(ClienteCrmPipeline::class, 'pipeline_id');
     }
 
-    public function pipelineLeads()
+    public function column()
     {
-        return $this->hasMany(ClienteCrmPipelineLead::class, 'column_id');
+        return $this->belongsTo(ClienteCrmPipelineColumn::class, 'column_id');
+    }
+
+    public function lead()
+    {
+        return $this->belongsTo(ClienteLead::class, 'cliente_lead_id');
     }
 }

@@ -28,4 +28,9 @@ class ClienteCrmPipeline extends Model
     {
         return $this->hasMany(ClienteCrmPipelineColumn::class, 'pipeline_id');
     }
+
+    public function pipelineLeads()
+    {
+        return $this->hasMany(ClienteCrmPipelineLead::class, 'pipeline_id');
+    }
 }
