@@ -178,7 +178,7 @@ class UazapiGruposService
             'description' => trim($description),
         ], [
             'groupjid' => ['required', 'string', 'regex:/^[0-9]+@g\.us$/'],
-            'description' => ['required', 'string', 'max:512'],
+            'description' => ['required', 'string', 'max:2048'],
         ]);
 
         if ($validator->fails()) {

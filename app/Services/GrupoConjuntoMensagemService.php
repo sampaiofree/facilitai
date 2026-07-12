@@ -486,7 +486,7 @@ class GrupoConjuntoMensagemService
         return match ($actionType) {
             GrupoConjuntoMensagem::ACTION_SEND_MEDIA => $this->resolveSendMediaAction($payload),
             GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_NAME => $this->resolveSingleFieldAction($payload, 'group_name', 25),
-            GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_DESCRIPTION => $this->resolveSingleFieldAction($payload, 'group_description', 512),
+            GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_DESCRIPTION => $this->resolveSingleFieldAction($payload, 'group_description', 2048),
             GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_IMAGE => $this->resolveGroupImageAction($payload),
             default => $this->resolveSendTextAction($payload, (string) $mensagem->mensagem),
         } + ['action_type' => $actionType];

@@ -357,7 +357,7 @@
                                     id="groupMessageGroupDescription"
                                     name="group_description"
                                     rows="5"
-                                    maxlength="512"
+                                    maxlength="2048"
                                     class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                                 ></textarea>
                             </div>

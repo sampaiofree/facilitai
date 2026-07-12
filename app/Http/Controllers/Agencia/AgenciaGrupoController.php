@@ -562,7 +562,7 @@ class AgenciaGrupoController extends Controller
             'media_url' => ['nullable', 'string', 'max:2048'],
             'caption' => ['nullable', 'string', 'max:1024'],
             'group_name' => ['nullable', 'string', 'max:25'],
-            'group_description' => ['nullable', 'string', 'max:512'],
+            'group_description' => ['nullable', 'string', 'max:2048'],
             'group_image_url' => ['nullable', 'string', 'max:2048'],
             'message_form' => ['nullable', 'in:create,edit'],
             'message_id' => ['nullable', 'integer'],

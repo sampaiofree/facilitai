@@ -5,6 +5,7 @@
     @php
         $imagesRouteBase = $imagesRouteBase ?? 'cliente.images';
         $hasFolders = $folders->isNotEmpty();
+        $defaultUploadFolderId = old('folder_id', $selectedFolderId ?: ($folders->count() === 1 ? $folders->first()->id : null));
     @endphp
     <div class="grid gap-6">
 <!-- Modal Upload -->
@@ -38,9 +39,9 @@
                                         <span class="text-xs text-slate-400">Obrigatório</span>
                                     </div>
                                     <select id="upload-folder-all" name="folder_id" class="border rounded-lg px-3 py-2 text-sm w-full" required>
-                                        <option value="" {{ old('folder_id') ? '' : 'selected' }}>Selecione uma pasta</option>
+                                        <option value="" {{ $defaultUploadFolderId ? '' : 'selected' }}>Selecione uma pasta</option>
                                         @foreach($folders as $folder)
-                                            <option value="{{ $folder->id }}" {{ old('folder_id') == $folder->id ? 'selected' : '' }}>{{ $folder->name }}</option>
+                                            <option value="{{ $folder->id }}" {{ (string) $defaultUploadFolderId === (string) $folder->id ? 'selected' : '' }}>{{ $folder->name }}</option>
                                         @endforeach
                                     </select>
                                     @error('folder_id')
@@ -271,8 +272,12 @@
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-4-9l3 3m-4-3l-7 7v3h3l7-7"></path></svg>
                                                     Editar
                                                 </button>
-                                                <button type="button" class="copy-image-link inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-md hover:bg-slate-200" data-url="{{ $file->url }}" data-title="{{ e($file->title ?? '') }}" data-description="{{ e($file->description ?? '') }}" title="Copiar URL">
+                                                <button type="button" class="copy-image-link-description inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-md hover:bg-slate-200" data-url="{{ $file->url }}" data-title="{{ e($file->title ?? '') }}" data-description="{{ e($file->description ?? '') }}" title="Copiar link e descrição">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                                    Link e descrição
+                                                </button>
+                                                <button type="button" class="copy-image-url inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-md hover:bg-slate-200" data-url="{{ $file->url }}" title="Copiar link">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656l-2 2a4 4 0 01-5.656-5.656l1-1m2.828 2.828a4 4 0 010-5.656l2-2a4 4 0 015.656 5.656l-1 1"></path></svg>
                                                     Link
                                                 </button>
                                                 <form action="{{ route($imagesRouteBase . '.destroy', $file) }}" method="POST" onsubmit="return confirm('Tem certeza?');">
@@ -672,7 +677,7 @@
             openUpload();
         @endif
 
-        document.querySelectorAll('.copy-image-link').forEach(btn => {
+        document.querySelectorAll('.copy-image-link-description').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const title = (btn.dataset.title || '').trim();
                 const description = (btn.dataset.description || '').trim();
@@ -684,11 +689,29 @@
                 const text = parts.join('\\n');
                 try {
                     await copyText(text);
+                    showAlert?.('Link e descrição copiados!', 'success');
+                    btn.title = 'Copiado!';
+                    btn.classList.add('bg-green-100');
+                    setTimeout(() => {
+                        btn.title = 'Copiar link e descrição';
+                        btn.classList.remove('bg-green-100');
+                    }, 1500);
+                } catch (e) {
+                    showAlert?.('Não foi possível copiar o link.', 'error');
+                }
+            });
+        });
+
+        document.querySelectorAll('.copy-image-url').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const url = btn.dataset.url;
+                try {
+                    await copyText(url);
                     showAlert?.('Link copiado!', 'success');
                     btn.title = 'Copiado!';
                     btn.classList.add('bg-green-100');
                     setTimeout(() => {
-                        btn.title = 'Copiar URL';
+                        btn.title = 'Copiar link';
                         btn.classList.remove('bg-green-100');
                     }, 1500);
                 } catch (e) {
@@ -739,8 +762,4 @@
     });
 </script>
 @endsection
-
-
-
-
 
