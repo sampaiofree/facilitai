@@ -63,7 +63,7 @@ class ClienteImageController extends Controller
     public function store(Request $request)
     {
         $cliente = Auth::guard('client')->user();
-        $mimeTypes = 'mimetypes:video/mp4,video/quicktime,image/jpeg,image/png,image/jpg,application/pdf,audio/mpeg,audio/mp3';
+        $mimeTypes = 'mimetypes:video/mp4,image/jpeg,image/png,image/jpg,application/pdf,audio/mpeg,audio/mp3';
 
         $allowedFolders = Folder::query()
             ->where('cliente_id', $cliente->id)

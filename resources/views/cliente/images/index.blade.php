@@ -20,7 +20,7 @@
                         <div class="space-y-4">
                             <div>
                                 <label class="block text-sm text-slate-700 mb-1" for="upload-images">Arquivos</label>
-                                <input id="upload-images" type="file" name="images[]" multiple required accept="image/jpeg,image/png,video/mp4,video/quicktime,application/pdf,audio/mpeg,audio/mp3" class="block w-full text-sm text-slate-700 border rounded-lg px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                                <input id="upload-images" type="file" name="images[]" multiple required accept="image/jpeg,image/png,video/mp4,application/pdf,audio/mpeg,audio/mp3" class="block w-full text-sm text-slate-700 border rounded-lg px-3 py-2 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                                 @error('images')
                                     <p class="text-red-500 text-xs mt-2">{{ $message }}</p>
                                 @enderror
