@@ -1,17 +1,17 @@
 <?php
 
+use App\Jobs\ExecuteGrupoConjuntoMensagemJob;
+use App\Models\AgencySetting;
 use App\Models\Cliente;
 use App\Models\Conexao;
-use App\Models\AgencySetting;
 use App\Models\GrupoConjunto;
 use App\Models\GrupoConjuntoItem;
 use App\Models\GrupoConjuntoMensagem;
 use App\Models\User;
 use App\Models\WhatsappApi;
-use App\Jobs\ExecuteGrupoConjuntoMensagemJob;
 use App\Services\UazapiGruposService;
-use Illuminate\Support\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
 use Mockery\MockInterface;
 
@@ -21,7 +21,7 @@ function agenciaGruposMakeCliente(User $user, array $attributes = []): Cliente
 {
     return Cliente::create(array_merge([
         'user_id' => $user->id,
-        'nome' => 'Cliente ' . fake()->numerify('###'),
+        'nome' => 'Cliente '.fake()->numerify('###'),
         'email' => fake()->unique()->safeEmail(),
         'telefone' => '11999999999',
         'password' => 'secret123',
@@ -47,10 +47,10 @@ function agenciaGruposMakeUazapiConexao(User $user, WhatsappApi $provider, array
     $cliente = $attributes['cliente'] ?? agenciaGruposMakeCliente($user);
 
     return Conexao::create(array_merge([
-        'name' => 'Conexao ' . fake()->numerify('###'),
+        'name' => 'Conexao '.fake()->numerify('###'),
         'cliente_id' => $cliente->id,
         'whatsapp_api_id' => $provider->id,
-        'whatsapp_api_key' => 'token-' . fake()->numerify('####'),
+        'whatsapp_api_key' => 'token-'.fake()->numerify('####'),
         'status' => 'active',
         'is_active' => true,
     ], array_diff_key($attributes, ['cliente' => true])));
@@ -446,13 +446,13 @@ test('endpoint de grupos da conexao retorna dados normalizados em sucesso', func
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-abc']);
 
-        $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
-            $mock->shouldReceive('listGroups')
-                ->once()
-                ->with('token-abc', true, true)
-                ->andReturn([
-                    'data' => [
-                        ['JID' => '120363153742561022@g.us', 'Name' => 'Grupo A'],
+    $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
+        $mock->shouldReceive('listGroups')
+            ->once()
+            ->with('token-abc', true, true)
+            ->andReturn([
+                'data' => [
+                    ['JID' => '120363153742561022@g.us', 'Name' => 'Grupo A'],
                     ['jid' => '120363339858396166@g.us', 'subject' => 'Grupo B'],
                     ['groupjid' => '120363308883996631@g.us', 'name' => 'Grupo C'],
                     ['jid' => 'invalido'],
@@ -478,13 +478,13 @@ test('endpoint de grupos da conexao filtra por search em nome e jid', function (
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-abc']);
 
-        $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
-            $mock->shouldReceive('listGroups')
-                ->once()
-                ->with('token-abc', true, true)
-                ->andReturn([
-                    'data' => [
-                        ['JID' => '120363153742561022@g.us', 'Name' => 'FacilitAI Vendas'],
+    $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
+        $mock->shouldReceive('listGroups')
+            ->once()
+            ->with('token-abc', true, true)
+            ->andReturn([
+                'data' => [
+                    ['JID' => '120363153742561022@g.us', 'Name' => 'FacilitAI Vendas'],
                     ['jid' => '120363339858396166@g.us', 'subject' => 'Grupo Suporte'],
                     ['jid' => '120300000000000000@g.us', 'name' => 'Comercial'],
                 ],
@@ -510,13 +510,13 @@ test('endpoint de grupos da conexao retorna erro consistente quando uazapi falha
     $provider = agenciaGruposMakeUazapiProvider();
     $conexao = agenciaGruposMakeUazapiConexao($user, $provider, ['whatsapp_api_key' => 'token-abc']);
 
-        $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
-            $mock->shouldReceive('listGroups')
-                ->once()
-                ->with('token-abc', true, true)
-                ->andReturn([
-                    'error' => true,
-                    'status' => 500,
+    $this->mock(UazapiGruposService::class, function (MockInterface $mock): void {
+        $mock->shouldReceive('listGroups')
+            ->once()
+            ->with('token-abc', true, true)
+            ->andReturn([
+                'error' => true,
+                'status' => 500,
                 'body' => ['message' => 'Erro remoto'],
             ]);
     });
@@ -642,6 +642,36 @@ test('cria acao imediata send_text para conjunto e registra envio', function () 
     expect($registro->sent_count)->toBe(0);
     expect($registro->failed_count)->toBe(0);
     Queue::assertPushedOn('processarconversa', ExecuteGrupoConjuntoMensagemJob::class);
+});
+
+test('agencia ignora parametros de sequencia enviados diretamente', function () {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $provider = agenciaGruposMakeUazapiProvider();
+    $conexao = agenciaGruposMakeUazapiConexao($user, $provider);
+    $conjunto = GrupoConjunto::create([
+        'user_id' => $user->id,
+        'conexao_id' => $conexao->id,
+        'name' => 'Conjunto sem sequência',
+    ]);
+
+    GrupoConjuntoItem::create([
+        'grupo_conjunto_id' => $conjunto->id,
+        'group_jid' => '120363153742561022@g.us',
+        'group_name' => 'Grupo A',
+    ]);
+
+    $this->actingAs($user)->post(route('agencia.grupos.mensagens.store', $conjunto), [
+        'action_type' => 'update_group_name',
+        'group_name' => 'Título agência',
+        'group_name_sequence' => '1',
+        'group_name_sequence_start' => 23,
+        'send_type' => 'now',
+    ])->assertRedirect();
+
+    $mensagem = GrupoConjuntoMensagem::query()->firstOrFail();
+    expect($mensagem->payload)->toBe(['group_name' => 'Título agência']);
 });
 
 test('cria acao send_text com marcar todos e envia mentions all', function () {

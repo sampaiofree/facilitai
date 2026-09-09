@@ -29,7 +29,7 @@ class GrupoConjuntoMensagemService
         $providerSlug = strtolower((string) ($conexao?->whatsappApi?->slug ?? ''));
         $token = trim((string) ($conexao?->whatsapp_api_key ?? ''));
 
-        if (!$conexao || $providerSlug !== 'uazapi' || $token === '') {
+        if (! $conexao || $providerSlug !== 'uazapi' || $token === '') {
             $mensagem->update([
                 'status' => 'failed',
                 'failed_at' => $nowUtc,
@@ -55,8 +55,8 @@ class GrupoConjuntoMensagemService
             return $this->freshMensagem($mensagem);
         }
 
-        $resolvedAction = $this->resolveActionData($mensagem);
-        if (!$resolvedAction['ok']) {
+        $resolvedAction = $this->resolveActionData($mensagem, count($recipients));
+        if (! $resolvedAction['ok']) {
             $mensagem->update([
                 'status' => 'failed',
                 'failed_at' => $nowUtc,
@@ -76,9 +76,14 @@ class GrupoConjuntoMensagemService
         $firstError = null;
         $resultRows = [];
 
-        foreach ($recipients as $recipient) {
+        foreach ($recipients as $recipientIndex => $recipient) {
             $jid = (string) $recipient['jid'];
             $name = (string) $recipient['name'];
+            $recipientActionPayload = $this->resolveRecipientActionPayload(
+                $actionType,
+                $actionPayload,
+                $recipientIndex
+            );
 
             $slotGranted = $this->timingService()->acquireDispatchSlot(
                 (int) $mensagem->user_id,
@@ -87,7 +92,7 @@ class GrupoConjuntoMensagemService
                 $actionType
             );
 
-            if (!$slotGranted) {
+            if (! $slotGranted) {
                 $failedCount++;
                 $slotMessage = 'Cooldown/backoff ativo para esta conexão. Tente novamente em alguns instantes.';
                 if ($firstError === null) {
@@ -107,7 +112,7 @@ class GrupoConjuntoMensagemService
             }
 
             try {
-                $response = $this->dispatchRecipientAction($token, $jid, $actionType, $actionPayload);
+                $response = $this->dispatchRecipientAction($token, $jid, $actionType, $recipientActionPayload);
             } catch (\Throwable $exception) {
                 $response = [
                     'error' => true,
@@ -130,6 +135,7 @@ class GrupoConjuntoMensagemService
                     'status' => 'sent',
                     'http_status' => (int) ($response['status'] ?? 200),
                 ];
+
                 continue;
             }
 
@@ -192,7 +198,7 @@ class GrupoConjuntoMensagemService
         $providerSlug = strtolower((string) ($conexao?->whatsappApi?->slug ?? ''));
         $token = trim((string) ($conexao?->whatsapp_api_key ?? ''));
 
-        if (!$conexao || $providerSlug !== 'uazapi' || $token === '') {
+        if (! $conexao || $providerSlug !== 'uazapi' || $token === '') {
             return $this->completedRecipientResult($this->markMensagemAsFailed(
                 $mensagem,
                 'Conexao invalida para envio de mensagens em grupo.',
@@ -213,12 +219,12 @@ class GrupoConjuntoMensagemService
         }
 
         $recipientIndex = max(0, $recipientIndex);
-        if (!isset($recipients[$recipientIndex])) {
+        if (! isset($recipients[$recipientIndex])) {
             return $this->finishRecipientDispatch($mensagem, $nowUtc, $attemptValue);
         }
 
-        $resolvedAction = $this->resolveActionData($mensagem);
-        if (!$resolvedAction['ok']) {
+        $resolvedAction = $this->resolveActionData($mensagem, count($recipients));
+        if (! $resolvedAction['ok']) {
             return $this->completedRecipientResult($this->markMensagemAsFailed(
                 $mensagem,
                 (string) ($resolvedAction['message'] ?? 'Ação inválida para envio em grupo.'),
@@ -260,8 +266,14 @@ class GrupoConjuntoMensagemService
             ];
         }
 
+        $recipientActionPayload = $this->resolveRecipientActionPayload(
+            $actionType,
+            $actionPayload,
+            $recipientIndex
+        );
+
         try {
-            $response = $this->dispatchRecipientAction($token, $jid, $actionType, $actionPayload);
+            $response = $this->dispatchRecipientAction($token, $jid, $actionType, $recipientActionPayload);
         } catch (\Throwable $exception) {
             $response = [
                 'error' => true,
@@ -406,7 +418,7 @@ class GrupoConjuntoMensagemService
     {
         $items = data_get($mensagem->result, 'items', []);
 
-        if (!is_array($items)) {
+        if (! is_array($items)) {
             return [];
         }
 
@@ -427,7 +439,7 @@ class GrupoConjuntoMensagemService
             }
         }
 
-        if (!$replaced) {
+        if (! $replaced) {
             $rows[] = $newRow;
         }
 
@@ -478,14 +490,14 @@ class GrupoConjuntoMensagemService
         return $mensagem->fresh() ?? $mensagem;
     }
 
-    private function resolveActionData(GrupoConjuntoMensagem $mensagem): array
+    private function resolveActionData(GrupoConjuntoMensagem $mensagem, int $recipientCount): array
     {
         $actionType = $mensagem->resolveActionType();
         $payload = $mensagem->resolvePayload();
 
         return match ($actionType) {
             GrupoConjuntoMensagem::ACTION_SEND_MEDIA => $this->resolveSendMediaAction($payload),
-            GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_NAME => $this->resolveSingleFieldAction($payload, 'group_name', 25),
+            GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_NAME => $this->resolveGroupNameAction($payload, $recipientCount),
             GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_DESCRIPTION => $this->resolveSingleFieldAction($payload, 'group_description', 2048),
             GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_IMAGE => $this->resolveGroupImageAction($payload),
             default => $this->resolveSendTextAction($payload, (string) $mensagem->mensagem),
@@ -521,14 +533,14 @@ class GrupoConjuntoMensagemService
         $caption = trim((string) ($payload['caption'] ?? ''));
         $mentionAll = $this->isTruthy($payload['mention_all'] ?? false);
 
-        if (!in_array($mediaType, ['image', 'video', 'document', 'audio'], true)) {
+        if (! in_array($mediaType, ['image', 'video', 'document', 'audio'], true)) {
             return [
                 'ok' => false,
                 'message' => 'Tipo de mídia inválido para envio.',
             ];
         }
 
-        if (!$this->isHttpUrl($mediaUrl)) {
+        if (! $this->isHttpUrl($mediaUrl)) {
             return [
                 'ok' => false,
                 'message' => 'URL de mídia inválida para envio.',
@@ -576,10 +588,73 @@ class GrupoConjuntoMensagemService
         ];
     }
 
+    private function resolveGroupNameAction(array $payload, int $recipientCount): array
+    {
+        $baseName = trim((string) ($payload['group_name'] ?? ''));
+        if ($baseName === '') {
+            return [
+                'ok' => false,
+                'message' => 'Título dos grupos não informado.',
+            ];
+        }
+
+        $sequenceEnabled = $this->isTruthy($payload['group_name_sequence'] ?? false);
+        if (! $sequenceEnabled) {
+            return $this->resolveSingleFieldAction(['group_name' => $baseName], 'group_name', 25);
+        }
+
+        $sequenceStart = filter_var(
+            $payload['group_name_sequence_start'] ?? null,
+            FILTER_VALIDATE_INT,
+            ['options' => ['min_range' => 1, 'max_range' => 999999999]]
+        );
+
+        if ($sequenceStart === false) {
+            return [
+                'ok' => false,
+                'message' => 'Número inicial inválido para a sequência de títulos.',
+            ];
+        }
+
+        $sequenceEnd = $sequenceStart + max(0, $recipientCount - 1);
+        if (mb_strlen("$baseName #$sequenceEnd") > 25) {
+            return [
+                'ok' => false,
+                'message' => 'O maior título da sequência excede o limite de 25 caracteres.',
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'payload' => [
+                'group_name' => $baseName,
+                'group_name_sequence' => true,
+                'group_name_sequence_start' => $sequenceStart,
+            ],
+        ];
+    }
+
+    private function resolveRecipientActionPayload(string $actionType, array $payload, int $recipientIndex): array
+    {
+        if (
+            $actionType !== GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_NAME
+            || ! $this->isTruthy($payload['group_name_sequence'] ?? false)
+        ) {
+            return $payload;
+        }
+
+        $baseName = trim((string) ($payload['group_name'] ?? ''));
+        $sequenceStart = max(1, (int) ($payload['group_name_sequence_start'] ?? 1));
+
+        return [
+            'group_name' => $baseName.' #'.($sequenceStart + max(0, $recipientIndex)),
+        ];
+    }
+
     private function resolveGroupImageAction(array $payload): array
     {
         $value = trim((string) ($payload['group_image_url'] ?? ''));
-        if (!$this->isHttpUrl($value)) {
+        if (! $this->isHttpUrl($value)) {
             return [
                 'ok' => false,
                 'message' => 'URL de imagem do grupo inválida.',
@@ -639,7 +714,7 @@ class GrupoConjuntoMensagemService
         }
 
         $info = $this->uazapiGruposService->getGroupInfo($token, $jid);
-        if (!empty($info['error'])) {
+        if (! empty($info['error'])) {
             return $response;
         }
 
@@ -670,7 +745,7 @@ class GrupoConjuntoMensagemService
         ];
 
         foreach ($candidates as $value) {
-            if (!is_string($value)) {
+            if (! is_string($value)) {
                 continue;
             }
 
@@ -689,7 +764,7 @@ class GrupoConjuntoMensagemService
             return false;
         }
 
-        if (!filter_var($value, FILTER_VALIDATE_URL)) {
+        if (! filter_var($value, FILTER_VALIDATE_URL)) {
             return false;
         }
 
@@ -720,12 +795,12 @@ class GrupoConjuntoMensagemService
         $normalized = [];
 
         foreach ($recipients as $recipient) {
-            if (!is_array($recipient)) {
+            if (! is_array($recipient)) {
                 continue;
             }
 
             $jid = trim((string) ($recipient['jid'] ?? ''));
-            if ($jid === '' || !preg_match('/^[0-9]+@g\.us$/', $jid)) {
+            if ($jid === '' || ! preg_match('/^[0-9]+@g\.us$/', $jid)) {
                 continue;
             }
 

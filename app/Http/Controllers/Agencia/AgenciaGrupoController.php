@@ -14,8 +14,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -25,8 +25,7 @@ class AgenciaGrupoController extends Controller
     public function __construct(
         protected UazapiGruposService $uazapiGruposService,
         protected ScheduledMessageService $scheduledMessageService
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {
@@ -50,7 +49,7 @@ class AgenciaGrupoController extends Controller
             $selectedConjunto = $conjuntos->firstWhere('id', $requestedConjuntoId);
         }
 
-        if (!$selectedConjunto) {
+        if (! $selectedConjunto) {
             $selectedConjunto = $conjuntos->first();
         }
 
@@ -76,6 +75,7 @@ class AgenciaGrupoController extends Controller
                 $mensagem->created_at_label = $this->formatUtcDate($mensagem->created_at, $timezone);
                 $mensagem->sent_at_label = $this->formatUtcDate($mensagem->sent_at, $timezone);
                 $mensagem->failed_at_label = $this->formatUtcDate($mensagem->failed_at, $timezone);
+
                 return $mensagem;
             });
         }
@@ -90,6 +90,8 @@ class AgenciaGrupoController extends Controller
             'layout' => $this->grupoViewLayout(),
             'routePrefix' => $this->grupoRoutePrefix(),
             'showClienteInfo' => $this->showGrupoClienteInfo(),
+            'showFailureDetails' => $this->showGrupoFailureDetails(),
+            'showGroupNameSequence' => $this->showGroupNameSequence(),
         ]);
     }
 
@@ -123,7 +125,7 @@ class AgenciaGrupoController extends Controller
         ]);
 
         $conexao = $this->resolveOwnedConnection($userId, (int) $data['conexao_id'], $clienteScopeId);
-        if (!$conexao) {
+        if (! $conexao) {
             abort(404);
         }
 
@@ -134,7 +136,7 @@ class AgenciaGrupoController extends Controller
             ]);
         }
 
-        $isUpdate = !empty($data['grupo_conjunto_id']);
+        $isUpdate = ! empty($data['grupo_conjunto_id']);
         $savedConjuntoId = null;
 
         DB::transaction(function () use ($data, $groups, $userId, $clienteScopeId, $isUpdate, $grupoConjuntoId, $conexao, &$savedConjuntoId): void {
@@ -165,7 +167,7 @@ class AgenciaGrupoController extends Controller
         });
 
         return redirect()
-            ->route($this->grupoRoutePrefix() . '.index', ['conjunto_id' => $savedConjuntoId])
+            ->route($this->grupoRoutePrefix().'.index', ['conjunto_id' => $savedConjuntoId])
             ->with('success', $isUpdate ? 'Conjunto atualizado com sucesso.' : 'Conjunto criado com sucesso.');
     }
 
@@ -186,7 +188,7 @@ class AgenciaGrupoController extends Controller
         $routeParams = $nextConjuntoId ? ['conjunto_id' => (int) $nextConjuntoId] : [];
 
         return redirect()
-            ->route($this->grupoRoutePrefix() . '.index', $routeParams)
+            ->route($this->grupoRoutePrefix().'.index', $routeParams)
             ->with('success', 'Conjunto removido com sucesso.');
     }
 
@@ -196,9 +198,9 @@ class AgenciaGrupoController extends Controller
         $clienteScopeId = $this->resolveGrupoClienteScopeId($request);
         $this->ensureConjuntoOwnership($grupoConjunto, $userId, $clienteScopeId);
 
-        $messageInput = $this->validateMessageActionInput($request);
-
         $recipients = $this->snapshotRecipientsFromConjunto($grupoConjunto);
+        $messageInput = $this->validateMessageActionInput($request, count($recipients));
+
         if ($recipients === []) {
             return $this->redirectToMessagesTab($grupoConjunto)
                 ->with('error', 'Este conjunto não possui grupos válidos para envio.');
@@ -214,7 +216,7 @@ class AgenciaGrupoController extends Controller
                 $timezone
             );
 
-            if (!$scheduledForUtc) {
+            if (! $scheduledForUtc) {
                 return $this->redirectToMessagesTab($grupoConjunto)
                     ->withInput()
                     ->with('error', "Data/hora inválida. Use o formato correto no fuso {$timezone}.");
@@ -260,12 +262,15 @@ class AgenciaGrupoController extends Controller
         $this->ensureConjuntoOwnership($grupoConjunto, $userId, $clienteScopeId);
         $this->ensureMensagemOwnership($grupoConjuntoMensagem, $grupoConjunto, $userId);
 
-        if (!in_array((string) $grupoConjuntoMensagem->status, ['pending', 'failed'], true)) {
+        if (! in_array((string) $grupoConjuntoMensagem->status, ['pending', 'failed'], true)) {
             return $this->redirectToMessagesTab($grupoConjunto)
                 ->with('error', 'Somente mensagens pendentes ou com falha podem ser editadas.');
         }
 
-        $messageInput = $this->validateMessageActionInput($request);
+        $messageInput = $this->validateMessageActionInput(
+            $request,
+            $this->countValidRecipients((array) ($grupoConjuntoMensagem->recipients ?? []))
+        );
 
         $timezone = $this->resolveGrupoTimezone($request);
         $sendType = (string) $messageInput['send_type'];
@@ -277,7 +282,7 @@ class AgenciaGrupoController extends Controller
                 $timezone
             );
 
-            if (!$scheduledForUtc) {
+            if (! $scheduledForUtc) {
                 return $this->redirectToMessagesTab($grupoConjunto)
                     ->withInput()
                     ->with('error', "Data/hora inválida. Use o formato correto no fuso {$timezone}.");
@@ -338,7 +343,7 @@ class AgenciaGrupoController extends Controller
             (int) $conexao->id,
             $this->resolveGrupoClienteScopeId($request)
         );
-        if (!$ownedConexao) {
+        if (! $ownedConexao) {
             abort(404);
         }
 
@@ -354,7 +359,7 @@ class AgenciaGrupoController extends Controller
             $noParticipants
         );
 
-        if (!empty($response['error'])) {
+        if (! empty($response['error'])) {
             $status = (int) ($response['status'] ?? 0);
             if ($status < 400 || $status > 599) {
                 $status = 502;
@@ -387,7 +392,7 @@ class AgenciaGrupoController extends Controller
             (int) $conexao->id,
             $this->resolveGrupoClienteScopeId($request)
         );
-        if (!$ownedConexao) {
+        if (! $ownedConexao) {
             abort(404);
         }
 
@@ -400,7 +405,7 @@ class AgenciaGrupoController extends Controller
             (string) $data['invite_link']
         );
 
-        if (!empty($response['error'])) {
+        if (! empty($response['error'])) {
             $status = (int) ($response['status'] ?? 0);
             if ($status < 400 || $status > 599) {
                 $status = 502;
@@ -418,7 +423,7 @@ class AgenciaGrupoController extends Controller
         }
 
         $group = $this->normalizeServiceGroup($response);
-        if (!$group) {
+        if (! $group) {
             return response()->json([
                 'error' => true,
                 'message' => 'Não foi possível identificar um grupo válido para este convite.',
@@ -458,6 +463,16 @@ class AgenciaGrupoController extends Controller
     protected function showGrupoClienteInfo(): bool
     {
         return true;
+    }
+
+    protected function showGrupoFailureDetails(): bool
+    {
+        return false;
+    }
+
+    protected function showGroupNameSequence(): bool
+    {
+        return false;
     }
 
     protected function scopedConjuntosQuery(int $userId, ?int $clienteScopeId = null)
@@ -519,7 +534,7 @@ class AgenciaGrupoController extends Controller
 
     protected function redirectToMessagesTab(GrupoConjunto $grupoConjunto): RedirectResponse
     {
-        return redirect()->route($this->grupoRoutePrefix() . '.index', [
+        return redirect()->route($this->grupoRoutePrefix().'.index', [
             'conjunto_id' => (int) $grupoConjunto->id,
             'tab' => 'messages',
         ]);
@@ -532,7 +547,7 @@ class AgenciaGrupoController extends Controller
         return $grupoConjunto->items
             ->map(function ($item) {
                 $jid = trim((string) ($item->group_jid ?? ''));
-                if ($jid === '' || !preg_match('/^[0-9]+@g\.us$/', $jid)) {
+                if ($jid === '' || ! preg_match('/^[0-9]+@g\.us$/', $jid)) {
                     return null;
                 }
 
@@ -549,9 +564,35 @@ class AgenciaGrupoController extends Controller
             ->all();
     }
 
-    private function validateMessageActionInput(Request $request): array
+    private function countValidRecipients(array $recipients): int
     {
-        $data = $request->validate([
+        $jids = [];
+
+        foreach ($recipients as $recipient) {
+            if (! is_array($recipient)) {
+                continue;
+            }
+
+            $jid = trim((string) ($recipient['jid'] ?? ''));
+            if ($jid === '' || ! preg_match('/^[0-9]+@g\.us$/', $jid)) {
+                continue;
+            }
+
+            $jids[$jid] = true;
+        }
+
+        return count($jids);
+    }
+
+    private function validateMessageActionInput(Request $request, int $recipientCount): array
+    {
+        if ($request->has('group_name')) {
+            $request->merge([
+                'group_name' => trim((string) $request->input('group_name')),
+            ]);
+        }
+
+        $rules = [
             'action_type' => ['nullable', 'string', Rule::in(GrupoConjuntoMensagem::ACTION_TYPES)],
             'send_type' => ['required', 'in:now,scheduled'],
             'scheduled_for' => ['nullable', 'string', 'max:50'],
@@ -566,7 +607,14 @@ class AgenciaGrupoController extends Controller
             'group_image_url' => ['nullable', 'string', 'max:2048'],
             'message_form' => ['nullable', 'in:create,edit'],
             'message_id' => ['nullable', 'integer'],
-        ]);
+        ];
+
+        if ($this->showGroupNameSequence()) {
+            $rules['group_name_sequence'] = ['nullable', 'boolean'];
+            $rules['group_name_sequence_start'] = ['nullable', 'integer', 'min:1', 'max:999999999'];
+        }
+
+        $data = $request->validate($rules);
 
         $actionType = (string) ($data['action_type'] ?? GrupoConjuntoMensagem::ACTION_SEND_TEXT);
         $mentionAll = $request->boolean('mention_all');
@@ -578,13 +626,13 @@ class AgenciaGrupoController extends Controller
                 $mediaType = trim((string) ($data['media_type'] ?? ''));
                 $mediaUrl = trim((string) ($data['media_url'] ?? ''));
 
-                if (!in_array($mediaType, ['image', 'video', 'document', 'audio'], true)) {
+                if (! in_array($mediaType, ['image', 'video', 'document', 'audio'], true)) {
                     throw ValidationException::withMessages([
                         'media_type' => ['Selecione um tipo de mídia válido.'],
                     ]);
                 }
 
-                if (!$this->isHttpUrl($mediaUrl)) {
+                if (! $this->isHttpUrl($mediaUrl)) {
                     throw ValidationException::withMessages([
                         'media_url' => ['Informe um link válido (http/https) para a mídia.'],
                     ]);
@@ -623,6 +671,29 @@ class AgenciaGrupoController extends Controller
 
                 $payload = ['group_name' => $groupName];
                 $summary = "Novo titulo: $groupName";
+
+                if ($this->showGroupNameSequence() && $request->boolean('group_name_sequence')) {
+                    if (! $request->filled('group_name_sequence_start')) {
+                        throw ValidationException::withMessages([
+                            'group_name_sequence_start' => ['Informe o número inicial da sequência.'],
+                        ]);
+                    }
+
+                    $sequenceStart = (int) $data['group_name_sequence_start'];
+                    $sequenceEnd = $sequenceStart + max(0, $recipientCount - 1);
+                    $suffix = " #$sequenceEnd";
+                    $maxBaseLength = 25 - mb_strlen($suffix);
+
+                    if ($maxBaseLength < 1 || mb_strlen($groupName) > $maxBaseLength) {
+                        throw ValidationException::withMessages([
+                            'group_name' => ["Para esta sequência, o título-base pode ter no máximo {$maxBaseLength} caracteres, pois o maior sufixo será #{$sequenceEnd}."],
+                        ]);
+                    }
+
+                    $payload['group_name_sequence'] = true;
+                    $payload['group_name_sequence_start'] = $sequenceStart;
+                    $summary .= " (sequência a partir de #$sequenceStart)";
+                }
                 break;
 
             case GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_DESCRIPTION:
@@ -639,7 +710,7 @@ class AgenciaGrupoController extends Controller
 
             case GrupoConjuntoMensagem::ACTION_UPDATE_GROUP_IMAGE:
                 $imageUrl = trim((string) ($data['group_image_url'] ?? ''));
-                if (!$this->isHttpUrl($imageUrl)) {
+                if (! $this->isHttpUrl($imageUrl)) {
                     throw ValidationException::withMessages([
                         'group_image_url' => ['Informe um link válido (http/https) para a nova foto.'],
                     ]);
@@ -682,7 +753,7 @@ class AgenciaGrupoController extends Controller
     private function validateAndParseScheduledFor(string $scheduledForRaw, string $timezone): ?Carbon
     {
         $scheduledForUtc = $this->scheduledMessageService->parseScheduledForToUtc($scheduledForRaw, $timezone);
-        if (!$scheduledForUtc) {
+        if (! $scheduledForUtc) {
             return null;
         }
 
@@ -701,7 +772,7 @@ class AgenciaGrupoController extends Controller
 
     private function formatUtcDate($value, string $timezone): ?string
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
 
@@ -717,7 +788,7 @@ class AgenciaGrupoController extends Controller
         $normalized = [];
 
         foreach ($groups as $group) {
-            if (!is_array($group)) {
+            if (! is_array($group)) {
                 continue;
             }
 
@@ -743,12 +814,12 @@ class AgenciaGrupoController extends Controller
         $normalized = [];
 
         foreach ($rows as $row) {
-            if (!is_array($row)) {
+            if (! is_array($row)) {
                 continue;
             }
 
             $item = $this->normalizeServiceGroupRow($row);
-            if (!$item) {
+            if (! $item) {
                 continue;
             }
 
@@ -796,7 +867,7 @@ class AgenciaGrupoController extends Controller
             ?? Arr::get($row, 'groupjid')
         ));
 
-        if ($jid === '' || !preg_match('/^[0-9]+@g\.us$/', $jid)) {
+        if ($jid === '' || ! preg_match('/^[0-9]+@g\.us$/', $jid)) {
             return null;
         }
 
@@ -889,7 +960,7 @@ class AgenciaGrupoController extends Controller
             return false;
         }
 
-        if (!filter_var($value, FILTER_VALIDATE_URL)) {
+        if (! filter_var($value, FILTER_VALIDATE_URL)) {
             return false;
         }
 

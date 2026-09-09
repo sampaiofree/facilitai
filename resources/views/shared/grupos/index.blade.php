@@ -198,20 +198,33 @@
                                                         default => 'bg-slate-100 text-slate-700',
                                                     };
                                                 @endphp
-                                                <tr>
+                                                <tr @if($showFailureDetails) data-group-message-row="{{ $mensagem->id }}" @endif>
                                                     <td class="px-4 py-3 text-slate-700">{{ $mensagem->actionTypeLabel() }}</td>
                                                     <td class="px-4 py-3">
                                                         <p class="max-w-xs truncate text-slate-800">{{ \Illuminate\Support\Str::limit($mensagem->actionSummary(), 110) }}</p>
-                                                        <p class="mt-1 text-[11px] text-slate-500">OK: {{ $mensagem->sent_count }} · Falhas: {{ $mensagem->failed_count }}</p>
+                                                        <p class="mt-1 text-[11px] text-slate-500" @if($showFailureDetails) data-group-message-counts @endif>OK: {{ $mensagem->sent_count }} · Falhas: {{ $mensagem->failed_count }}</p>
                                                     </td>
                                                     <td class="px-4 py-3 text-slate-700">{{ $mensagem->dispatch_type === 'now' ? 'Imediata' : 'Programada' }}</td>
                                                     <td class="px-4 py-3 text-slate-700">{{ $mensagem->scheduled_for_label ?? '—' }}</td>
                                                     <td class="px-4 py-3">
-                                                        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $statusClass }}">{{ $statusLabel }}</span>
+                                                        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $statusClass }}" @if($showFailureDetails) data-group-message-status @endif>{{ $statusLabel }}</span>
                                                     </td>
                                                     <td class="px-4 py-3 text-slate-700">{{ $mensagem->created_at_label ?? '—' }}</td>
                                                     <td class="px-4 py-3">
                                                         <div class="flex items-center gap-2">
+                                                            @if($showFailureDetails)
+                                                                @php
+                                                                    $showFailureButton = $status === 'failed' || (int) $mensagem->failed_count > 0;
+                                                                    $failureButtonLabel = (int) $mensagem->failed_count > 1 ? 'Ver falhas' : 'Ver falha';
+                                                                @endphp
+                                                                <button
+                                                                    type="button"
+                                                                    class="{{ $showFailureButton ? '' : 'hidden' }} rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
+                                                                    data-view-group-failure
+                                                                    data-message-id="{{ $mensagem->id }}"
+                                                                >{{ $failureButtonLabel }}</button>
+                                                            @endif
+
                                                             <button
                                                                 type="button"
                                                                 class="rounded-lg bg-indigo-500 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-indigo-600"
@@ -255,6 +268,66 @@
     @endif
 
     @if($selectedConjunto)
+        @if($showFailureDetails)
+            <div
+                id="groupFailureModal"
+                class="fixed inset-0 z-50 hidden items-center justify-center overflow-auto bg-black/50 px-4 py-6 backdrop-blur"
+                data-status-url="{{ route('cliente.grupos.mensagens.status', $selectedConjunto) }}"
+            >
+                <div class="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">Detalhes da falha</h3>
+                            <p id="groupFailureMeta" class="mt-1 text-xs text-slate-500"></p>
+                        </div>
+                        <button type="button" data-close-group-failure-modal class="text-slate-500 hover:text-slate-700">x</button>
+                    </div>
+
+                    <div id="groupFailureLoading" class="mt-5 hidden rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">Carregando detalhes...</div>
+                    <div id="groupFailureFetchError" class="mt-5 hidden rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"></div>
+
+                    <div id="groupFailureContent" class="mt-5 hidden space-y-4">
+                        <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
+                            <div>
+                                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Status</p>
+                                <p id="groupFailureStatus" class="mt-1 text-sm font-semibold text-slate-800">—</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Enviadas</p>
+                                <p id="groupFailureSentCount" class="mt-1 text-sm font-semibold text-emerald-700">0</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Falhas</p>
+                                <p id="groupFailureFailedCount" class="mt-1 text-sm font-semibold text-rose-700">0</p>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                            <p class="text-[11px] font-semibold uppercase tracking-wide text-rose-600">Motivo</p>
+                            <p id="groupFailureMessage" class="mt-1 text-sm text-rose-800">—</p>
+                        </div>
+
+                        <div>
+                            <p class="text-sm font-semibold text-slate-800">Grupos que falharam</p>
+                            <div class="mt-2 overflow-x-auto rounded-xl border border-slate-200">
+                                <table class="min-w-full text-sm">
+                                    <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left font-semibold">Grupo</th>
+                                            <th class="px-4 py-3 text-left font-semibold">Código</th>
+                                            <th class="px-4 py-3 text-left font-semibold">Motivo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="groupFailureItems" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                            <p id="groupFailureItemsEmpty" class="mt-2 hidden text-xs text-slate-500">Não há detalhes separados por grupo para esta falha.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div id="groupMessageModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4 py-6 backdrop-blur">
             <div class="max-h-[95vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
                 <div class="flex items-center justify-between">
@@ -269,6 +342,7 @@
                     data-create-route-template="{{ route($routePrefix . '.mensagens.store', ['grupoConjunto' => '__CONJUNTO__']) }}"
                     data-update-route-template="{{ route($routePrefix . '.mensagens.update', ['grupoConjunto' => '__CONJUNTO__', 'grupoConjuntoMensagem' => '__MENSAGEM__']) }}"
                     data-selected-conjunto-id="{{ $selectedConjunto->id }}"
+                    data-recipient-count="{{ $selectedConjunto->items_count }}"
                     class="mt-5 space-y-4"
                 >
                     @csrf
@@ -346,9 +420,42 @@
                                 </div>
                             </div>
 
-                            <div data-action-panel="update_group_name" class="hidden">
+                            <div data-action-panel="update_group_name" class="hidden space-y-3">
                                 <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="groupMessageGroupName">Novo título</label>
                                 <input id="groupMessageGroupName" name="group_name" type="text" maxlength="25" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+
+                                @if($showGroupNameSequence)
+                                    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                        <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700" for="groupMessageGroupNameSequence">
+                                            <input
+                                                id="groupMessageGroupNameSequence"
+                                                name="group_name_sequence"
+                                                type="checkbox"
+                                                value="1"
+                                                class="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            >
+                                            Adicionar sequência automática
+                                        </label>
+
+                                        <div id="groupMessageGroupNameSequenceOptions" class="mt-3 hidden space-y-2">
+                                            <div class="max-w-xs">
+                                                <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" for="groupMessageGroupNameSequenceStart">Número inicial</label>
+                                                <input
+                                                    id="groupMessageGroupNameSequenceStart"
+                                                    name="group_name_sequence_start"
+                                                    type="number"
+                                                    value="1"
+                                                    min="1"
+                                                    max="999999999"
+                                                    step="1"
+                                                    class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                                >
+                                            </div>
+                                            <p id="groupMessageGroupNameSequencePreview" class="text-xs font-medium text-slate-700"></p>
+                                            <p id="groupMessageGroupNameSequenceLimit" class="text-[11px] text-slate-500"></p>
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
 
                             <div data-action-panel="update_group_description" class="hidden">
@@ -1062,6 +1169,11 @@
             const mediaUrlInput = document.getElementById('groupMessageMediaUrl');
             const captionInput = document.getElementById('groupMessageCaption');
             const groupNameInput = document.getElementById('groupMessageGroupName');
+            const groupNameSequenceInput = document.getElementById('groupMessageGroupNameSequence');
+            const groupNameSequenceStartInput = document.getElementById('groupMessageGroupNameSequenceStart');
+            const groupNameSequenceOptions = document.getElementById('groupMessageGroupNameSequenceOptions');
+            const groupNameSequencePreview = document.getElementById('groupMessageGroupNameSequencePreview');
+            const groupNameSequenceLimit = document.getElementById('groupMessageGroupNameSequenceLimit');
             const groupDescriptionInput = document.getElementById('groupMessageGroupDescription');
             const groupImageUrlInput = document.getElementById('groupMessageGroupImageUrl');
             const mentionAllWrap = document.getElementById('groupMessageMentionAllWrap');
@@ -1097,6 +1209,8 @@
                 mediaUrl: @json(old('media_url')),
                 caption: @json(old('caption')),
                 groupName: @json(old('group_name')),
+                groupNameSequence: @json(old('group_name_sequence')),
+                groupNameSequenceStart: @json(old('group_name_sequence_start', 1)),
                 groupDescription: @json(old('group_description')),
                 groupImageUrl: @json(old('group_image_url')),
                 mentionAll: @json(old('mention_all')),
@@ -1127,6 +1241,53 @@
                 return normalizeActionType(checked?.value);
             };
 
+            const isTruthy = (value) => ['1', 'true', 'on', 'yes'].includes(String(value || '').toLowerCase());
+
+            const syncGroupNameSequence = () => {
+                if (!groupNameSequenceInput || !groupNameSequenceStartInput || !groupNameSequenceOptions) {
+                    return;
+                }
+
+                const isGroupNameAction = getCurrentActionType() === 'update_group_name';
+                const isEnabled = isGroupNameAction && groupNameSequenceInput.checked;
+                groupNameSequenceInput.disabled = !isGroupNameAction;
+                groupNameSequenceStartInput.disabled = !isEnabled;
+                groupNameSequenceStartInput.required = isEnabled;
+                groupNameSequenceOptions.classList.toggle('hidden', !isEnabled);
+
+                if (!isEnabled) {
+                    groupNameInput?.setCustomValidity('');
+                    return;
+                }
+
+                const baseName = String(groupNameInput?.value || '').trim();
+                const parsedStart = Number.parseInt(groupNameSequenceStartInput.value, 10);
+                const sequenceStart = Number.isInteger(parsedStart) && parsedStart >= 1 ? parsedStart : 1;
+                const recipientCount = Math.max(1, Number.parseInt(form.dataset.recipientCount || '1', 10) || 1);
+                const sequenceEnd = sequenceStart + recipientCount - 1;
+                const firstTitle = `${baseName} #${sequenceStart}`.trim();
+                const lastTitle = `${baseName} #${sequenceEnd}`.trim();
+                const maxBaseLength = Math.max(0, 25 - Array.from(` #${sequenceEnd}`).length);
+                const exceedsLimit = Array.from(lastTitle).length > 25;
+
+                if (groupNameSequencePreview) {
+                    groupNameSequencePreview.textContent = recipientCount > 1
+                        ? `Prévia: ${firstTitle} … ${lastTitle}`
+                        : `Prévia: ${firstTitle}`;
+                }
+                if (groupNameSequenceLimit) {
+                    groupNameSequenceLimit.textContent = `Com esta sequência, o título-base pode ter até ${maxBaseLength} caracteres.`;
+                    groupNameSequenceLimit.classList.toggle('text-rose-600', exceedsLimit);
+                    groupNameSequenceLimit.classList.toggle('text-slate-500', !exceedsLimit);
+                }
+
+                groupNameInput?.setCustomValidity(
+                    exceedsLimit
+                        ? `O título-base pode ter no máximo ${maxBaseLength} caracteres para esta sequência.`
+                        : ''
+                );
+            };
+
             const syncActionRequiredFields = (actionType) => {
                 if (messageTextInput) {
                     messageTextInput.required = actionType === 'send_text';
@@ -1155,6 +1316,8 @@
                         mentionAllInput.checked = false;
                     }
                 }
+
+                syncGroupNameSequence();
             };
 
             const setActionType = (nextActionType) => {
@@ -1201,6 +1364,12 @@
                 }
                 if (groupNameInput) {
                     groupNameInput.value = '';
+                }
+                if (groupNameSequenceInput) {
+                    groupNameSequenceInput.checked = false;
+                }
+                if (groupNameSequenceStartInput) {
+                    groupNameSequenceStartInput.value = '1';
                 }
                 if (groupDescriptionInput) {
                     groupDescriptionInput.value = '';
@@ -1261,6 +1430,12 @@
                 if (groupNameInput) {
                     groupNameInput.value = String(payload.group_name || '');
                 }
+                if (groupNameSequenceInput) {
+                    groupNameSequenceInput.checked = Boolean(payload.group_name_sequence);
+                }
+                if (groupNameSequenceStartInput) {
+                    groupNameSequenceStartInput.value = String(payload.group_name_sequence_start || 1);
+                }
                 if (groupDescriptionInput) {
                     groupDescriptionInput.value = String(payload.group_description || '');
                 }
@@ -1270,6 +1445,8 @@
                 if (mentionAllInput) {
                     mentionAllInput.checked = Boolean(payload.mention_all);
                 }
+
+                syncGroupNameSequence();
 
                 sendTypeInput.value = payload.dispatch_type === 'scheduled' ? 'scheduled' : 'now';
                 scheduledForInput.value = String(payload.scheduled_for_input || '');
@@ -1293,6 +1470,9 @@
             });
 
             sendTypeInput.addEventListener('change', syncScheduleVisibility);
+            groupNameInput?.addEventListener('input', syncGroupNameSequence);
+            groupNameSequenceInput?.addEventListener('change', syncGroupNameSequence);
+            groupNameSequenceStartInput?.addEventListener('input', syncGroupNameSequence);
             actionRadioInputs.forEach((input) => {
                 input.addEventListener('change', () => setActionType(input.value));
             });
@@ -1341,6 +1521,12 @@
                 if (groupNameInput) {
                     groupNameInput.value = String(oldMessageState.groupName || '');
                 }
+                if (groupNameSequenceInput) {
+                    groupNameSequenceInput.checked = isTruthy(oldMessageState.groupNameSequence);
+                }
+                if (groupNameSequenceStartInput) {
+                    groupNameSequenceStartInput.value = String(oldMessageState.groupNameSequenceStart || 1);
+                }
                 if (groupDescriptionInput) {
                     groupDescriptionInput.value = String(oldMessageState.groupDescription || '');
                 }
@@ -1348,8 +1534,10 @@
                     groupImageUrlInput.value = String(oldMessageState.groupImageUrl || '');
                 }
                 if (mentionAllInput) {
-                    mentionAllInput.checked = ['1', 'true', 'on', 'yes'].includes(String(oldMessageState.mentionAll || '').toLowerCase());
+                    mentionAllInput.checked = isTruthy(oldMessageState.mentionAll);
                 }
+
+                syncGroupNameSequence();
 
                 sendTypeInput.value = oldMessageState.sendType === 'scheduled' ? 'scheduled' : 'now';
                 scheduledForInput.value = String(oldMessageState.scheduledFor || '');
@@ -1360,4 +1548,271 @@
             }
         })();
     </script>
+
+    @if($showFailureDetails && $selectedConjunto)
+        <script>
+            (() => {
+                const modal = document.getElementById('groupFailureModal');
+                const loading = document.getElementById('groupFailureLoading');
+                const fetchError = document.getElementById('groupFailureFetchError');
+                const content = document.getElementById('groupFailureContent');
+                const meta = document.getElementById('groupFailureMeta');
+                const statusText = document.getElementById('groupFailureStatus');
+                const sentCount = document.getElementById('groupFailureSentCount');
+                const failedCount = document.getElementById('groupFailureFailedCount');
+                const message = document.getElementById('groupFailureMessage');
+                const itemsBody = document.getElementById('groupFailureItems');
+                const itemsEmpty = document.getElementById('groupFailureItemsEmpty');
+
+                if (!modal || !modal.dataset.statusUrl) {
+                    return;
+                }
+
+                const statusUrl = modal.dataset.statusUrl;
+                const cache = new Map();
+                const statusClasses = {
+                    pending: ['bg-amber-100', 'text-amber-700'],
+                    queued: ['bg-blue-100', 'text-blue-700'],
+                    sent: ['bg-emerald-100', 'text-emerald-700'],
+                    failed: ['bg-rose-100', 'text-rose-700'],
+                    canceled: ['bg-slate-200', 'text-slate-700'],
+                };
+                const allStatusClasses = Object.values(statusClasses).flat();
+
+                let pollTimer = null;
+                let requestPromise = null;
+                let shouldPoll = true;
+                let networkFailures = 0;
+                let openedMessageId = null;
+
+                const setModalState = (state, errorMessage = '') => {
+                    loading?.classList.toggle('hidden', state !== 'loading');
+                    fetchError?.classList.toggle('hidden', state !== 'error');
+                    content?.classList.toggle('hidden', state !== 'content');
+                    if (fetchError) {
+                        fetchError.textContent = errorMessage;
+                    }
+                };
+
+                const openModal = () => {
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                };
+
+                const closeModal = () => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    openedMessageId = null;
+                };
+
+                const appendCell = (row, text, className = '') => {
+                    const cell = document.createElement('td');
+                    cell.className = `px-4 py-3 align-top ${className}`.trim();
+                    cell.textContent = text;
+                    row.appendChild(cell);
+                };
+
+                const renderFailure = (record) => {
+                    const failure = record?.failure || {};
+                    const items = Array.isArray(failure.items) ? failure.items : [];
+
+                    meta.textContent = `Ação #${record.id}${record.failed_at_label ? ` · Falhou em ${record.failed_at_label}` : ''}`;
+                    statusText.textContent = record.status_label || record.status || '—';
+                    sentCount.textContent = String(record.sent_count ?? 0);
+                    failedCount.textContent = String(record.failed_count ?? 0);
+                    message.textContent = failure.message || 'Não foi possível identificar o motivo da falha.';
+                    itemsBody.innerHTML = '';
+
+                    items.forEach((item) => {
+                        const row = document.createElement('tr');
+                        const groupCell = document.createElement('td');
+                        groupCell.className = 'px-4 py-3 align-top';
+
+                        const name = document.createElement('p');
+                        name.className = 'font-medium text-slate-800';
+                        name.textContent = item.name || item.jid || 'Grupo não identificado';
+                        groupCell.appendChild(name);
+
+                        if (item.jid && item.jid !== item.name) {
+                            const jid = document.createElement('p');
+                            jid.className = 'mt-0.5 font-mono text-[11px] text-slate-500';
+                            jid.textContent = item.jid;
+                            groupCell.appendChild(jid);
+                        }
+
+                        row.appendChild(groupCell);
+                        appendCell(row, item.http_status ? String(item.http_status) : '—', 'font-mono text-xs text-slate-600');
+                        appendCell(row, item.message || 'Não foi possível identificar o motivo da falha.', 'text-slate-700');
+                        itemsBody.appendChild(row);
+                    });
+
+                    itemsEmpty.classList.toggle('hidden', items.length > 0);
+                    setModalState('content');
+                };
+
+                const updateRow = (record) => {
+                    const row = document.querySelector(`[data-group-message-row="${record.id}"]`);
+                    if (!row) {
+                        return;
+                    }
+
+                    const counts = row.querySelector('[data-group-message-counts]');
+                    if (counts) {
+                        counts.textContent = `OK: ${record.sent_count ?? 0} · Falhas: ${record.failed_count ?? 0}`;
+                    }
+
+                    const status = row.querySelector('[data-group-message-status]');
+                    if (status) {
+                        status.textContent = record.status_label || record.status || '—';
+                        status.classList.remove(...allStatusClasses);
+                        status.classList.add(...(statusClasses[record.status] || ['bg-slate-100', 'text-slate-700']));
+                    }
+
+                    const failureButton = row.querySelector('[data-view-group-failure]');
+                    if (failureButton) {
+                        const failures = Number(record.failed_count || 0);
+                        const hasFailure = record.status === 'failed' || failures > 0;
+                        failureButton.classList.toggle('hidden', !hasFailure);
+                        failureButton.textContent = failures > 1 ? 'Ver falhas' : 'Ver falha';
+                    }
+
+                    const editButton = row.querySelector('[data-action="edit-group-message"]');
+                    if (editButton) {
+                        try {
+                            const editorPayload = JSON.parse(editButton.dataset.payload || '{}');
+                            editorPayload.status = record.status;
+                            editButton.dataset.payload = JSON.stringify(editorPayload);
+                        } catch (error) {
+                            editButton.dataset.payload = JSON.stringify({
+                                id: record.id,
+                                status: record.status,
+                            });
+                        }
+                    }
+
+                    if (openedMessageId === String(record.id) && record.failure) {
+                        renderFailure(record);
+                    }
+                };
+
+                const schedulePoll = (delay) => {
+                    window.clearTimeout(pollTimer);
+                    if (!shouldPoll || document.hidden) {
+                        return;
+                    }
+                    pollTimer = window.setTimeout(refreshStatuses, delay);
+                };
+
+                const nextPollDelay = (records) => {
+                    if (records.some((record) => record.status === 'queued')) {
+                        return 5000;
+                    }
+                    if (records.some((record) => record.status === 'pending')) {
+                        return 60000;
+                    }
+                    return null;
+                };
+
+                const refreshStatuses = async () => {
+                    if (requestPromise) {
+                        return requestPromise;
+                    }
+
+                    requestPromise = (async () => {
+                        const response = await fetch(statusUrl, {
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                            },
+                        });
+                        const payload = await response.json().catch(() => ({}));
+
+                        if (!response.ok) {
+                            throw new Error(payload.message || 'Não foi possível atualizar o status das ações.');
+                        }
+
+                        const records = Array.isArray(payload.data) ? payload.data : [];
+                        records.forEach((record) => {
+                            cache.set(String(record.id), record);
+                            updateRow(record);
+                        });
+
+                        networkFailures = 0;
+                        shouldPoll = Boolean(payload.has_processing);
+                        const delay = nextPollDelay(records);
+                        if (shouldPoll && delay !== null) {
+                            schedulePoll(delay);
+                        }
+
+                        return records;
+                    })();
+
+                    try {
+                        return await requestPromise;
+                    } catch (error) {
+                        networkFailures += 1;
+                        shouldPoll = true;
+                        schedulePoll(Math.min(5000 * (2 ** (networkFailures - 1)), 30000));
+                        throw error;
+                    } finally {
+                        requestPromise = null;
+                    }
+                };
+
+                document.querySelectorAll('[data-view-group-failure]').forEach((button) => {
+                    button.addEventListener('click', async () => {
+                        const messageId = String(button.dataset.messageId || '');
+                        openedMessageId = messageId;
+                        openModal();
+
+                        const cached = cache.get(messageId);
+                        if (cached?.failure) {
+                            renderFailure(cached);
+                            return;
+                        }
+
+                        setModalState('loading');
+                        try {
+                            await refreshStatuses();
+                            const record = cache.get(messageId);
+                            if (!record?.failure) {
+                                throw new Error('Os detalhes desta falha ainda não estão disponíveis.');
+                            }
+                            renderFailure(record);
+                        } catch (error) {
+                            setModalState('error', error?.message || 'Não foi possível carregar os detalhes da falha.');
+                        }
+                    });
+                });
+
+                document.querySelectorAll('[data-close-group-failure-modal]').forEach((button) => {
+                    button.addEventListener('click', closeModal);
+                });
+
+                modal.addEventListener('click', (event) => {
+                    if (event.target === modal) {
+                        closeModal();
+                    }
+                });
+
+                document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+                        closeModal();
+                    }
+                });
+
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) {
+                        window.clearTimeout(pollTimer);
+                        return;
+                    }
+                    if (shouldPoll) {
+                        refreshStatuses().catch(() => {});
+                    }
+                });
+
+                refreshStatuses().catch(() => {});
+            })();
+        </script>
+    @endif
 @endpush

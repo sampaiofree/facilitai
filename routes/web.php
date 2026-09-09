@@ -1,88 +1,99 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\InstanceController;
-use App\Http\Controllers\CredentialController;
-use App\Http\Controllers\AssistantController;
-use Illuminate\Support\Facades\Route;
-use App\Models\Credential;
-use App\Http\Controllers\Admin\ClienteLeadController;
-use App\Http\Controllers\Admin\LeadEmpresaController;
-use App\Http\Controllers\ChatController;
-use App\Http\Controllers\TagController;
-use App\Http\Controllers\FolderController;
-use App\Http\Controllers\LibraryEntryController;
-use App\Http\Controllers\LeadController; 
-use App\Http\Controllers\HomepageController;
-use App\Http\Controllers\TokensController;
-use App\Http\Controllers\Admin\DashboardController; 
-use App\Http\Controllers\Admin\LessonController as AdminLessonController; 
-use App\Http\Controllers\LandingPageController;
-use App\Http\Controllers\AgendaController;
-use App\Http\Controllers\AgendaPublicaController; 
-use App\Http\Controllers\LessonPublicController;
-use App\Http\Controllers\ProxyBanController;
-use App\Http\Controllers\Admin\WebhookRequestController;
-use App\Http\Controllers\Admin\InstanceReportController;
-use App\Http\Controllers\Admin\SystemErrorLogController;
-use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\AssistantLeadController;
 use App\Http\Controllers\Admin\AssistantController as AdminAssistantController;
-use App\Http\Controllers\UazapiController;
+use App\Http\Controllers\Admin\AssistantLeadController;
+use App\Http\Controllers\Admin\ClienteLeadController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\InstanceReportController;
+use App\Http\Controllers\Admin\LeadEmpresaController;
+use App\Http\Controllers\Admin\LessonController as AdminLessonController;
+use App\Http\Controllers\Admin\LogFileController;
 use App\Http\Controllers\Admin\PlanController;
 use App\Http\Controllers\Admin\PromptHelpController;
-use App\Http\Controllers\Admin\LogFileController;
+use App\Http\Controllers\Admin\SystemErrorLogController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\WebhookRequestController;
 use App\Http\Controllers\Agencia\AgenciaAssistantController;
 use App\Http\Controllers\Agencia\AgenciaClienteController;
 use App\Http\Controllers\Agencia\AgenciaConexaoController;
 use App\Http\Controllers\Agencia\AgenciaCredentialController;
-use App\Http\Controllers\Agencia\AgenciaKommoController;
 use App\Http\Controllers\Agencia\AgenciaGrupoController;
+use App\Http\Controllers\Agencia\AgenciaKommoController;
 use App\Http\Controllers\Agencia\AgenciaProfileController;
-use App\Http\Controllers\Agencia\AgenciaSettingsController;
 use App\Http\Controllers\Agencia\AgenciaSequenceController;
-use App\Http\Controllers\Agencia\LeadWebhookLinkController;
-use App\Http\Controllers\Agencia\WhatsappCloudController;
-use App\Http\Controllers\Agencia\WhatsappCloudCustomFieldController;
-use App\Http\Controllers\Agencia\ScheduledMessageController as AgenciaScheduledMessageController;
+use App\Http\Controllers\Agencia\AgenciaSettingsController;
 use App\Http\Controllers\Agencia\AgenciaTagController;
 use App\Http\Controllers\Agencia\ClienteLeadController as AgenciaClienteLeadController;
 use App\Http\Controllers\Agencia\ImageController as AgenciaImageController;
+use App\Http\Controllers\Agencia\LeadWebhookLinkController;
 use App\Http\Controllers\Agencia\LibraryEntryController as AgenciaLibraryEntryController;
 use App\Http\Controllers\Agencia\OpenAIController as AgenciaOpenAIController;
+use App\Http\Controllers\Agencia\ScheduledMessageController as AgenciaScheduledMessageController;
+use App\Http\Controllers\Agencia\WhatsappCloudController;
+use App\Http\Controllers\Agencia\WhatsappCloudCustomFieldController;
+use App\Http\Controllers\AgendaController;
+use App\Http\Controllers\AgendaPublicaController;
+use App\Http\Controllers\AssistantController;
+use App\Http\Controllers\ChatController;
+use App\Http\Controllers\Cliente\ClienteAssistantController;
 use App\Http\Controllers\Cliente\ClienteAuthController;
-use App\Http\Controllers\Cliente\ClienteDashboardController;
 use App\Http\Controllers\Cliente\ClienteCredentialController;
 use App\Http\Controllers\Cliente\ClienteCrmController;
 use App\Http\Controllers\Cliente\ClienteCustomFieldController;
+use App\Http\Controllers\Cliente\ClienteDashboardController;
 use App\Http\Controllers\Cliente\ClienteGrupoController;
-use App\Http\Controllers\Cliente\ClienteLeadWebhookLinkController;
-use App\Http\Controllers\Cliente\ClienteScheduledMessageController;
 use App\Http\Controllers\Cliente\ClienteLeadController as ClienteClienteLeadController;
+use App\Http\Controllers\Cliente\ClienteLeadWebhookLinkController;
 use App\Http\Controllers\Cliente\ClientePasswordController;
-use App\Http\Controllers\Cliente\ConexaoClienteController;
-use App\Http\Controllers\Cliente\ClienteAssistantController;
-use App\Http\Controllers\Cliente\LibraryClienteController;
-use App\Http\Controllers\Cliente\ClienteTagController;
+use App\Http\Controllers\Cliente\ClienteScheduledMessageController;
 use App\Http\Controllers\Cliente\ClienteSequenceController;
-
+use App\Http\Controllers\Cliente\ClienteTagController;
+use App\Http\Controllers\Cliente\ConexaoClienteController;
+use App\Http\Controllers\Cliente\LibraryClienteController;
+use App\Http\Controllers\CredentialController;
+use App\Http\Controllers\FolderController;
+use App\Http\Controllers\HomepageController;
+use App\Http\Controllers\InstanceController;
+use App\Http\Controllers\LandingPageController;
+use App\Http\Controllers\LeadController;
+use App\Http\Controllers\LessonPublicController;
+use App\Http\Controllers\LibraryEntryController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProxyBanController;
+use App\Http\Controllers\TagController;
+use App\Http\Controllers\TokensController;
+use App\Http\Controllers\UazapiController;
+use App\Models\Credential;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/conv/{conv_id}', [ProfileController::class, 'conv']);
 
-//PÁGINAS PUBLICAS
-Route::get('/', function () { return redirect()->route('login'); })->name('homepage');
-Route::get('/politica', function () {return view('homepage.politica');})->name('politica');
-Route::get('/bio', function () {return view('homepage.bio');});
-Route::get('/grupo-black', function () {return view('homepage.blackfriday');});
+// PÁGINAS PUBLICAS
+Route::get('/', function () {
+    return redirect()->route('login');
+})->name('homepage');
+Route::get('/politica', function () {
+    return view('homepage.politica');
+})->name('politica');
+Route::get('/bio', function () {
+    return view('homepage.bio');
+});
+Route::get('/grupo-black', function () {
+    return view('homepage.blackfriday');
+});
 Route::get('/lessons/for-page', [LessonPublicController::class, 'forPage'])->name('lessons.for-page');
 
-//PÁGINAS COM OS PLANOS
-Route::get('/facilitai', function () {return redirect()->route('lp4');});
-Route::get('/planos', function () {return redirect()->route('lp4');});
+// PÁGINAS COM OS PLANOS
+Route::get('/facilitai', function () {
+    return redirect()->route('lp4');
+});
+Route::get('/planos', function () {
+    return redirect()->route('lp4');
+});
 
-//MODELOS DE PÁGINAS COM PLANOS
+// MODELOS DE PÁGINAS COM PLANOS
 // Rotas p?blicas de landing pages (arquivo dedicado)
-require __DIR__ . '/lp.php';
+require __DIR__.'/lp.php';
 
 // Nova página pública de planos com o layout FacilitAI
 Route::get('/facilitai-pricing', [HomepageController::class, 'facilitaiPricing'])->name('facilitai.pricing');
@@ -92,19 +103,27 @@ Route::get('/cidade/{city}', function (string $city) {
     return view('cidade', ['city' => $city]);
 })->name('cidade.show');
 
-//LANDING PAGES
-Route::get('/lp/adv', function () {return view('lp.adv1');});
-Route::get('/lp/odonto', function () {return view('lp.ondonto');});
+// LANDING PAGES
+Route::get('/lp/adv', function () {
+    return view('lp.adv1');
+});
+Route::get('/lp/odonto', function () {
+    return view('lp.ondonto');
+});
 Route::get('/workshop', [LandingPageController::class, 'workshop'])->name('workshop');
-Route::get('/workshop-b', function () {return view('lp.workshop-v10');});
-Route::get('/exemplos/pizza', function () {return view('exemplos.pizza');});
+Route::get('/workshop-b', function () {
+    return view('lp.workshop-v10');
+});
+Route::get('/exemplos/pizza', function () {
+    return view('exemplos.pizza');
+});
 Route::get('/biblioteca/{slug}', [LibraryEntryController::class, 'publicShow'])->name('library.public.show');
 Route::get('/library/public/{token}', [LibraryEntryController::class, 'publicEditForm'])->name('library.public.edit');
 Route::post('/library/public/{token}/auth', [LibraryEntryController::class, 'publicAuthenticate'])->middleware('throttle:5,1')->name('library.public.auth');
 Route::post('/library/public/{token}/logout', [LibraryEntryController::class, 'publicLogout'])->name('library.public.logout');
 Route::post('/library/public/{token}', [LibraryEntryController::class, 'publicUpdate'])->name('library.public.update');
 
-//AGENDAS PÚBLICAS
+// AGENDAS PÚBLICAS
 // Rota para a página pública de agendamento (o ponto de entrada do seu agendador em Blade/Alpine)
 Route::get('/agendamento/{slug}', [AgendaPublicaController::class, 'index'])->name('agenda.publica');
 // API para buscar as disponibilidades (via JS)
@@ -113,14 +132,9 @@ Route::get('/api/agendamento/{slug}/disponibilidades', [AgendaPublicaController:
 Route::post('/api/agendamento/{slug}/agendar', [AgendaPublicaController::class, 'storeAgendamento']);
 Route::get('/api/agendamento/{slug}/horarios', [App\Http\Controllers\AgendaPublicaController::class, 'getHorarios']);
 
-
-
-
-
 // ROTA PARA CAPTURA DE LEADS
 Route::post('/leads', [LeadController::class, 'store'])->name('leads.store');
 Route::view('obrigado', 'homepage.obrigado-cadastro')->name('obrigado');
-
 
 // =============================================================
 // DASHBOARD CLIENTE FINAL
@@ -130,10 +144,8 @@ Route::match(['get', 'post'], '/dash/{id}', [InstanceController::class, 'dashboa
 Route::get('/instances/{instance}/qrcode-data', [InstanceController::class, 'getQrCodeData'])->name('instances.qrcode_data');
 // Rota para buscar apenas o status da conexão em formato JSON
 Route::get('/instances/{instance}/status-data', [InstanceController::class, 'getConnectionStatusData'])->name('instances.status_data');
-    Route::post('/chats/{chat}/marcar-atendido', [ChatController::class, 'marcarAtendido'])->name('chat.marcarAtendido');
-    Route::get('/chats/conv/{conv}', [ChatController::class, 'showByConv'])->name('chats.conv');
-
-
+Route::post('/chats/{chat}/marcar-atendido', [ChatController::class, 'marcarAtendido'])->name('chat.marcarAtendido');
+Route::get('/chats/conv/{conv}', [ChatController::class, 'showByConv'])->name('chats.conv');
 
 // =============================================================
 // ROTAS DA ÁREA ADMINISTRATIVA
@@ -235,7 +247,7 @@ Route::middleware('auth', 'verified')->group(function () {
         Route::get('/proxy-ban', [ProxyBanController::class, 'index'])->name('proxy-ban.index');
         Route::delete('/proxy-ban/{ban}', [ProxyBanController::class, 'destroy'])->name('proxy-ban.destroy');
     });
-    
+
     // AGENDAS E DISPONIBILIDADES
     Route::post('/agendas/{agenda}/gerar-disponibilidades', [AgendaController::class, 'gerarDisponibilidades'])->name('agendas.gerarDisponibilidades');
     Route::get('/agendas/{agenda}/gerenciar', [AgendaController::class, 'gerenciar'])->name('agendas.gerenciar');
@@ -244,22 +256,21 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::patch('/disponibilidades/{id}', [AgendaController::class, 'atualizarDisponibilidade'])->name('disponibilidades.update');
     Route::post('/disponibilidades/acoes-massa', [AgendaController::class, 'acoesEmMassa'])->name('disponibilidades.acoes-massa');
 
-
     // Resource deve vir *por último*
     Route::resource('agendas', AgendaController::class)->except(['show']);
 
-    //PROFILE
+    // PROFILE
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    //PASTAS DE IMAGENS
+    // PASTAS DE IMAGENS
     Route::resource('folders', FolderController::class)->only(['store', 'update', 'destroy']);
 
-    //BIBLIOTECA DE TEXTOS
+    // BIBLIOTECA DE TEXTOS
     Route::resource('library', LibraryEntryController::class)->except(['show']);
 
-    //CHATS
+    // CHATS
     Route::get('/chats/export', [ChatController::class, 'export'])->name('chats.export');
     Route::post('/chats/bulk-atendido', [ChatController::class, 'bulkMarkAttended'])->name('chats.bulk_attended');
     Route::post('/chats/import', [ChatController::class, 'import'])->name('chats.import');
@@ -270,7 +281,6 @@ Route::middleware('auth', 'verified')->group(function () {
     Route::resource('chats', ChatController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::resource('tags', TagController::class)->only(['index', 'store', 'update', 'destroy']);
 
-
     // INSTANCIAS
     // Nova rota POST para a criação direta
     Route::post('/instances/create-direct', [InstanceController::class, 'storeDirect'])->name('instances.store_direct');
@@ -279,8 +289,8 @@ Route::middleware('auth', 'verified')->group(function () {
     // Mantém as outras rotas do resource, mas remove a 'create' que não usamos mais
     Route::resource('instances', InstanceController::class)->except(['create']);
 
-    //COMPRAR TOKENS
-    Route::get('/tokens/comprar', [TokensController::class, 'comprar'])->name('tokens.comprar');;
+    // COMPRAR TOKENS
+    Route::get('/tokens/comprar', [TokensController::class, 'comprar'])->name('tokens.comprar');
     Route::post('/tokens/payment', [TokensController::class, 'createPayment'])->name('tokens.createPayment');
     Route::get('/payments', [TokensController::class, 'index'])->name('payments.index');
 
@@ -290,7 +300,7 @@ Route::middleware('auth', 'verified')->group(function () {
 
     // ASSISTENTES
     Route::get('/assistants', [AssistantController::class, 'index'])->name('assistants.index');
-    //Route::post('/assistants/fetch', [AssistantController::class, 'fetchAssistants'])->name('assistants.fetch');
+    // Route::post('/assistants/fetch', [AssistantController::class, 'fetchAssistants'])->name('assistants.fetch');
     Route::delete('/assistants/{assistant}', [AssistantController::class, 'destroy'])->name('assistants.destroy');
     // Rota GET para mostrar a página do assistente de criação (o quiz)
     Route::get('/assistant-builder', [AssistantController::class, 'showBuilder'])->name('assistants.builder');
@@ -309,8 +319,8 @@ Route::get('/test-credential/{id}', function ($id) {
     // Busca a credencial sem verificar o dono (só para nosso teste)
     $credential = Credential::find($id);
 
-    if (!$credential) {
-        return "Credencial não encontrada.";
+    if (! $credential) {
+        return 'Credencial não encontrada.';
     }
 
     // Usa dd() (die and dump) para mostrar o conteúdo descriptografado e parar a execução
@@ -333,12 +343,12 @@ Route::middleware('auth')->prefix('agencia')->name('agencia.')->group(function (
             ], 422);
         }
 
-        $asaas = new \App\Services\AsaasService();
+        $asaas = new \App\Services\AsaasService;
         $response = $asaas->getSubscriptionPaymentLink($user->asaas_sub, ['status' => 'PENDING']);
 
-        if (!$response || !empty($response['error'])) {
+        if (! $response || ! empty($response['error'])) {
             $fallback = $asaas->getSubscriptionPaymentLink($user->asaas_sub);
-            if ($fallback && empty($fallback['error']) && !empty($fallback['invoice_url'])) {
+            if ($fallback && empty($fallback['error']) && ! empty($fallback['invoice_url'])) {
                 return response()->json([
                     'ok' => true,
                     'url' => $fallback['invoice_url'],
@@ -521,6 +531,7 @@ Route::prefix('cliente')->name('cliente.')->group(function () {
         Route::delete('grupos/{grupoConjunto}', [ClienteGrupoController::class, 'destroy'])->name('grupos.destroy');
         Route::get('grupos/conexoes/{conexao}/groups', [ClienteGrupoController::class, 'connectionGroups'])->name('grupos.conexoes.groups');
         Route::get('grupos/conexoes/{conexao}/group-invite-info', [ClienteGrupoController::class, 'connectionGroupInviteInfo'])->name('grupos.conexoes.group-invite');
+        Route::get('grupos/{grupoConjunto}/mensagens/status', [ClienteGrupoController::class, 'messageStatuses'])->name('grupos.mensagens.status');
         Route::post('grupos/{grupoConjunto}/mensagens', [ClienteGrupoController::class, 'storeMessage'])->name('grupos.mensagens.store');
         Route::patch('grupos/{grupoConjunto}/mensagens/{grupoConjuntoMensagem}', [ClienteGrupoController::class, 'updateMessage'])->name('grupos.mensagens.update');
         Route::delete('grupos/{grupoConjunto}/mensagens/{grupoConjuntoMensagem}', [ClienteGrupoController::class, 'destroyMessage'])->name('grupos.mensagens.destroy');

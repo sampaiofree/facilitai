@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\ExecuteGrupoConjuntoMensagemJob;
 use App\Models\Cliente;
 use App\Models\Conexao;
 use App\Models\GrupoConjunto;
@@ -7,7 +8,6 @@ use App\Models\GrupoConjuntoItem;
 use App\Models\GrupoConjuntoMensagem;
 use App\Models\User;
 use App\Models\WhatsappApi;
-use App\Jobs\ExecuteGrupoConjuntoMensagemJob;
 use App\Services\UazapiGruposService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
@@ -17,7 +17,7 @@ function clienteGruposMakeCliente(User $user, array $attributes = []): Cliente
 {
     return Cliente::create(array_merge([
         'user_id' => $user->id,
-        'nome' => 'Cliente ' . fake()->unique()->numerify('###'),
+        'nome' => 'Cliente '.fake()->unique()->numerify('###'),
         'email' => fake()->unique()->safeEmail(),
         'telefone' => '11999999999',
         'password' => 'secret123',
@@ -42,10 +42,10 @@ function clienteGruposMakeUazapiProvider(array $attributes = []): WhatsappApi
 function clienteGruposMakeUazapiConexao(Cliente $cliente, WhatsappApi $provider, array $attributes = []): Conexao
 {
     return Conexao::create(array_merge([
-        'name' => 'Conexao ' . fake()->unique()->numerify('###'),
+        'name' => 'Conexao '.fake()->unique()->numerify('###'),
         'cliente_id' => $cliente->id,
         'whatsapp_api_id' => $provider->id,
-        'whatsapp_api_key' => 'token-' . fake()->unique()->numerify('####'),
+        'whatsapp_api_key' => 'token-'.fake()->unique()->numerify('####'),
         'status' => 'active',
         'is_active' => true,
     ], $attributes));
@@ -56,7 +56,7 @@ function clienteGruposMakeConjunto(User $user, Conexao $conexao, array $attribut
     return GrupoConjunto::create(array_merge([
         'user_id' => $user->id,
         'conexao_id' => $conexao->id,
-        'name' => 'Conjunto ' . fake()->unique()->numerify('###'),
+        'name' => 'Conjunto '.fake()->unique()->numerify('###'),
     ], $attributes));
 }
 
@@ -326,6 +326,338 @@ test('cliente envia acao imediata para fila usando owner user da agencia', funct
     Queue::assertPushedOn('processarconversa', ExecuteGrupoConjuntoMensagemJob::class);
 });
 
+test('cliente cria titulos sequenciais imediatos e programados na ordem alfabetica persistida', function () {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $provider = clienteGruposMakeUazapiProvider();
+    $cliente = clienteGruposMakeCliente($user);
+    $conexao = clienteGruposMakeUazapiConexao($cliente, $provider);
+    $conjunto = clienteGruposMakeConjunto($user, $conexao, ['name' => 'Conjunto Sequencial']);
+    clienteGruposAddItem($conjunto, [
+        'group_jid' => '120363222222222222@g.us',
+        'group_name' => 'Grupo Zeta',
+    ]);
+    clienteGruposAddItem($conjunto, [
+        'group_jid' => '120363111111111111@g.us',
+        'group_name' => 'Grupo Alpha',
+    ]);
+
+    $this->actingAs($cliente, 'client')->post(route('cliente.grupos.mensagens.store', $conjunto), [
+        'action_type' => 'update_group_name',
+        'group_name' => '  Grupo  ',
+        'group_name_sequence' => '1',
+        'group_name_sequence_start' => 23,
+        'send_type' => 'now',
+    ])->assertRedirect(route('cliente.grupos.index', [
+        'conjunto_id' => $conjunto->id,
+        'tab' => 'messages',
+    ]));
+
+    $immediate = GrupoConjuntoMensagem::query()->latest('id')->firstOrFail();
+
+    expect($immediate->payload)->toMatchArray([
+        'group_name' => 'Grupo',
+        'group_name_sequence' => true,
+        'group_name_sequence_start' => 23,
+    ]);
+    expect($immediate->recipients)->toBe([
+        ['jid' => '120363111111111111@g.us', 'name' => 'Grupo Alpha'],
+        ['jid' => '120363222222222222@g.us', 'name' => 'Grupo Zeta'],
+    ]);
+    expect($immediate->toEditorPayload())->toMatchArray([
+        'group_name' => 'Grupo',
+        'group_name_sequence' => true,
+        'group_name_sequence_start' => 23,
+    ]);
+
+    $scheduledFor = Carbon::now('America/Sao_Paulo')->addHours(2)->format('Y-m-d\TH:i');
+    $this->actingAs($cliente, 'client')->post(route('cliente.grupos.mensagens.store', $conjunto), [
+        'action_type' => 'update_group_name',
+        'group_name' => 'Turma',
+        'group_name_sequence' => '1',
+        'group_name_sequence_start' => 1,
+        'send_type' => 'scheduled',
+        'scheduled_for' => $scheduledFor,
+    ])->assertRedirect();
+
+    $scheduled = GrupoConjuntoMensagem::query()->latest('id')->firstOrFail();
+    expect($scheduled->status)->toBe('pending');
+    expect($scheduled->payload)->toMatchArray([
+        'group_name' => 'Turma',
+        'group_name_sequence' => true,
+        'group_name_sequence_start' => 1,
+    ]);
+    Queue::assertPushed(ExecuteGrupoConjuntoMensagemJob::class, 1);
+});
+
+test('cliente preserva a sequencia ao editar uma acao pendente', function () {
+    $user = User::factory()->create();
+    $provider = clienteGruposMakeUazapiProvider();
+    $cliente = clienteGruposMakeCliente($user);
+    $conexao = clienteGruposMakeUazapiConexao($cliente, $provider);
+    $conjunto = clienteGruposMakeConjunto($user, $conexao);
+    clienteGruposAddItem($conjunto);
+
+    $mensagem = GrupoConjuntoMensagem::create([
+        'user_id' => $user->id,
+        'created_by_user_id' => $user->id,
+        'grupo_conjunto_id' => $conjunto->id,
+        'conexao_id' => $conexao->id,
+        'mensagem' => 'Título sequencial',
+        'action_type' => 'update_group_name',
+        'payload' => [
+            'group_name' => 'Grupo',
+            'group_name_sequence' => true,
+            'group_name_sequence_start' => 23,
+        ],
+        'dispatch_type' => 'scheduled',
+        'scheduled_for' => Carbon::now('UTC')->addHours(2),
+        'status' => 'pending',
+        'recipients' => [
+            ['jid' => '120363153742561022@g.us', 'name' => 'Grupo A'],
+        ],
+    ]);
+
+    expect($mensagem->toEditorPayload())->toMatchArray([
+        'group_name_sequence' => true,
+        'group_name_sequence_start' => 23,
+    ]);
+
+    $scheduledFor = Carbon::now('America/Sao_Paulo')->addHours(3)->format('Y-m-d\TH:i');
+    $this->actingAs($cliente, 'client')->patch(route('cliente.grupos.mensagens.update', [
+        'grupoConjunto' => $conjunto,
+        'grupoConjuntoMensagem' => $mensagem,
+    ]), [
+        'action_type' => 'update_group_name',
+        'group_name' => 'Novo Grupo',
+        'group_name_sequence' => '1',
+        'group_name_sequence_start' => 23,
+        'send_type' => 'scheduled',
+        'scheduled_for' => $scheduledFor,
+    ])->assertRedirect();
+
+    expect($mensagem->fresh()->payload)->toMatchArray([
+        'group_name' => 'Novo Grupo',
+        'group_name_sequence' => true,
+        'group_name_sequence_start' => 23,
+    ]);
+});
+
+test('cliente bloqueia sequencia cujo maior titulo ultrapassa 25 caracteres', function () {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $provider = clienteGruposMakeUazapiProvider();
+    $cliente = clienteGruposMakeCliente($user);
+    $conexao = clienteGruposMakeUazapiConexao($cliente, $provider);
+    $conjunto = clienteGruposMakeConjunto($user, $conexao);
+    clienteGruposAddItem($conjunto, ['group_jid' => '120363111111111111@g.us']);
+    clienteGruposAddItem($conjunto, ['group_jid' => '120363222222222222@g.us']);
+
+    $response = $this->actingAs($cliente, 'client')
+        ->from(route('cliente.grupos.index', ['conjunto_id' => $conjunto->id, 'tab' => 'messages']))
+        ->post(route('cliente.grupos.mensagens.store', $conjunto), [
+            'action_type' => 'update_group_name',
+            'group_name' => str_repeat('A', 21),
+            'group_name_sequence' => '1',
+            'group_name_sequence_start' => 99,
+            'send_type' => 'now',
+        ]);
+
+    $response->assertSessionHasErrors([
+        'group_name' => 'Para esta sequência, o título-base pode ter no máximo 20 caracteres, pois o maior sufixo será #100.',
+    ]);
+    expect(GrupoConjuntoMensagem::query()->count())->toBe(0);
+    Queue::assertNothingPushed();
+});
+
+test('cliente sem sequencia mantem o titulo unico legado', function () {
+    Queue::fake();
+
+    $user = User::factory()->create();
+    $provider = clienteGruposMakeUazapiProvider();
+    $cliente = clienteGruposMakeCliente($user);
+    $conexao = clienteGruposMakeUazapiConexao($cliente, $provider);
+    $conjunto = clienteGruposMakeConjunto($user, $conexao);
+    clienteGruposAddItem($conjunto);
+
+    $this->actingAs($cliente, 'client')->post(route('cliente.grupos.mensagens.store', $conjunto), [
+        'action_type' => 'update_group_name',
+        'group_name' => 'Título único',
+        'send_type' => 'now',
+    ])->assertRedirect();
+
+    $mensagem = GrupoConjuntoMensagem::query()->firstOrFail();
+    expect($mensagem->payload)->toBe(['group_name' => 'Título único']);
+    expect($mensagem->toEditorPayload())->toMatchArray([
+        'group_name_sequence' => false,
+        'group_name_sequence_start' => 1,
+    ]);
+});
+
+test('cliente consulta falhas amigaveis das acoes do proprio conjunto', function () {
+    $user = User::factory()->create();
+    $provider = clienteGruposMakeUazapiProvider();
+    $cliente = clienteGruposMakeCliente($user);
+    $conexao = clienteGruposMakeUazapiConexao($cliente, $provider);
+    $conjunto = clienteGruposMakeConjunto($user, $conexao);
+
+    $mensagem = GrupoConjuntoMensagem::create([
+        'user_id' => $user->id,
+        'created_by_user_id' => $user->id,
+        'grupo_conjunto_id' => $conjunto->id,
+        'conexao_id' => $conexao->id,
+        'mensagem' => 'Ação com falha parcial',
+        'action_type' => 'send_text',
+        'payload' => ['text' => 'Ação com falha parcial'],
+        'dispatch_type' => 'now',
+        'status' => 'failed',
+        'recipients' => [],
+        'result' => [
+            'items' => [
+                [
+                    'jid' => '120363153742561022@g.us',
+                    'name' => 'Grupo sem autorização',
+                    'status' => 'failed',
+                    'http_status' => 401,
+                    'error' => 'segredo bruto unauthorized',
+                ],
+                [
+                    'jid' => '120363339858396166@g.us',
+                    'name' => 'Grupo limitado',
+                    'status' => 'failed',
+                    'http_status' => 429,
+                    'error' => 'segredo bruto rate limit',
+                ],
+                [
+                    'jid' => '120363000000000000@g.us',
+                    'name' => 'Grupo enviado',
+                    'status' => 'sent',
+                    'http_status' => 200,
+                ],
+            ],
+        ],
+        'sent_count' => 1,
+        'failed_count' => 2,
+        'failed_at' => Carbon::now('UTC'),
+        'error_message' => 'segredo bruto do provedor',
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')
+        ->getJson(route('cliente.grupos.mensagens.status', $conjunto));
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('has_processing', false)
+        ->assertJsonPath('data.0.id', $mensagem->id)
+        ->assertJsonPath('data.0.status', 'failed')
+        ->assertJsonPath('data.0.status_label', 'Falhou')
+        ->assertJsonPath('data.0.sent_count', 1)
+        ->assertJsonPath('data.0.failed_count', 2)
+        ->assertJsonPath('data.0.failure.message', 'A conexão não está autorizada para executar esta ação. Verifique a conexão e tente novamente.')
+        ->assertJsonPath('data.0.failure.items.0.name', 'Grupo sem autorização')
+        ->assertJsonPath('data.0.failure.items.0.http_status', 401)
+        ->assertJsonPath('data.0.failure.items.1.message', 'O limite temporário de requisições foi atingido. Tente novamente em alguns instantes.')
+        ->assertJsonMissing(['name' => 'Grupo enviado']);
+
+    $response->assertDontSee('segredo bruto', false);
+});
+
+test('endpoint de status usa fallback seguro e informa processamento', function () {
+    $user = User::factory()->create();
+    $provider = clienteGruposMakeUazapiProvider();
+    $cliente = clienteGruposMakeCliente($user);
+    $conexao = clienteGruposMakeUazapiConexao($cliente, $provider);
+    $conjunto = clienteGruposMakeConjunto($user, $conexao);
+
+    GrupoConjuntoMensagem::create([
+        'user_id' => $user->id,
+        'created_by_user_id' => $user->id,
+        'grupo_conjunto_id' => $conjunto->id,
+        'conexao_id' => $conexao->id,
+        'mensagem' => 'Falha do job',
+        'dispatch_type' => 'now',
+        'status' => 'failed',
+        'recipients' => [],
+        'result' => ['items' => 'resultado legado inválido'],
+        'error_message' => '/var/www/app segredo interno da exceção',
+    ]);
+
+    GrupoConjuntoMensagem::create([
+        'user_id' => $user->id,
+        'created_by_user_id' => $user->id,
+        'grupo_conjunto_id' => $conjunto->id,
+        'conexao_id' => $conexao->id,
+        'mensagem' => 'Na fila',
+        'dispatch_type' => 'now',
+        'status' => 'queued',
+        'recipients' => [],
+    ]);
+
+    $response = $this->actingAs($cliente, 'client')
+        ->getJson(route('cliente.grupos.mensagens.status', $conjunto));
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('has_processing', true)
+        ->assertJsonPath('data.1.failure.message', 'Não foi possível identificar o motivo da falha.')
+        ->assertJsonPath('data.1.failure.items', []);
+
+    $response->assertDontSee('segredo interno', false);
+});
+
+test('cliente nao consulta status de conjunto de outro cliente', function () {
+    $user = User::factory()->create();
+    $provider = clienteGruposMakeUazapiProvider();
+    $clienteA = clienteGruposMakeCliente($user);
+    $clienteB = clienteGruposMakeCliente($user);
+    $conexaoB = clienteGruposMakeUazapiConexao($clienteB, $provider);
+    $conjuntoB = clienteGruposMakeConjunto($user, $conexaoB);
+
+    $this->actingAs($clienteA, 'client')
+        ->getJson(route('cliente.grupos.mensagens.status', $conjuntoB))
+        ->assertNotFound();
+});
+
+test('detalhes de falha aparecem apenas na view do cliente', function () {
+    $user = User::factory()->create();
+    $provider = clienteGruposMakeUazapiProvider();
+    $cliente = clienteGruposMakeCliente($user);
+    $conexao = clienteGruposMakeUazapiConexao($cliente, $provider);
+    $conjunto = clienteGruposMakeConjunto($user, $conexao);
+
+    GrupoConjuntoMensagem::create([
+        'user_id' => $user->id,
+        'created_by_user_id' => $user->id,
+        'grupo_conjunto_id' => $conjunto->id,
+        'conexao_id' => $conexao->id,
+        'mensagem' => 'Falhou',
+        'dispatch_type' => 'now',
+        'status' => 'failed',
+        'recipients' => [],
+        'failed_count' => 1,
+        'error_message' => 'timeout',
+    ]);
+
+    $this->actingAs($cliente, 'client')
+        ->get(route('cliente.grupos.index', ['conjunto_id' => $conjunto->id, 'tab' => 'messages']))
+        ->assertOk()
+        ->assertSee('id="groupFailureModal"', false)
+        ->assertSee('id="groupMessageGroupNameSequence"', false)
+        ->assertSee('Adicionar sequência automática')
+        ->assertSee('data-view-group-failure', false)
+        ->assertSee(route('cliente.grupos.mensagens.status', $conjunto), false);
+
+    $this->actingAs($user)
+        ->get(route('agencia.grupos.index', ['conjunto_id' => $conjunto->id, 'tab' => 'messages']))
+        ->assertOk()
+        ->assertDontSee('id="groupFailureModal"', false)
+        ->assertDontSee('id="groupMessageGroupNameSequence"', false)
+        ->assertDontSee('Adicionar sequência automática')
+        ->assertDontSee('data-view-group-failure', false);
+});
+
 test('cliente sem permissao nao ve menu nem acessa grupos diretamente', function () {
     $user = User::factory()->create();
     $provider = clienteGruposMakeUazapiProvider();
@@ -345,5 +677,9 @@ test('cliente sem permissao nao ve menu nem acessa grupos diretamente', function
 
     $this->actingAs($cliente, 'client')
         ->get(route('cliente.grupos.conexoes.groups', $conexao))
+        ->assertForbidden();
+
+    $this->actingAs($cliente, 'client')
+        ->get(route('cliente.grupos.mensagens.status', $conjunto))
         ->assertForbidden();
 });

@@ -13,9 +13,13 @@ class GrupoConjuntoMensagem extends Model
     protected $table = 'grupo_conjunto_mensagens';
 
     public const ACTION_SEND_TEXT = 'send_text';
+
     public const ACTION_SEND_MEDIA = 'send_media';
+
     public const ACTION_UPDATE_GROUP_NAME = 'update_group_name';
+
     public const ACTION_UPDATE_GROUP_DESCRIPTION = 'update_group_description';
+
     public const ACTION_UPDATE_GROUP_IMAGE = 'update_group_image';
 
     public const ACTION_TYPES = [
@@ -115,7 +119,7 @@ class GrupoConjuntoMensagem extends Model
 
         return match ($this->resolveActionType()) {
             self::ACTION_SEND_MEDIA => $this->buildSendMediaSummary($payload, $fallback),
-            self::ACTION_UPDATE_GROUP_NAME => $this->fieldSummary($payload, 'group_name', $fallback),
+            self::ACTION_UPDATE_GROUP_NAME => $this->buildGroupNameSummary($payload, $fallback),
             self::ACTION_UPDATE_GROUP_DESCRIPTION => $this->fieldSummary($payload, 'group_description', $fallback),
             self::ACTION_UPDATE_GROUP_IMAGE => $this->fieldSummary($payload, 'group_image_url', $fallback),
             default => $this->buildSendTextSummary($payload, $fallback),
@@ -138,6 +142,8 @@ class GrupoConjuntoMensagem extends Model
             'media_url' => trim((string) ($payload['media_url'] ?? '')),
             'caption' => trim((string) ($payload['caption'] ?? '')),
             'group_name' => trim((string) ($payload['group_name'] ?? '')),
+            'group_name_sequence' => $this->payloadBoolean($payload, 'group_name_sequence'),
+            'group_name_sequence_start' => max(1, (int) ($payload['group_name_sequence_start'] ?? 1)),
             'group_description' => trim((string) ($payload['group_description'] ?? '')),
             'group_image_url' => trim((string) ($payload['group_image_url'] ?? '')),
             'mention_all' => $this->payloadBoolean($payload, 'mention_all'),
@@ -152,6 +158,19 @@ class GrupoConjuntoMensagem extends Model
         }
 
         return $fallback !== '' ? $fallback : '-';
+    }
+
+    private function buildGroupNameSummary(array $payload, string $fallback): string
+    {
+        $baseName = $this->fieldSummary($payload, 'group_name', $fallback);
+
+        if (! $this->payloadBoolean($payload, 'group_name_sequence')) {
+            return $baseName;
+        }
+
+        $sequenceStart = max(1, (int) ($payload['group_name_sequence_start'] ?? 1));
+
+        return "$baseName (#$sequenceStart em diante)";
     }
 
     private function buildSendMediaSummary(array $payload, string $fallback): string
@@ -177,7 +196,7 @@ class GrupoConjuntoMensagem extends Model
         }
 
         if ($caption !== '') {
-            $summary .= ' ' . Str::limit("($caption)", 120);
+            $summary .= ' '.Str::limit("($caption)", 120);
         }
         if ($this->payloadBoolean($payload, 'mention_all')) {
             $summary .= ' [@todos]';
@@ -190,7 +209,7 @@ class GrupoConjuntoMensagem extends Model
     {
         $summary = $this->fieldSummary($payload, 'text', $fallback);
         if ($this->payloadBoolean($payload, 'mention_all')) {
-            return $summary . ' [@todos]';
+            return $summary.' [@todos]';
         }
 
         return $summary;
