@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\ExecuteGrupoConjuntoMensagemJob;
+use App\Models\AgencySetting;
 use App\Models\Cliente;
 use App\Models\Conexao;
 use App\Models\GrupoConjunto;
@@ -285,6 +286,57 @@ test('cliente agenda acao registrando user e criador como dono da agencia', func
     expect($registro->status)->toBe('pending');
     expect($registro->dispatch_type)->toBe('scheduled');
     expect(data_get($registro->payload, 'text'))->toBe('Mensagem programada pelo cliente');
+});
+
+test('cliente visualiza horario programado no timezone da agencia quando app usa timezone local', function () {
+    $originalAppTimezone = config('app.timezone');
+    $originalPhpTimezone = date_default_timezone_get();
+
+    config(['app.timezone' => 'America/Sao_Paulo']);
+    date_default_timezone_set('America/Sao_Paulo');
+
+    try {
+        $user = User::factory()->create();
+        AgencySetting::create([
+            'user_id' => $user->id,
+            'timezone' => 'America/Sao_Paulo',
+        ]);
+
+        $provider = clienteGruposMakeUazapiProvider();
+        $cliente = clienteGruposMakeCliente($user);
+        $conexao = clienteGruposMakeUazapiConexao($cliente, $provider);
+        $conjunto = clienteGruposMakeConjunto($user, $conexao, ['name' => 'Conjunto Horario Local']);
+        clienteGruposAddItem($conjunto);
+
+        $scheduledForLocal = Carbon::now('America/Sao_Paulo')->addHours(2)->startOfMinute();
+        $scheduledForInput = $scheduledForLocal->format('Y-m-d\\TH:i');
+
+        $this->actingAs($cliente, 'client')->post(route('cliente.grupos.mensagens.store', $conjunto), [
+            'action_type' => 'send_text',
+            'text' => 'Mensagem no horario local',
+            'send_type' => 'scheduled',
+            'scheduled_for' => $scheduledForInput,
+        ])->assertRedirect();
+
+        $registro = GrupoConjuntoMensagem::query()
+            ->where('grupo_conjunto_id', $conjunto->id)
+            ->firstOrFail();
+
+        expect($registro->getRawOriginal('scheduled_for'))
+            ->toBe($scheduledForLocal->copy()->setTimezone('UTC')->format('Y-m-d H:i:s'));
+
+        $this->actingAs($cliente, 'client')
+            ->get(route('cliente.grupos.index', [
+                'conjunto_id' => $conjunto->id,
+                'tab' => 'messages',
+            ]))
+            ->assertOk()
+            ->assertSee($scheduledForLocal->format('d/m/Y H:i'))
+            ->assertSee('&quot;scheduled_for_input&quot;:&quot;'.$scheduledForInput.'&quot;', false);
+    } finally {
+        config(['app.timezone' => $originalAppTimezone]);
+        date_default_timezone_set($originalPhpTimezone);
+    }
 });
 
 test('cliente envia acao imediata para fila usando owner user da agencia', function () {

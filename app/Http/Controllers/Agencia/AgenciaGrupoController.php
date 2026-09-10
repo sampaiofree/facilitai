@@ -70,11 +70,11 @@ class AgenciaGrupoController extends Controller
                 ->get();
 
             $mensagens->transform(function (GrupoConjuntoMensagem $mensagem) use ($timezone) {
-                $mensagem->scheduled_for_label = $this->formatUtcDate($mensagem->scheduled_for, $timezone);
-                $mensagem->scheduled_for_input = $mensagem->scheduled_for?->copy()->setTimezone($timezone)->format('Y-m-d\\TH:i');
-                $mensagem->created_at_label = $this->formatUtcDate($mensagem->created_at, $timezone);
-                $mensagem->sent_at_label = $this->formatUtcDate($mensagem->sent_at, $timezone);
-                $mensagem->failed_at_label = $this->formatUtcDate($mensagem->failed_at, $timezone);
+                $mensagem->scheduled_for_label = $this->formatUtcColumn($mensagem, 'scheduled_for', $timezone);
+                $mensagem->scheduled_for_input = $this->formatUtcColumn($mensagem, 'scheduled_for', $timezone, 'Y-m-d\\TH:i');
+                $mensagem->created_at_label = $this->formatUtcColumn($mensagem, 'created_at', $timezone);
+                $mensagem->sent_at_label = $this->formatUtcColumn($mensagem, 'sent_at', $timezone);
+                $mensagem->failed_at_label = $this->formatUtcColumn($mensagem, 'failed_at', $timezone);
 
                 return $mensagem;
             });
@@ -770,17 +770,38 @@ class AgenciaGrupoController extends Controller
         return $scheduledForUtc;
     }
 
-    private function formatUtcDate($value, string $timezone): ?string
+    private function parseColumnAsUtc(GrupoConjuntoMensagem $mensagem, string $column): ?Carbon
     {
-        if (! $value) {
-            return null;
+        $raw = $mensagem->getRawOriginal($column);
+
+        if (is_string($raw) && trim($raw) !== '') {
+            try {
+                return Carbon::parse($raw, 'UTC');
+            } catch (\Throwable) {
+                // Usa o valor convertido pelo Eloquent como fallback.
+            }
         }
 
-        try {
-            return Carbon::parse($value, 'UTC')->setTimezone($timezone)->format('d/m/Y H:i');
-        } catch (\Throwable) {
-            return null;
+        $value = $mensagem->getAttribute($column);
+
+        if ($value instanceof Carbon) {
+            return $value->copy()->setTimezone('UTC');
         }
+
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value)->setTimezone('UTC');
+        }
+
+        return null;
+    }
+
+    private function formatUtcColumn(
+        GrupoConjuntoMensagem $mensagem,
+        string $column,
+        string $timezone,
+        string $format = 'd/m/Y H:i'
+    ): ?string {
+        return $this->parseColumnAsUtc($mensagem, $column)?->setTimezone($timezone)->format($format);
     }
 
     private function normalizeInputGroups(array $groups): array
