@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\LessonController as AdminLessonController;
 use App\Http\Controllers\Admin\LogFileController;
 use App\Http\Controllers\Admin\PlanController;
 use App\Http\Controllers\Admin\PromptHelpController;
+use App\Http\Controllers\Admin\StorageController;
 use App\Http\Controllers\Admin\SystemErrorLogController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\WebhookRequestController;
@@ -174,6 +175,10 @@ Route::middleware(['auth', 'admin'])->prefix('adm')->name('adm.')->group(functio
     Route::patch('conexoes/{conexao}', [App\Http\Controllers\Admin\ConexaoController::class, 'update'])->name('conexoes.update');
     Route::delete('conexoes/{conexao}', [App\Http\Controllers\Admin\ConexaoController::class, 'destroy'])->name('conexoes.destroy');
     Route::get('users', [UserController::class, 'index'])->name('users.index');
+    Route::get('storage', [StorageController::class, 'index'])->name('storage.index');
+    Route::get('storage/files/{file}', [StorageController::class, 'show'])->name('storage.show');
+    Route::delete('storage/files/{file}', [StorageController::class, 'destroy'])->name('storage.destroy');
+    Route::delete('storage', [StorageController::class, 'bulkDestroy'])->name('storage.bulk-destroy');
     Route::post('users', [UserController::class, 'store'])->name('users.store');
     Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
